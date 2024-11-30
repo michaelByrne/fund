@@ -1,0 +1,1 @@
+DROP INDEX member_paypal_email_idx;

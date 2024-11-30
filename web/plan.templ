@@ -1,0 +1,76 @@
+package web
+
+import "fmt"
+
+templ Head(clientID string) {
+	<head>
+		<title>BCO Mutual Aid</title>
+		<link rel="stylesheet" href="/static/normalize.css"/>
+		<link rel="stylesheet" href="/static/skeleton.css"/>
+		<script type="text/javascript" src="/static/htmx.min.js"></script>
+		<script type="text/javascript" src="/static/hyperscript.min.js"></script>
+		<script src={ fmt.Sprintf("https://www.paypal.com/sdk/js?client-id=%s&vault=true&intent=subscription", clientID) }></script>
+	</head>
+}
+
+templ Home(productID, clientID string) {
+	@Head(clientID)
+	<body>
+		<div class="container">
+			<div class="row">
+				<div class="twelve columns">
+					<h1>BCO Mutual Aid</h1>
+				</div>
+			</div>
+			<div class="row" id="donation">
+				@DonationForm(productID)
+			</div>
+		</div>
+	</body>
+}
+
+templ DonationForm(productID string) {
+	<form hx-post="/plan">
+		<div class="row">
+			<div class="four columns">
+				<label for="amount">Amount (USD)</label>
+				<input class="u-full-width" type="number" name="amount" min="1" max="1" id="amount"/>
+			</div>
+			<div class="four columns">
+				<label for="interval">Interval</label>
+				<select class="u-full-width" id="interval" name="interval">
+					<option value="WEEK">weekly</option>
+					<option value="MONTH">monthly</option>
+				</select>
+			</div>
+			<div class="four columns">
+			    <label for="bconame">BCO Name (optional)</label>
+			    <input class="u-full-width" type="text" name="bconame" id="bconame"/>
+			</div>
+		</div>
+		<input class="button-primary" type="submit" value="pay that shit!"/>
+	</form>
+}
+
+templ Paypal(planID int32, providerPlanID, amount, interval, bcoName string) {
+	<div class="payment-container">
+		@templ.JSONScript("provider-plan-id", providerPlanID)
+		@templ.JSONScript("plan-id", planID)
+		@templ.JSONScript("bco-name", bcoName)
+		@DonationConfirmation(amount, interval)
+		<div id="paypal-button-container"></div>
+		<script type="text/javascript" src="/static/paypal.js"></script>
+	</div>
+}
+
+templ ThankYou(firstName string) {
+    <h4>Thank you { firstName }!!!</h4>
+}
+
+templ DonationConfirmation(amount, interval string) {
+	<h4 class="donation-confirmation">You are giving ${ amount } every { interval }</h4>
+}
+
+templ ErrorMessage(message string) {
+	<span style="color: red">{ message }</span>
+}
