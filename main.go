@@ -103,7 +103,7 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 
 	db := stdlib.OpenDBFromPool(pool)
 
-	d, err := iofs.New(fs, "migrations")
+	d, err := iofs.New(fs, "pg/migrations")
 	if err != nil {
 		return err
 	}
