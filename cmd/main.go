@@ -113,7 +113,7 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 
 	donationHandler.Register(router)
 
-	router.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("public"))))
+	router.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("cmd/public"))))
 
 	server := &http.Server{
 		Addr:    ":8080",
