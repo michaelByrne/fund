@@ -7,8 +7,8 @@ templ Head(clientID string) {
 		<title>BCO Mutual Aid</title>
 		<link rel="stylesheet" href="/static/normalize.css"/>
 		<link rel="stylesheet" href="/static/skeleton.css"/>
-		<script type="text/javascript" src="/static/htmx.min.js"></script>
-		<script type="text/javascript" src="/static/hyperscript.min.js"></script>
+		<script type="application/javascript" src="/static/htmx.min.js"></script>
+		<script type="application/javascript" src="/static/hyperscript.min.js"></script>
 		<script src={ fmt.Sprintf("https://www.paypal.com/sdk/js?client-id=%s&vault=true&intent=subscription", clientID) }></script>
 	</head>
 }
