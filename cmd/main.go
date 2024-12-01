@@ -8,9 +8,14 @@ import (
 	memberstore "boardfund/service/members/store"
 	"boardfund/web"
 	"context"
+	"embed"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/pgx/v5"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 	"io"
 	"log"
 	"log/slog"
@@ -20,6 +25,9 @@ import (
 	"syscall"
 	"time"
 )
+
+//go:embed migrations/*.sql
+var fs embed.FS
 
 func main() {
 	ctx := context.Background()
@@ -88,20 +96,35 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 	paypalClient := paypal.NewClient(tokenStore, baseURL)
 	paypalService := paypal.NewPaypal(paypalClient, productID)
 
-	pool, err := pgxpool.Connect(ctx, dbURI)
+	pool, err := pgxpool.New(ctx, dbURI)
 	if err != nil {
-		return fmt.Errorf("failed to create a db connection pool: %w", err)
+		return fmt.Errorf("failed to create pgx pool: %w", err)
 	}
 
-	conn, err := pool.Acquire(ctx)
+	db := stdlib.OpenDBFromPool(pool)
+
+	d, err := iofs.New(fs, "migrations")
 	if err != nil {
-		return fmt.Errorf("failed to acquire a db connection: %w", err)
+		return err
 	}
 
-	defer conn.Release()
+	driver, err := pgx.WithInstance(db, &pgx.Config{})
+	if err != nil {
+		return err
+	}
 
-	donationStore := donationstore.NewDonationStore(conn)
-	memberStore := memberstore.NewMemberStore(conn)
+	migrator, err := migrate.NewWithInstance("iofs", d, "railway", driver)
+	if err != nil {
+		return err
+	}
+
+	err = migrator.Up()
+	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return err
+	}
+
+	donationStore := donationstore.NewDonationStore(pool)
+	memberStore := memberstore.NewMemberStore(pool)
 
 	jsonHandler := slog.NewJSONHandler(stdout, nil)
 	logger := slog.New(jsonHandler)

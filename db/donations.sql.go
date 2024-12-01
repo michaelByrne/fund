@@ -7,10 +7,9 @@ package db
 
 import (
 	"context"
-	"database/sql"
-	"time"
+	"net/netip"
 
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getDonationById = `-- name: GetDonationById :one
@@ -222,18 +221,18 @@ type GetDonationsByMemberPaypalEmailRow struct {
 	ID              int32
 	DonorID         int32
 	DonationPlanID  int32
-	Created         time.Time
-	Updated         time.Time
+	Created         pgtype.Timestamp
+	Updated         pgtype.Timestamp
 	ID_2            int32
-	FirstName       sql.NullString
-	LastName        sql.NullString
-	BcoName         sql.NullString
-	IpAddress       pgtype.Inet
+	FirstName       pgtype.Text
+	LastName        pgtype.Text
+	BcoName         pgtype.Text
+	IpAddress       netip.Addr
 	PaypalEmail     string
-	PostalCode      sql.NullString
-	Created_2       time.Time
-	Updated_2       time.Time
-	ProviderPayerID sql.NullString
+	PostalCode      pgtype.Text
+	Created_2       pgtype.Timestamp
+	Updated_2       pgtype.Timestamp
+	ProviderPayerID pgtype.Text
 }
 
 func (q *Queries) GetDonationsByMemberPaypalEmail(ctx context.Context, paypalEmail string) ([]GetDonationsByMemberPaypalEmailRow, error) {
@@ -334,7 +333,7 @@ type InsertDonationPlanParams struct {
 	IntervalUnit  IntervalUnit
 	IntervalCount int32
 	Active        bool
-	PaypalPlanID  sql.NullString
+	PaypalPlanID  pgtype.Text
 }
 
 func (q *Queries) InsertDonationPlan(ctx context.Context, arg InsertDonationPlanParams) (DonationPlan, error) {
@@ -401,7 +400,7 @@ type UpdateDonationPlanParams struct {
 	IntervalUnit  IntervalUnit
 	IntervalCount int32
 	Active        bool
-	PaypalPlanID  sql.NullString
+	PaypalPlanID  pgtype.Text
 }
 
 func (q *Queries) UpdateDonationPlan(ctx context.Context, arg UpdateDonationPlanParams) (DonationPlan, error) {

@@ -7,9 +7,9 @@ package db
 
 import (
 	"context"
-	"database/sql"
+	"net/netip"
 
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getMemberById = `-- name: GetMemberById :one
@@ -67,12 +67,12 @@ RETURNING id, first_name, last_name, bco_name, ip_address, paypal_email, postal_
 `
 
 type InsertMemberParams struct {
-	BcoName         sql.NullString
-	IpAddress       pgtype.Inet
+	BcoName         pgtype.Text
+	IpAddress       netip.Addr
 	PaypalEmail     string
-	FirstName       sql.NullString
-	LastName        sql.NullString
-	ProviderPayerID sql.NullString
+	FirstName       pgtype.Text
+	LastName        pgtype.Text
+	ProviderPayerID pgtype.Text
 }
 
 func (q *Queries) InsertMember(ctx context.Context, arg InsertMemberParams) (Member, error) {
@@ -109,12 +109,12 @@ RETURNING id, first_name, last_name, bco_name, ip_address, paypal_email, postal_
 `
 
 type UpsertMemberParams struct {
-	BcoName         sql.NullString
-	IpAddress       pgtype.Inet
+	BcoName         pgtype.Text
+	IpAddress       netip.Addr
 	PaypalEmail     string
-	FirstName       sql.NullString
-	LastName        sql.NullString
-	ProviderPayerID sql.NullString
+	FirstName       pgtype.Text
+	LastName        pgtype.Text
+	ProviderPayerID pgtype.Text
 }
 
 func (q *Queries) UpsertMember(ctx context.Context, arg UpsertMemberParams) (Member, error) {

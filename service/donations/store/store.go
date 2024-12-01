@@ -5,15 +5,15 @@ import (
 	"boardfund/pg"
 	"boardfund/service/donations"
 	"context"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type DonationStore struct {
 	queries *db.Queries
-	conn    *pgxpool.Conn
+	conn    *pgxpool.Pool
 }
 
-func NewDonationStore(conn *pgxpool.Conn) DonationStore {
+func NewDonationStore(conn *pgxpool.Pool) DonationStore {
 	return DonationStore{
 		queries: db.New(conn),
 		conn:    conn,

@@ -5,12 +5,11 @@
 package db
 
 import (
-	"database/sql"
 	"database/sql/driver"
 	"fmt"
-	"time"
+	"net/netip"
 
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type IntervalUnit string
@@ -59,8 +58,8 @@ type Donation struct {
 	ID             int32
 	DonorID        int32
 	DonationPlanID int32
-	Created        time.Time
-	Updated        time.Time
+	Created        pgtype.Timestamp
+	Updated        pgtype.Timestamp
 }
 
 type DonationPayment struct {
@@ -68,31 +67,31 @@ type DonationPayment struct {
 	DonationID      int32
 	PaypalPaymentID string
 	AmountCents     int32
-	Created         time.Time
-	Updated         time.Time
+	Created         pgtype.Timestamp
+	Updated         pgtype.Timestamp
 }
 
 type DonationPlan struct {
 	ID            int32
 	Name          string
-	PaypalPlanID  sql.NullString
+	PaypalPlanID  pgtype.Text
 	AmountCents   int32
 	IntervalUnit  IntervalUnit
 	IntervalCount int32
 	Active        bool
-	Created       time.Time
-	Updated       time.Time
+	Created       pgtype.Timestamp
+	Updated       pgtype.Timestamp
 }
 
 type Member struct {
 	ID              int32
-	FirstName       sql.NullString
-	LastName        sql.NullString
-	BcoName         sql.NullString
-	IpAddress       pgtype.Inet
+	FirstName       pgtype.Text
+	LastName        pgtype.Text
+	BcoName         pgtype.Text
+	IpAddress       netip.Addr
 	PaypalEmail     string
-	PostalCode      sql.NullString
-	Created         time.Time
-	Updated         time.Time
-	ProviderPayerID sql.NullString
+	PostalCode      pgtype.Text
+	Created         pgtype.Timestamp
+	Updated         pgtype.Timestamp
+	ProviderPayerID pgtype.Text
 }
