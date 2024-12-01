@@ -53,32 +53,37 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 		return fmt.Errorf("PAYPAL_PRODUCT_ID is required")
 	}
 
-	pgPass := getEnv("PG_PASS")
-	if pgPass == "" {
-		return fmt.Errorf("PG_PASS is required")
-	}
+	//pgPass := getEnv("PG_PASS")
+	//if pgPass == "" {
+	//	return fmt.Errorf("PG_PASS is required")
+	//}
+	//
+	//pgUser := getEnv("PG_USER")
+	//if pgUser == "" {
+	//	return fmt.Errorf("PG_USER is required")
+	//}
+	//
+	//pgHost := getEnv("PG_HOST")
+	//if pgHost == "" {
+	//	return fmt.Errorf("PG_HOST is required")
+	//}
+	//
+	//pgPort := getEnv("PG_PORT")
+	//if pgPort == "" {
+	//	return fmt.Errorf("PG_PORT is required")
+	//}
+	//
+	//pgDB := getEnv("PG_DB")
+	//if pgDB == "" {
+	//	return fmt.Errorf("PG_DB is required")
+	//}
+	//
+	//dbURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", pgUser, pgPass, pgHost, pgPort, pgDB)
 
-	pgUser := getEnv("PG_USER")
-	if pgUser == "" {
-		return fmt.Errorf("PG_USER is required")
+	dbURI := getEnv("DB_URI")
+	if dbURI == "" {
+		return fmt.Errorf("DB_URI is required")
 	}
-
-	pgHost := getEnv("PG_HOST")
-	if pgHost == "" {
-		return fmt.Errorf("PG_HOST is required")
-	}
-
-	pgPort := getEnv("PG_PORT")
-	if pgPort == "" {
-		return fmt.Errorf("PG_PORT is required")
-	}
-
-	pgDB := getEnv("PG_DB")
-	if pgDB == "" {
-		return fmt.Errorf("PG_DB is required")
-	}
-
-	dbURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", pgUser, pgPass, pgHost, pgPort, pgDB)
 
 	tokenClient := token.NewClient(clientID, clientSecret, baseURL)
 	tokenStore := token.NewStore(tokenClient)
