@@ -3,7 +3,7 @@ package store
 import (
 	"boardfund/db"
 	"boardfund/service/donations"
-	"database/sql"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func toDBDonationPlanInsertParams(plan donations.InsertDonationPlan) db.InsertDonationPlanParams {
@@ -16,7 +16,7 @@ func toDBDonationPlanInsertParams(plan donations.InsertDonationPlan) db.InsertDo
 	}
 
 	if plan.ProviderPlanID != "" {
-		planParams.PaypalPlanID = sql.NullString{
+		planParams.PaypalPlanID = pgtype.Text{
 			String: plan.ProviderPlanID,
 			Valid:  true,
 		}
@@ -34,8 +34,8 @@ func fromDBDonationPlan(plan db.DonationPlan) donations.DonationPlan {
 		IntervalUnit:   donations.IntervalUnit(plan.IntervalUnit),
 		IntervalCount:  plan.IntervalCount,
 		Active:         plan.Active,
-		Created:        plan.Created,
-		Updated:        plan.Updated,
+		Created:        plan.Created.Time,
+		Updated:        plan.Updated.Time,
 	}
 }
 
@@ -55,8 +55,8 @@ func fromDBDonation(donation db.Donation) donations.Donation {
 		ID:             donation.ID,
 		DonorID:        donation.DonorID,
 		DonationPlanID: donation.DonationPlanID,
-		Created:        donation.Created,
-		Updated:        donation.Updated,
+		Created:        donation.Created.Time,
+		Updated:        donation.Updated.Time,
 	}
 }
 
@@ -80,8 +80,8 @@ func fromDBDonationRow(donation db.GetDonationsByMemberPaypalEmailRow) donations
 		ID:             donation.ID,
 		DonorID:        donation.DonorID,
 		DonationPlanID: donation.DonationPlanID,
-		Created:        donation.Created,
-		Updated:        donation.Updated,
+		Created:        donation.Created.Time,
+		Updated:        donation.Updated.Time,
 	}
 }
 
@@ -91,8 +91,8 @@ func fromDBDonationPayment(payment db.DonationPayment) donations.DonationPayment
 		DonationID:        payment.DonationID,
 		ProviderPaymentID: payment.PaypalPaymentID,
 		AmountCents:       payment.AmountCents,
-		Created:           payment.Created,
-		Updated:           payment.Updated,
+		Created:           payment.Created.Time,
+		Updated:           payment.Updated.Time,
 	}
 }
 
