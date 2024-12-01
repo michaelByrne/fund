@@ -24,6 +24,8 @@ import (
 func main() {
 	ctx := context.Background()
 
+	time.Sleep(5 * time.Second)
+
 	err := run(ctx, os.Getenv, os.Stdout)
 	if err != nil {
 		log.Fatal(err)
