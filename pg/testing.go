@@ -9,7 +9,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 
 	_ "github.com/golang-migrate/migrate/v4/database/pgx"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
@@ -54,7 +54,7 @@ func SetupTestDatabase() (testcontainers.Container, *pgxpool.Pool, error) {
 		return nil, nil, err
 	}
 
-	connPool, err := pgxpool.Connect(context.Background(), dbURI)
+	connPool, err := pgxpool.New(context.Background(), dbURI)
 	if err != nil {
 		return nil, nil, err
 	}

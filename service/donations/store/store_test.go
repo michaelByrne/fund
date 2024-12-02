@@ -3,6 +3,7 @@ package store
 import (
 	"boardfund/pg"
 	"boardfund/service/donations"
+	"boardfund/service/members"
 	memberstore "boardfund/service/members/store"
 	"context"
 	"github.com/stretchr/testify/assert"
@@ -17,10 +18,7 @@ func TestDonationStore_CreateDonationPlan(t *testing.T) {
 
 		defer container.Terminate(context.Background())
 
-		conn, err := connPool.Acquire(context.Background())
-		require.NoError(t, err)
-
-		store := NewDonationStore(conn)
+		store := NewDonationStore(connPool)
 
 		donationPlan := donations.InsertDonationPlan{
 			Name:          "test",
@@ -50,11 +48,8 @@ func TestDonationStore_CreateDonation(t *testing.T) {
 
 		defer container.Terminate(context.Background())
 
-		conn, err := connPool.Acquire(context.Background())
-		require.NoError(t, err)
-
-		donationStore := NewDonationStore(conn)
-		memberStore := memberstore.NewMemberStore(conn)
+		donationStore := NewDonationStore(connPool)
+		memberStore := memberstore.NewMemberStore(connPool)
 
 		donationPlan := donations.InsertDonationPlan{
 			Name:          "test",
@@ -66,13 +61,13 @@ func TestDonationStore_CreateDonation(t *testing.T) {
 		newDonationPlan, err := donationStore.CreateDonationPlan(context.Background(), donationPlan)
 		require.NoError(t, err)
 
-		member := memberstore.InsertMember{
-			PaypalEmail: "fake@fake.com",
-			BCOName:     "gofreescout",
-			IPAddress:   "172.0.0.1",
+		member := members.UpsertMember{
+			MemberProviderEmail: "fake@fake.com",
+			BCOName:             "gofreescout",
+			IPAddress:           "172.0.0.1",
 		}
 
-		newMember, err := memberStore.CreateMember(context.Background(), member)
+		newMember, err := memberStore.UpsertMember(context.Background(), member)
 		require.NoError(t, err)
 
 		donation := donations.InsertDonation{
@@ -99,11 +94,8 @@ func TestDonationStore_GetDonationsByMemberPaypalEmail(t *testing.T) {
 
 		defer container.Terminate(context.Background())
 
-		conn, err := connPool.Acquire(context.Background())
-		require.NoError(t, err)
-
-		donationStore := NewDonationStore(conn)
-		memberStore := memberstore.NewMemberStore(conn)
+		donationStore := NewDonationStore(connPool)
+		memberStore := memberstore.NewMemberStore(connPool)
 
 		donationPlan := donations.InsertDonationPlan{
 			Name:          "test",
@@ -115,22 +107,22 @@ func TestDonationStore_GetDonationsByMemberPaypalEmail(t *testing.T) {
 		newDonationPlan, err := donationStore.CreateDonationPlan(context.Background(), donationPlan)
 		require.NoError(t, err)
 
-		firstMember := memberstore.InsertMember{
-			PaypalEmail: "fake@fake.com",
-			BCOName:     "gofreescout",
-			IPAddress:   "127.0.0.1",
+		firstMember := members.UpsertMember{
+			MemberProviderEmail: "fake@fake.com",
+			BCOName:             "gofreescout",
+			IPAddress:           "127.0.0.1",
 		}
 
-		secondMember := memberstore.InsertMember{
-			PaypalEmail: "dummy@dummy.com",
-			BCOName:     "gofreescout",
-			IPAddress:   "127.0.0.1",
+		secondMember := members.UpsertMember{
+			MemberProviderEmail: "dummy@dummy.com",
+			BCOName:             "gofreescout",
+			IPAddress:           "127.0.0.1",
 		}
 
-		newFirstMember, err := memberStore.CreateMember(context.Background(), firstMember)
+		newFirstMember, err := memberStore.UpsertMember(context.Background(), firstMember)
 		require.NoError(t, err)
 
-		newSecondMember, err := memberStore.CreateMember(context.Background(), secondMember)
+		newSecondMember, err := memberStore.UpsertMember(context.Background(), secondMember)
 		require.NoError(t, err)
 
 		firstDonation := donations.InsertDonation{
@@ -157,7 +149,7 @@ func TestDonationStore_GetDonationsByMemberPaypalEmail(t *testing.T) {
 		newThirdDonation, err := donationStore.CreateDonation(context.Background(), thirdDonation)
 		require.NoError(t, err)
 
-		donationsByEmail, err := donationStore.GetDonationsByMemberPaypalEmail(context.Background(), firstMember.PaypalEmail)
+		donationsByEmail, err := donationStore.GetDonationsByMemberPaypalEmail(context.Background(), firstMember.MemberProviderEmail)
 		require.NoError(t, err)
 
 		assert.Len(t, donationsByEmail, 2)
@@ -175,11 +167,8 @@ func TestDonationStore_CreateDonationPayment(t *testing.T) {
 
 		defer container.Terminate(context.Background())
 
-		conn, err := connPool.Acquire(context.Background())
-		require.NoError(t, err)
-
-		donationStore := NewDonationStore(conn)
-		memberStore := memberstore.NewMemberStore(conn)
+		donationStore := NewDonationStore(connPool)
+		newMembers := memberstore.NewMemberStore(connPool)
 
 		donationPlan := donations.InsertDonationPlan{
 			Name:          "test",
@@ -191,13 +180,13 @@ func TestDonationStore_CreateDonationPayment(t *testing.T) {
 		newDonationPlan, err := donationStore.CreateDonationPlan(context.Background(), donationPlan)
 		require.NoError(t, err)
 
-		member := memberstore.InsertMember{
-			PaypalEmail: "fake@fake.com",
-			BCOName:     "gofreescout",
-			IPAddress:   "127.0.0.1",
+		member := members.UpsertMember{
+			MemberProviderEmail: "fake@fake.com",
+			BCOName:             "gofreescout",
+			IPAddress:           "127.0.0.1",
 		}
 
-		newMember, err := memberStore.CreateMember(context.Background(), member)
+		newMember, err := newMembers.UpsertMember(context.Background(), member)
 		require.NoError(t, err)
 
 		donation := donations.InsertDonation{
@@ -209,9 +198,9 @@ func TestDonationStore_CreateDonationPayment(t *testing.T) {
 		require.NoError(t, err)
 
 		donationPayment := donations.InsertDonationPayment{
-			DonationID:      newDonation.ID,
-			PaypalPaymentID: "PAY-123456789",
-			AmountCents:     100,
+			DonationID:        newDonation.ID,
+			ProviderPaymentID: "PAY-123456789",
+			AmountCents:       100,
 		}
 
 		newDonationPayment, err := donationStore.CreateDonationPayment(context.Background(), donationPayment)
@@ -222,7 +211,7 @@ func TestDonationStore_CreateDonationPayment(t *testing.T) {
 
 		assert.Equal(t, newDonationPayment.ID, donationPaymentByIDOut.ID)
 		assert.Equal(t, donationPayment.DonationID, donationPaymentByIDOut.DonationID)
-		assert.Equal(t, donationPayment.PaypalPaymentID, donationPaymentByIDOut.PaypalPaymentID)
+		assert.Equal(t, donationPayment.ProviderPaymentID, donationPaymentByIDOut.ProviderPaymentID)
 		assert.Equal(t, donationPayment.AmountCents, donationPaymentByIDOut.AmountCents)
 	})
 }
@@ -234,11 +223,8 @@ func TestDonationStore_GetDonationPaymentsByMemberPaypalEmail(t *testing.T) {
 
 		defer container.Terminate(context.Background())
 
-		conn, err := connPool.Acquire(context.Background())
-		require.NoError(t, err)
-
-		donationStore := NewDonationStore(conn)
-		memberStore := memberstore.NewMemberStore(conn)
+		donationStore := NewDonationStore(connPool)
+		newMembers := memberstore.NewMemberStore(connPool)
 
 		donationPlan := donations.InsertDonationPlan{
 			Name:          "test",
@@ -250,22 +236,22 @@ func TestDonationStore_GetDonationPaymentsByMemberPaypalEmail(t *testing.T) {
 		newDonationPlan, err := donationStore.CreateDonationPlan(context.Background(), donationPlan)
 		require.NoError(t, err)
 
-		firstMember := memberstore.InsertMember{
-			PaypalEmail: "fake@fake.com",
-			BCOName:     "gofreescout",
-			IPAddress:   "127.0.0.1",
+		firstMember := members.UpsertMember{
+			MemberProviderEmail: "fake@fake.com",
+			BCOName:             "gofreescout",
+			IPAddress:           "127.0.0.1",
 		}
 
-		secondMember := memberstore.InsertMember{
-			PaypalEmail: "dummy@dummy.com",
-			BCOName:     "gofreescout",
-			IPAddress:   "127.0.0.1",
+		secondMember := members.UpsertMember{
+			MemberProviderEmail: "dummy@dummy.com",
+			BCOName:             "gofreescout",
+			IPAddress:           "127.0.0.1",
 		}
 
-		newFirstMember, err := memberStore.CreateMember(context.Background(), firstMember)
+		newFirstMember, err := newMembers.UpsertMember(context.Background(), firstMember)
 		require.NoError(t, err)
 
-		newSecondMember, err := memberStore.CreateMember(context.Background(), secondMember)
+		newSecondMember, err := newMembers.UpsertMember(context.Background(), secondMember)
 		require.NoError(t, err)
 
 		firstDonation := donations.InsertDonation{
@@ -293,27 +279,27 @@ func TestDonationStore_GetDonationPaymentsByMemberPaypalEmail(t *testing.T) {
 		require.NoError(t, err)
 
 		firstDonationPayment := donations.InsertDonationPayment{
-			DonationID:      newFirstDonation.ID,
-			PaypalPaymentID: "PAY-123456789",
-			AmountCents:     100,
+			DonationID:        newFirstDonation.ID,
+			ProviderPaymentID: "PAY-123456789",
+			AmountCents:       100,
 		}
 
 		secondDonationPayment := donations.InsertDonationPayment{
-			DonationID:      newSecondDonation.ID,
-			PaypalPaymentID: "PAY-987654321",
-			AmountCents:     100,
+			DonationID:        newSecondDonation.ID,
+			ProviderPaymentID: "PAY-987654321",
+			AmountCents:       100,
 		}
 
 		thirdDonationPayment := donations.InsertDonationPayment{
-			DonationID:      newThirdDonation.ID,
-			PaypalPaymentID: "PAY-123456789",
-			AmountCents:     100,
+			DonationID:        newThirdDonation.ID,
+			ProviderPaymentID: "PAY-123456789",
+			AmountCents:       100,
 		}
 
 		fourthDonationPayment := donations.InsertDonationPayment{
-			DonationID:      newFirstDonation.ID,
-			PaypalPaymentID: "PAY-987654321",
-			AmountCents:     100,
+			DonationID:        newFirstDonation.ID,
+			ProviderPaymentID: "PAY-987654321",
+			AmountCents:       100,
 		}
 
 		firstNewDonationPayment, err := donationStore.CreateDonationPayment(context.Background(), firstDonationPayment)
@@ -328,7 +314,7 @@ func TestDonationStore_GetDonationPaymentsByMemberPaypalEmail(t *testing.T) {
 		fourthNewDonationPayment, err := donationStore.CreateDonationPayment(context.Background(), fourthDonationPayment)
 		require.NoError(t, err)
 
-		donationPaymentsByEmail, err := donationStore.GetDonationPaymentsByMemberPaypalEmail(context.Background(), firstMember.PaypalEmail)
+		donationPaymentsByEmail, err := donationStore.GetDonationPaymentsByMemberPaypalEmail(context.Background(), firstMember.MemberProviderEmail)
 
 		expectedPayments := []donations.DonationPayment{*firstNewDonationPayment, *fourthNewDonationPayment, *thirdNewDonationPayment}
 

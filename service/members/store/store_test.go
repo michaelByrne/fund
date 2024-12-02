@@ -16,11 +16,7 @@ func TestMemberStore_UpsertMember(t *testing.T) {
 		require.NoError(t, err)
 
 		defer container.Terminate(context.Background())
-
-		conn, err := connPool.Acquire(context.Background())
-		require.NoError(t, err)
-
-		store := NewMemberStore(conn)
+		store := NewMemberStore(connPool)
 
 		member := members.UpsertMember{
 			MemberProviderEmail: "member@gmail.com",

@@ -36,7 +36,26 @@ func (h *DonationHandler) Register(r *http.ServeMux) {
 	r.HandleFunc("/plan", h.createDonationPlan)
 	r.HandleFunc("/product", h.createProduct)
 	r.HandleFunc("/subscription/capture", h.captureDonationOrder)
+	r.HandleFunc("/subscription/success", h.subscriptionSuccess)
+	r.HandleFunc("/ping", h.ping)
 	r.HandleFunc("/", h.home)
+}
+
+func (h *DonationHandler) ping(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("pong"))
+}
+
+func (h *DonationHandler) subscriptionSuccess(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		templ.Handler(ErrorMessage("name is required")).Component.Render(r.Context(), w)
+
+		return
+	}
+
+	templ.Handler(Home(ThankYou(name), h.clientID)).Component.Render(r.Context(), w)
 }
 
 func (h *DonationHandler) captureDonationOrder(w http.ResponseWriter, r *http.Request) {
@@ -162,11 +181,17 @@ func (h *DonationHandler) createDonationPlan(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	templ.Handler(Paypal(newPlan.ID, newPlan.ProviderPlanID, amount, interval, bcoName)).Component.Render(ctx, w)
+	if isHx(r) {
+		templ.Handler(Paypal(newPlan.ID, newPlan.ProviderPlanID, amount, interval, bcoName)).Component.Render(ctx, w)
+
+		return
+	}
+
+	templ.Handler(Home(Paypal(newPlan.ID, newPlan.ProviderPlanID, amount, interval, bcoName), h.clientID)).Component.Render(ctx, w)
 }
 
 func (h *DonationHandler) home(w http.ResponseWriter, r *http.Request) {
-	templ.Handler(Home(h.productID, h.clientID)).Component.Render(r.Context(), w)
+	templ.Handler(Home(DonationForm(h.productID), h.clientID)).Component.Render(r.Context(), w)
 }
 
 func (h *DonationHandler) createProduct(w http.ResponseWriter, r *http.Request) {
@@ -228,4 +253,8 @@ func dollarStringToCents(dollars string) (int32, error) {
 	}
 
 	return int32(amountInCents), nil
+}
+
+func isHx(r *http.Request) bool {
+	return r.Header.Get("HX-Request") == "true"
 }

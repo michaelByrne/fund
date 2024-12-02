@@ -21,11 +21,12 @@ window.paypal.Buttons({
 
         let subscription = await actions.subscription.get();
 
-        await htmx.ajax('POST','/subscription/capture', {
+        let resp = await fetch('/subscription/capture', {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded'
             },
-            values: {
+            body: new URLSearchParams({
                 order_id: data.orderID,
                 provider_plan_id: providerPlanId,
                 provider_donation_id: subscription.id,
@@ -36,8 +37,11 @@ window.paypal.Buttons({
                 first_name: subscription.subscriber.name.given_name,
                 last_name: subscription.subscriber.name.surname,
                 bco_name: bcoName
-            },
-            target: "#donation"
-        })
+            })
+        });
+
+        if (resp.ok) {
+            window.location.href = '/subscription/success?name=' + subscription.subscriber.name.given_name;
+        }
     }
 }).render('#paypal-button-container')
