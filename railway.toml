@@ -5,7 +5,6 @@ buildCommand = "go build -o fund"
 [deploy]
 startCommand = "./fund"
 numReplicas = 1
-healthcheckPath = "/ping"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
 
