@@ -45,10 +45,10 @@ func (h *FundHandler) Register(r *http.ServeMux) {
 	r.HandleFunc("/donation/once/complete", h.completeOneTimeDonation)
 	r.HandleFunc("/donation/once/initiate", h.initiateOneTimeDonation)
 	r.HandleFunc("/donation/success", h.donationSuccess)
-	r.HandleFunc("/donate/{fundId}", h.donate)
+	r.HandleFunc("/donate/{fundId}", h.withAuth(h.donate))
 	r.HandleFunc("/error", h.error)
 	r.HandleFunc("/ping", h.ping)
-	r.HandleFunc("/", h.home)
+	r.HandleFunc("/", h.withAuth(h.home))
 }
 
 func (h *FundHandler) error(w http.ResponseWriter, r *http.Request) {

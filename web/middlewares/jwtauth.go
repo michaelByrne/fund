@@ -17,10 +17,15 @@ var (
 func Verify(verifyFunc func(tokenStr string) (jwt.Token, error), findTokenFns ...func(r *http.Request) string) func(http.HandlerFunc) http.HandlerFunc {
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		hfn := func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/static" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			ctx := r.Context()
 			_, err := VerifyRequest(r, verifyFunc, findTokenFns...)
 			if err != nil {
-				http.Redirect(w, r, "/login", http.StatusUnauthorized)
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
 				return
 			}
 
