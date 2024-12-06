@@ -25,11 +25,13 @@ type FundHandler struct {
 func NewFundHandler(
 	donationService *donations.DonationService,
 	sessionManager *scs.SessionManager,
+	withAuth func(http.HandlerFunc) http.HandlerFunc,
 	productID, clientID string,
 ) *FundHandler {
 	return &FundHandler{
 		donationService: donationService,
 		sessionManager:  sessionManager,
+		withAuth:        withAuth,
 		productID:       productID,
 		clientID:        clientID,
 	}

@@ -1,24 +1,32 @@
 package main
 
 import (
+	"boardfund/aws"
+	"boardfund/jwtauth"
+	"boardfund/jwtauth/keyset"
 	"boardfund/paypal"
 	"boardfund/paypal/token"
+	"boardfund/service/auth"
 	"boardfund/service/donations"
 	donationstore "boardfund/service/donations/store"
 	memberstore "boardfund/service/members/store"
+	"boardfund/web/authweb"
 	"boardfund/web/fundweb"
+	"boardfund/web/middlewares"
+	"github.com/golang-migrate/migrate/v4/database/pgx/v5"
+
 	"context"
 	"embed"
 	"errors"
 	"fmt"
 	"github.com/alexedwards/scs/pgxstore"
 	"github.com/alexedwards/scs/v2"
+	"github.com/aws/aws-sdk-go-v2/config"
+	cognito "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
-
 	"io"
 	"log"
 	"log/slog"
@@ -134,36 +142,38 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 	jsonHandler := slog.NewJSONHandler(stdout, nil)
 	logger := slog.New(jsonHandler)
 
-	//defaultConfig, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-west-2"))
-	//if err != nil {
-	//	return err
-	//}
+	defaultConfig, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-west-2"))
+	if err != nil {
+		return err
+	}
 
-	//cognitoClient := cognito.NewFromConfig(defaultConfig)
+	cognitoClient := cognito.NewFromConfig(defaultConfig)
 
-	//ksetCache := keyset.NewKeySetWithCache(jwkURL, 15)
-	//kset, err := ksetCache.NewKeySet()
-	//if err != nil {
-	//	return err
-	//}
+	ksetCache := keyset.NewKeySetWithCache(jwkURL, 15)
+	kset, err := ksetCache.NewKeySet()
+	if err != nil {
+		return err
+	}
 
-	//verifier := jwtauth.NewToken(kset)
+	verifier := jwtauth.NewToken(kset)
 
-	//authMiddleware := middlewares.Verify(verifier.Verify, middlewares.TokenFromCookie, middlewares.TokenFromHeader)
+	authMiddleware := middlewares.Verify(verifier.Verify, middlewares.TokenFromCookie, middlewares.TokenFromHeader)
 
-	//authorizer := aws.NewCognitoAuth(cognitoClient, clientID)
+	authorizer := aws.NewCognitoAuth(cognitoClient, clientID)
 
 	donationService := donations.NewDonationService(donationStore, memberStore, paypalService, logger)
-	//authService := auth.NewAuthService(authorizer, logger)
+	authService := auth.NewAuthService(authorizer, logger)
 
-	donationHandler := fundweb.NewFundHandler(donationService, sessionManager, productID, clientID)
-	//authHandler := authweb.NewAuthHandler(authService, clientID)
+	donationHandler := fundweb.NewFundHandler(donationService, sessionManager, authMiddleware, productID, clientID)
+	authHandler := authweb.NewAuthHandler(authService, clientID)
 
 	router := http.NewServeMux()
 
-	router.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("public"))))
+	router.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
+		http.StripPrefix("/static/", http.FileServer(http.Dir("public"))).ServeHTTP(w, r)
+	})
 
-	//authHandler.Register(router)
+	authHandler.Register(router)
 	donationHandler.Register(router)
 
 	server := &http.Server{
