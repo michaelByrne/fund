@@ -1,7 +1,9 @@
 package members
 
+import "github.com/google/uuid"
+
 type Member struct {
-	ID                  int32
+	ID                  uuid.UUID
 	MemberProviderEmail string
 	BCOName             string
 	IPAddress           string
@@ -11,12 +13,14 @@ type Member struct {
 }
 
 type InsertMember struct {
+	ID                  uuid.UUID
 	MemberProviderEmail string
 	BCOName             string
 	IPAddress           string
 }
 
 type UpsertMember struct {
+	ID                  uuid.UUID
 	MemberProviderEmail string
 	BCOName             string
 	IPAddress           string

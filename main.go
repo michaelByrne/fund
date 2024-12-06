@@ -1,21 +1,27 @@
 package main
 
 import (
+	"boardfund/jwtauth"
+	"boardfund/jwtauth/keyset"
 	"boardfund/paypal"
 	"boardfund/paypal/token"
 	"boardfund/service/donations"
 	donationstore "boardfund/service/donations/store"
 	memberstore "boardfund/service/members/store"
-	"boardfund/web"
+	"boardfund/web/fundweb"
+	"boardfund/web/middlewares"
 	"context"
 	"embed"
 	"errors"
 	"fmt"
+	"github.com/alexedwards/scs/pgxstore"
+	"github.com/alexedwards/scs/v2"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
+
 	"io"
 	"log"
 	"log/slog"
@@ -84,12 +90,12 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 		return fmt.Errorf("PG_DB is required")
 	}
 
-	dbURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", pgUser, pgPass, pgHost, pgPort, pgDB)
+	jwkURL := getEnv("JWK_URL")
+	if jwkURL == "" {
+		return fmt.Errorf("JWK_URL is required")
+	}
 
-	//dbURI := getEnv("DB_URI")
-	//if dbURI == "" {
-	//	return fmt.Errorf("DB_URI is required")
-	//}
+	dbURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", pgUser, pgPass, pgHost, pgPort, pgDB)
 
 	tokenClient := token.NewClient(clientID, clientSecret, baseURL)
 	tokenStore := token.NewStore(tokenClient)
@@ -125,15 +131,40 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 
 	donationStore := donationstore.NewDonationStore(pool)
 	memberStore := memberstore.NewMemberStore(pool)
+	sessionManager := scs.New()
+	sessionManager.Store = pgxstore.New(pool)
 
 	jsonHandler := slog.NewJSONHandler(stdout, nil)
 	logger := slog.New(jsonHandler)
 
+	//defaultConfig, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-west-2"))
+	//if err != nil {
+	//	return err
+	//}
+
+	//cognitoClient := cognito.NewFromConfig(defaultConfig)
+
+	ksetCache := keyset.NewKeySetWithCache(jwkURL, 15)
+	kset, err := ksetCache.NewKeySet()
+	if err != nil {
+		return err
+	}
+
+	verifier := jwtauth.NewToken(kset)
+
+	authMiddleware := middlewares.Verify(verifier.Verify, middlewares.TokenFromCookie, middlewares.TokenFromHeader)
+
+	//authorizer := aws.NewCognitoAuth(cognitoClient, clientID)
+
 	donationService := donations.NewDonationService(donationStore, memberStore, paypalService, logger)
-	donationHandler := web.NewDonationHandler(donationService, productID, clientID)
+	//authService := auth.NewAuthService(authorizer, logger)
+
+	donationHandler := fundweb.NewFundHandler(donationService, sessionManager, authMiddleware, productID, clientID)
+	//authHandler := authweb.NewAuthHandler(authService, clientID)
 
 	router := http.NewServeMux()
 
+	//authHandler.Register(router)
 	donationHandler.Register(router)
 
 	router.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("public"))))

@@ -6,6 +6,7 @@ import (
 	"boardfund/service/members"
 	memberstore "boardfund/service/members/store"
 	"context"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -20,14 +21,31 @@ func TestDonationStore_CreateDonationPlan(t *testing.T) {
 
 		store := NewDonationStore(connPool)
 
-		donationPlan := donations.InsertDonationPlan{
-			Name:          "test",
-			AmountCents:   100,
-			IntervalUnit:  "MONTH",
-			IntervalCount: 1,
+		insertFund := donations.InsertFund{
+			ID:              uuid.New(),
+			Name:            "test",
+			Description:     "test",
+			ProviderID:      "test-provider",
+			Active:          true,
+			ProviderName:    "paypal",
+			PayoutFrequency: "monthly",
 		}
 
-		newDonationPlan, err := store.CreateDonationPlan(context.Background(), donationPlan)
+		fund, err := store.InsertFund(context.Background(), insertFund)
+		require.NoError(t, err)
+
+		donationPlan := donations.UpsertDonationPlan{
+			ID:             uuid.New(),
+			Name:           "test",
+			AmountCents:    100,
+			IntervalUnit:   "MONTH",
+			IntervalCount:  1,
+			ProviderPlanID: "test-provider-plan",
+			Active:         true,
+			FundID:         fund.ID,
+		}
+
+		newDonationPlan, err := store.UpsertDonationPlan(context.Background(), donationPlan)
 		require.NoError(t, err)
 
 		donationPlanByIDOut, err := store.GetDonationPlanByID(context.Background(), newDonationPlan.ID)
@@ -36,7 +54,7 @@ func TestDonationStore_CreateDonationPlan(t *testing.T) {
 		assert.Equal(t, newDonationPlan.ID, donationPlanByIDOut.ID)
 		assert.Equal(t, donationPlan.Name, donationPlanByIDOut.Name)
 		assert.Equal(t, donationPlan.AmountCents, donationPlanByIDOut.AmountCents)
-		assert.Equal(t, donationPlan.IntervalUnit, string(donationPlanByIDOut.IntervalUnit))
+		assert.Equal(t, donationPlan.IntervalUnit, donationPlanByIDOut.IntervalUnit)
 		assert.Equal(t, donationPlan.IntervalCount, donationPlanByIDOut.IntervalCount)
 	})
 }
@@ -51,17 +69,35 @@ func TestDonationStore_CreateDonation(t *testing.T) {
 		donationStore := NewDonationStore(connPool)
 		memberStore := memberstore.NewMemberStore(connPool)
 
-		donationPlan := donations.InsertDonationPlan{
-			Name:          "test",
-			AmountCents:   100,
-			IntervalUnit:  "MONTH",
-			IntervalCount: 1,
+		upsertFund := donations.InsertFund{
+			ID:              uuid.New(),
+			Name:            "test",
+			Description:     "test",
+			ProviderID:      "test-provider",
+			Active:          true,
+			ProviderName:    "paypal",
+			PayoutFrequency: "monthly",
 		}
 
-		newDonationPlan, err := donationStore.CreateDonationPlan(context.Background(), donationPlan)
+		fund, err := donationStore.InsertFund(context.Background(), upsertFund)
+		require.NoError(t, err)
+
+		donationPlan := donations.UpsertDonationPlan{
+			ID:             uuid.New(),
+			Name:           "test",
+			AmountCents:    100,
+			IntervalUnit:   "MONTH",
+			IntervalCount:  1,
+			ProviderPlanID: "test-provider-plan",
+			Active:         true,
+			FundID:         fund.ID,
+		}
+
+		newDonationPlan, err := donationStore.UpsertDonationPlan(context.Background(), donationPlan)
 		require.NoError(t, err)
 
 		member := members.UpsertMember{
+			ID:                  uuid.New(),
 			MemberProviderEmail: "fake@fake.com",
 			BCOName:             "gofreescout",
 			IPAddress:           "172.0.0.1",
@@ -70,12 +106,13 @@ func TestDonationStore_CreateDonation(t *testing.T) {
 		newMember, err := memberStore.UpsertMember(context.Background(), member)
 		require.NoError(t, err)
 
-		donation := donations.InsertDonation{
+		donation := donations.InsertRecurringDonation{
+			ID:             uuid.New(),
 			DonationPlanID: newDonationPlan.ID,
 			DonorID:        newMember.ID,
 		}
 
-		newDonation, err := donationStore.CreateDonation(context.Background(), donation)
+		newDonation, err := donationStore.InsertRecurringDonation(context.Background(), donation)
 		require.NoError(t, err)
 
 		donationByIDOut, err := donationStore.GetDonationByID(context.Background(), newDonation.ID)
@@ -97,23 +134,42 @@ func TestDonationStore_GetDonationsByMemberPaypalEmail(t *testing.T) {
 		donationStore := NewDonationStore(connPool)
 		memberStore := memberstore.NewMemberStore(connPool)
 
-		donationPlan := donations.InsertDonationPlan{
-			Name:          "test",
-			AmountCents:   100,
-			IntervalUnit:  "MONTH",
-			IntervalCount: 1,
+		upsertFund := donations.InsertFund{
+			ID:              uuid.New(),
+			Name:            "test",
+			Description:     "test",
+			ProviderID:      "test-provider",
+			Active:          true,
+			ProviderName:    "paypal",
+			PayoutFrequency: "monthly",
 		}
 
-		newDonationPlan, err := donationStore.CreateDonationPlan(context.Background(), donationPlan)
+		fund, err := donationStore.InsertFund(context.Background(), upsertFund)
+		require.NoError(t, err)
+
+		donationPlan := donations.UpsertDonationPlan{
+			ID:             uuid.New(),
+			Name:           "test",
+			AmountCents:    100,
+			IntervalUnit:   "MONTH",
+			IntervalCount:  1,
+			ProviderPlanID: "test-provider-plan",
+			Active:         true,
+			FundID:         fund.ID,
+		}
+
+		newDonationPlan, err := donationStore.UpsertDonationPlan(context.Background(), donationPlan)
 		require.NoError(t, err)
 
 		firstMember := members.UpsertMember{
+			ID:                  uuid.New(),
 			MemberProviderEmail: "fake@fake.com",
 			BCOName:             "gofreescout",
 			IPAddress:           "127.0.0.1",
 		}
 
 		secondMember := members.UpsertMember{
+			ID:                  uuid.New(),
 			MemberProviderEmail: "dummy@dummy.com",
 			BCOName:             "gofreescout",
 			IPAddress:           "127.0.0.1",
@@ -125,28 +181,31 @@ func TestDonationStore_GetDonationsByMemberPaypalEmail(t *testing.T) {
 		newSecondMember, err := memberStore.UpsertMember(context.Background(), secondMember)
 		require.NoError(t, err)
 
-		firstDonation := donations.InsertDonation{
+		firstDonation := donations.InsertRecurringDonation{
+			ID:             uuid.New(),
 			DonationPlanID: newDonationPlan.ID,
 			DonorID:        newFirstMember.ID,
 		}
 
-		secondDonation := donations.InsertDonation{
+		secondDonation := donations.InsertRecurringDonation{
+			ID:             uuid.New(),
 			DonationPlanID: newDonationPlan.ID,
 			DonorID:        newSecondMember.ID,
 		}
 
-		thirdDonation := donations.InsertDonation{
+		thirdDonation := donations.InsertRecurringDonation{
+			ID:             uuid.New(),
 			DonationPlanID: newDonationPlan.ID,
 			DonorID:        newFirstMember.ID,
 		}
 
-		newFirstDonation, err := donationStore.CreateDonation(context.Background(), firstDonation)
+		newFirstDonation, err := donationStore.InsertRecurringDonation(context.Background(), firstDonation)
 		require.NoError(t, err)
 
-		_, err = donationStore.CreateDonation(context.Background(), secondDonation)
+		_, err = donationStore.InsertRecurringDonation(context.Background(), secondDonation)
 		require.NoError(t, err)
 
-		newThirdDonation, err := donationStore.CreateDonation(context.Background(), thirdDonation)
+		newThirdDonation, err := donationStore.InsertRecurringDonation(context.Background(), thirdDonation)
 		require.NoError(t, err)
 
 		donationsByEmail, err := donationStore.GetDonationsByMemberPaypalEmail(context.Background(), firstMember.MemberProviderEmail)
@@ -170,17 +229,35 @@ func TestDonationStore_CreateDonationPayment(t *testing.T) {
 		donationStore := NewDonationStore(connPool)
 		newMembers := memberstore.NewMemberStore(connPool)
 
-		donationPlan := donations.InsertDonationPlan{
-			Name:          "test",
-			AmountCents:   100,
-			IntervalUnit:  "MONTH",
-			IntervalCount: 1,
+		upsertFund := donations.InsertFund{
+			ID:              uuid.New(),
+			Name:            "test",
+			Description:     "test",
+			ProviderID:      "test-provider",
+			Active:          true,
+			ProviderName:    "paypal",
+			PayoutFrequency: "monthly",
 		}
 
-		newDonationPlan, err := donationStore.CreateDonationPlan(context.Background(), donationPlan)
+		fund, err := donationStore.InsertFund(context.Background(), upsertFund)
+		require.NoError(t, err)
+
+		donationPlan := donations.UpsertDonationPlan{
+			ID:             uuid.New(),
+			Name:           "test",
+			AmountCents:    100,
+			IntervalUnit:   "MONTH",
+			IntervalCount:  1,
+			ProviderPlanID: "test-provider-plan",
+			Active:         true,
+			FundID:         fund.ID,
+		}
+
+		newDonationPlan, err := donationStore.UpsertDonationPlan(context.Background(), donationPlan)
 		require.NoError(t, err)
 
 		member := members.UpsertMember{
+			ID:                  uuid.New(),
 			MemberProviderEmail: "fake@fake.com",
 			BCOName:             "gofreescout",
 			IPAddress:           "127.0.0.1",
@@ -189,21 +266,23 @@ func TestDonationStore_CreateDonationPayment(t *testing.T) {
 		newMember, err := newMembers.UpsertMember(context.Background(), member)
 		require.NoError(t, err)
 
-		donation := donations.InsertDonation{
+		donation := donations.InsertRecurringDonation{
+			ID:             uuid.New(),
 			DonationPlanID: newDonationPlan.ID,
 			DonorID:        newMember.ID,
 		}
 
-		newDonation, err := donationStore.CreateDonation(context.Background(), donation)
+		newDonation, err := donationStore.InsertRecurringDonation(context.Background(), donation)
 		require.NoError(t, err)
 
 		donationPayment := donations.InsertDonationPayment{
+			ID:                uuid.New(),
 			DonationID:        newDonation.ID,
 			ProviderPaymentID: "PAY-123456789",
 			AmountCents:       100,
 		}
 
-		newDonationPayment, err := donationStore.CreateDonationPayment(context.Background(), donationPayment)
+		newDonationPayment, err := donationStore.InsertDonationPayment(context.Background(), donationPayment)
 		require.NoError(t, err)
 
 		donationPaymentByIDOut, err := donationStore.GetDonationPaymentByID(context.Background(), newDonationPayment.ID)
@@ -226,23 +305,42 @@ func TestDonationStore_GetDonationPaymentsByMemberPaypalEmail(t *testing.T) {
 		donationStore := NewDonationStore(connPool)
 		newMembers := memberstore.NewMemberStore(connPool)
 
-		donationPlan := donations.InsertDonationPlan{
-			Name:          "test",
-			AmountCents:   100,
-			IntervalUnit:  "MONTH",
-			IntervalCount: 1,
+		upsertFund := donations.InsertFund{
+			ID:              uuid.New(),
+			Name:            "test",
+			Description:     "test",
+			ProviderID:      "test-provider",
+			Active:          true,
+			ProviderName:    "paypal",
+			PayoutFrequency: "monthly",
 		}
 
-		newDonationPlan, err := donationStore.CreateDonationPlan(context.Background(), donationPlan)
+		fund, err := donationStore.InsertFund(context.Background(), upsertFund)
+		require.NoError(t, err)
+
+		donationPlan := donations.UpsertDonationPlan{
+			ID:             uuid.New(),
+			Name:           "test",
+			AmountCents:    100,
+			IntervalUnit:   "MONTH",
+			IntervalCount:  1,
+			ProviderPlanID: "test-provider-plan",
+			Active:         true,
+			FundID:         fund.ID,
+		}
+
+		newDonationPlan, err := donationStore.UpsertDonationPlan(context.Background(), donationPlan)
 		require.NoError(t, err)
 
 		firstMember := members.UpsertMember{
+			ID:                  uuid.New(),
 			MemberProviderEmail: "fake@fake.com",
 			BCOName:             "gofreescout",
 			IPAddress:           "127.0.0.1",
 		}
 
 		secondMember := members.UpsertMember{
+			ID:                  uuid.New(),
 			MemberProviderEmail: "dummy@dummy.com",
 			BCOName:             "gofreescout",
 			IPAddress:           "127.0.0.1",
@@ -254,64 +352,71 @@ func TestDonationStore_GetDonationPaymentsByMemberPaypalEmail(t *testing.T) {
 		newSecondMember, err := newMembers.UpsertMember(context.Background(), secondMember)
 		require.NoError(t, err)
 
-		firstDonation := donations.InsertDonation{
+		firstDonation := donations.InsertRecurringDonation{
+			ID:             uuid.New(),
 			DonationPlanID: newDonationPlan.ID,
 			DonorID:        newFirstMember.ID,
 		}
 
-		secondDonation := donations.InsertDonation{
+		secondDonation := donations.InsertRecurringDonation{
+			ID:             uuid.New(),
 			DonationPlanID: newDonationPlan.ID,
 			DonorID:        newSecondMember.ID,
 		}
 
-		thirdDonation := donations.InsertDonation{
+		thirdDonation := donations.InsertRecurringDonation{
+			ID:             uuid.New(),
 			DonationPlanID: newDonationPlan.ID,
 			DonorID:        newFirstMember.ID,
 		}
 
-		newFirstDonation, err := donationStore.CreateDonation(context.Background(), firstDonation)
+		newFirstDonation, err := donationStore.InsertRecurringDonation(context.Background(), firstDonation)
 		require.NoError(t, err)
 
-		newSecondDonation, err := donationStore.CreateDonation(context.Background(), secondDonation)
+		newSecondDonation, err := donationStore.InsertRecurringDonation(context.Background(), secondDonation)
 		require.NoError(t, err)
 
-		newThirdDonation, err := donationStore.CreateDonation(context.Background(), thirdDonation)
+		newThirdDonation, err := donationStore.InsertRecurringDonation(context.Background(), thirdDonation)
 		require.NoError(t, err)
 
 		firstDonationPayment := donations.InsertDonationPayment{
+			ID:                uuid.New(),
 			DonationID:        newFirstDonation.ID,
 			ProviderPaymentID: "PAY-123456789",
 			AmountCents:       100,
 		}
 
 		secondDonationPayment := donations.InsertDonationPayment{
+			ID:                uuid.New(),
 			DonationID:        newSecondDonation.ID,
 			ProviderPaymentID: "PAY-987654321",
 			AmountCents:       100,
 		}
 
 		thirdDonationPayment := donations.InsertDonationPayment{
+			ID:                uuid.New(),
 			DonationID:        newThirdDonation.ID,
 			ProviderPaymentID: "PAY-123456789",
 			AmountCents:       100,
 		}
 
 		fourthDonationPayment := donations.InsertDonationPayment{
+			ID:                uuid.New(),
 			DonationID:        newFirstDonation.ID,
 			ProviderPaymentID: "PAY-987654321",
 			AmountCents:       100,
 		}
 
-		firstNewDonationPayment, err := donationStore.CreateDonationPayment(context.Background(), firstDonationPayment)
+		firstNewDonationPayment, err := donationStore.InsertDonationPayment(context.Background(), firstDonationPayment)
 		require.NoError(t, err)
 
-		_, err = donationStore.CreateDonationPayment(context.Background(), secondDonationPayment)
+		_, err = donationStore.InsertDonationPayment(context.Background(), secondDonationPayment)
 		require.NoError(t, err)
 
-		thirdNewDonationPayment, err := donationStore.CreateDonationPayment(context.Background(), thirdDonationPayment)
+		thirdNewDonationPayment, err := donationStore.InsertDonationPayment(context.Background(), thirdDonationPayment)
 		require.NoError(t, err)
 
-		fourthNewDonationPayment, err := donationStore.CreateDonationPayment(context.Background(), fourthDonationPayment)
+		fourthNewDonationPayment, err := donationStore.InsertDonationPayment(context.Background(), fourthDonationPayment)
 		require.NoError(t, err)
 
 		donationPaymentsByEmail, err := donationStore.GetDonationPaymentsByMemberPaypalEmail(context.Background(), firstMember.MemberProviderEmail)

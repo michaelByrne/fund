@@ -5,6 +5,7 @@ import (
 	"boardfund/pg"
 	"boardfund/service/members"
 	"context"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -18,7 +19,7 @@ func NewMemberStore(conn *pgxpool.Pool) MemberStore {
 	}
 }
 
-func (s MemberStore) GetMemberByID(ctx context.Context, id int32) (*members.Member, error) {
+func (s MemberStore) GetMemberByID(ctx context.Context, id uuid.UUID) (*members.Member, error) {
 	query := s.queries.GetMemberById
 
 	return pg.FetchOne(ctx, id, query, fromDBMember)

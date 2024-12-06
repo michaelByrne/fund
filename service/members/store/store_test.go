@@ -4,6 +4,7 @@ import (
 	"boardfund/pg"
 	"boardfund/service/members"
 	"context"
+	"github.com/google/uuid"
 	_ "github.com/jackc/pgx"
 	"github.com/stretchr/testify/require"
 	"gotest.tools/v3/assert"
@@ -19,6 +20,7 @@ func TestMemberStore_UpsertMember(t *testing.T) {
 		store := NewMemberStore(connPool)
 
 		member := members.UpsertMember{
+			ID:                  uuid.New(),
 			MemberProviderEmail: "member@gmail.com",
 			BCOName:             "gofreescout",
 			IPAddress:           "172.0.0.1",

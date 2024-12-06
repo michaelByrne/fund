@@ -24,13 +24,18 @@ func NewClient(paypalAuth *token.Store, baseURL string) *Client {
 	}
 }
 
-func (c Client) post(ctx context.Context, path string, payload []byte) error {
+func (c Client) post(ctx context.Context, path string, payload any) error {
 	token, err := c.paypalAuth.GetToken(ctx)
 	if err != nil {
 		return err
 	}
 
-	payloadReader := bytes.NewReader(payload)
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	payloadReader := bytes.NewReader(payloadBytes)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+path, payloadReader)
 	if err != nil {
@@ -50,13 +55,18 @@ func (c Client) post(ctx context.Context, path string, payload []byte) error {
 	return nil
 }
 
-func (c Client) postWithResponse(ctx context.Context, path string, payload []byte) ([]byte, error) {
+func (c Client) postWithResponse(ctx context.Context, path string, payload any) ([]byte, error) {
 	paypalToken, err := c.paypalAuth.GetToken(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	payloadReader := bytes.NewReader(payload)
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	payloadReader := bytes.NewReader(payloadBytes)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+path, payloadReader)
 	if err != nil {
@@ -85,7 +95,7 @@ func (c Client) postWithResponse(ctx context.Context, path string, payload []byt
 			return nil, fmt.Errorf("error unmarshalling error response: %w", err)
 		}
 
-		fmt.Printf("paypal error: %v\n", paypalError.Details)
+		fmt.Printf("paypalError: %+v\n", string(body))
 
 		return nil, paypalError
 	}
@@ -118,16 +128,31 @@ func (c Client) get(ctx context.Context, path string) ([]byte, error) {
 		return nil, err
 	}
 
+	if resp.StatusCode != http.StatusCreated {
+		var paypalError ErrPaypal
+		err = json.Unmarshal(body, &paypalError)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling error response: %w", err)
+		}
+
+		return nil, paypalError
+	}
+
 	return body, nil
 }
 
-func (c Client) patch(ctx context.Context, path string, payload []byte) error {
+func (c Client) patch(ctx context.Context, path string, payload any) error {
 	token, err := c.paypalAuth.GetToken(ctx)
 	if err != nil {
 		return err
 	}
 
-	payloadReader := bytes.NewReader(payload)
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	payloadReader := bytes.NewReader(payloadBytes)
 
 	req, err := http.NewRequestWithContext(ctx, "PATCH", c.baseURL+path, payloadReader)
 	if err != nil {
@@ -142,6 +167,21 @@ func (c Client) patch(ctx context.Context, path string, payload []byte) error {
 	}
 
 	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != http.StatusNoContent {
+		var paypalError ErrPaypal
+		err = json.Unmarshal(body, &paypalError)
+		if err != nil {
+			return fmt.Errorf("error unmarshalling error response: %w", err)
+		}
+
+		return paypalError
+	}
 
 	return nil
 }
@@ -165,6 +205,21 @@ func (c Client) delete(ctx context.Context, path string) error {
 	}
 
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+
+		var paypalError ErrPaypal
+		err = json.Unmarshal(body, &paypalError)
+		if err != nil {
+			return fmt.Errorf("error unmarshalling error response: %w", err)
+		}
+
+		return paypalError
+	}
 
 	return nil
 }

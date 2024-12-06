@@ -7,26 +7,28 @@ package db
 
 import (
 	"context"
-	"net/netip"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getDonationById = `-- name: GetDonationById :one
-SELECT id, donor_id, donation_plan_id, created, updated
+SELECT id, recurring, donor_id, donation_plan_id, created, updated, fund_id
 FROM donation
 WHERE id = $1
 `
 
-func (q *Queries) GetDonationById(ctx context.Context, id int32) (Donation, error) {
+func (q *Queries) GetDonationById(ctx context.Context, id uuid.UUID) (Donation, error) {
 	row := q.db.QueryRow(ctx, getDonationById, id)
 	var i Donation
 	err := row.Scan(
 		&i.ID,
+		&i.Recurring,
 		&i.DonorID,
 		&i.DonationPlanID,
 		&i.Created,
 		&i.Updated,
+		&i.FundID,
 	)
 	return i, err
 }
@@ -37,7 +39,7 @@ FROM donation_payment
 WHERE id = $1
 `
 
-func (q *Queries) GetDonationPaymentById(ctx context.Context, id int32) (DonationPayment, error) {
+func (q *Queries) GetDonationPaymentById(ctx context.Context, id uuid.UUID) (DonationPayment, error) {
 	row := q.db.QueryRow(ctx, getDonationPaymentById, id)
 	var i DonationPayment
 	err := row.Scan(
@@ -57,7 +59,7 @@ FROM donation_payment
 WHERE donation_id = $1
 `
 
-func (q *Queries) GetDonationPaymentsByDonationId(ctx context.Context, donationID int32) ([]DonationPayment, error) {
+func (q *Queries) GetDonationPaymentsByDonationId(ctx context.Context, donationID uuid.UUID) ([]DonationPayment, error) {
 	rows, err := q.db.Query(ctx, getDonationPaymentsByDonationId, donationID)
 	if err != nil {
 		return nil, err
@@ -87,8 +89,8 @@ func (q *Queries) GetDonationPaymentsByDonationId(ctx context.Context, donationI
 const getDonationPaymentsByMemberPaypalEmail = `-- name: GetDonationPaymentsByMemberPaypalEmail :many
 SELECT donation_payment.id, donation_payment.donation_id, donation_payment.paypal_payment_id, donation_payment.amount_cents, donation_payment.created, donation_payment.updated
 FROM donation_payment
-JOIN donation ON donation.id = donation_payment.donation_id
-JOIN member ON member.id = donation.donor_id
+         JOIN donation ON donation.id = donation_payment.donation_id
+         JOIN member ON member.id = donation.donor_id
 WHERE member.paypal_email = $1
 `
 
@@ -120,12 +122,12 @@ func (q *Queries) GetDonationPaymentsByMemberPaypalEmail(ctx context.Context, pa
 }
 
 const getDonationPlanById = `-- name: GetDonationPlanById :one
-SELECT id, name, paypal_plan_id, amount_cents, interval_unit, interval_count, active, created, updated
+SELECT id, name, paypal_plan_id, amount_cents, interval_unit, interval_count, active, created, updated, fund_id
 FROM donation_plan
 WHERE id = $1
 `
 
-func (q *Queries) GetDonationPlanById(ctx context.Context, id int32) (DonationPlan, error) {
+func (q *Queries) GetDonationPlanById(ctx context.Context, id uuid.UUID) (DonationPlan, error) {
 	row := q.db.QueryRow(ctx, getDonationPlanById, id)
 	var i DonationPlan
 	err := row.Scan(
@@ -138,12 +140,13 @@ func (q *Queries) GetDonationPlanById(ctx context.Context, id int32) (DonationPl
 		&i.Active,
 		&i.Created,
 		&i.Updated,
+		&i.FundID,
 	)
 	return i, err
 }
 
 const getDonationPlans = `-- name: GetDonationPlans :many
-SELECT id, name, paypal_plan_id, amount_cents, interval_unit, interval_count, active, created, updated
+SELECT id, name, paypal_plan_id, amount_cents, interval_unit, interval_count, active, created, updated, fund_id
 FROM donation_plan
 ORDER BY created
 `
@@ -167,6 +170,7 @@ func (q *Queries) GetDonationPlans(ctx context.Context) ([]DonationPlan, error) 
 			&i.Active,
 			&i.Created,
 			&i.Updated,
+			&i.FundID,
 		); err != nil {
 			return nil, err
 		}
@@ -179,12 +183,12 @@ func (q *Queries) GetDonationPlans(ctx context.Context) ([]DonationPlan, error) 
 }
 
 const getDonationsByDonorId = `-- name: GetDonationsByDonorId :many
-SELECT id, donor_id, donation_plan_id, created, updated
+SELECT id, recurring, donor_id, donation_plan_id, created, updated, fund_id
 FROM donation
 WHERE donor_id = $1
 `
 
-func (q *Queries) GetDonationsByDonorId(ctx context.Context, donorID int32) ([]Donation, error) {
+func (q *Queries) GetDonationsByDonorId(ctx context.Context, donorID uuid.UUID) ([]Donation, error) {
 	rows, err := q.db.Query(ctx, getDonationsByDonorId, donorID)
 	if err != nil {
 		return nil, err
@@ -195,10 +199,12 @@ func (q *Queries) GetDonationsByDonorId(ctx context.Context, donorID int32) ([]D
 		var i Donation
 		if err := rows.Scan(
 			&i.ID,
+			&i.Recurring,
 			&i.DonorID,
 			&i.DonationPlanID,
 			&i.Created,
 			&i.Updated,
+			&i.FundID,
 		); err != nil {
 			return nil, err
 		}
@@ -211,55 +217,94 @@ func (q *Queries) GetDonationsByDonorId(ctx context.Context, donorID int32) ([]D
 }
 
 const getDonationsByMemberPaypalEmail = `-- name: GetDonationsByMemberPaypalEmail :many
-SELECT donation.id, donor_id, donation_plan_id, donation.created, donation.updated, member.id, first_name, last_name, bco_name, ip_address, paypal_email, postal_code, member.created, member.updated, provider_payer_id
+SELECT donation.id, donation.recurring, donation.donor_id, donation.donation_plan_id, donation.created, donation.updated, donation.fund_id
 FROM donation
-JOIN member ON member.id = donation.donor_id
+         JOIN member ON member.id = donation.donor_id
 WHERE member.paypal_email = $1
 `
 
-type GetDonationsByMemberPaypalEmailRow struct {
-	ID              int32
-	DonorID         int32
-	DonationPlanID  int32
-	Created         pgtype.Timestamp
-	Updated         pgtype.Timestamp
-	ID_2            int32
-	FirstName       pgtype.Text
-	LastName        pgtype.Text
-	BcoName         pgtype.Text
-	IpAddress       netip.Addr
-	PaypalEmail     string
-	PostalCode      pgtype.Text
-	Created_2       pgtype.Timestamp
-	Updated_2       pgtype.Timestamp
-	ProviderPayerID pgtype.Text
-}
-
-func (q *Queries) GetDonationsByMemberPaypalEmail(ctx context.Context, paypalEmail string) ([]GetDonationsByMemberPaypalEmailRow, error) {
+func (q *Queries) GetDonationsByMemberPaypalEmail(ctx context.Context, paypalEmail string) ([]Donation, error) {
 	rows, err := q.db.Query(ctx, getDonationsByMemberPaypalEmail, paypalEmail)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetDonationsByMemberPaypalEmailRow
+	var items []Donation
 	for rows.Next() {
-		var i GetDonationsByMemberPaypalEmailRow
+		var i Donation
 		if err := rows.Scan(
 			&i.ID,
+			&i.Recurring,
 			&i.DonorID,
 			&i.DonationPlanID,
 			&i.Created,
 			&i.Updated,
-			&i.ID_2,
-			&i.FirstName,
-			&i.LastName,
-			&i.BcoName,
-			&i.IpAddress,
-			&i.PaypalEmail,
-			&i.PostalCode,
-			&i.Created_2,
-			&i.Updated_2,
-			&i.ProviderPayerID,
+			&i.FundID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getFundById = `-- name: GetFundById :one
+SELECT id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, expires, next_payment, created, updated
+FROM fund
+WHERE id = $1
+`
+
+func (q *Queries) GetFundById(ctx context.Context, id uuid.UUID) (Fund, error) {
+	row := q.db.QueryRow(ctx, getFundById, id)
+	var i Fund
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.ProviderID,
+		&i.ProviderName,
+		&i.GoalCents,
+		&i.PayoutFrequency,
+		&i.Active,
+		&i.Expires,
+		&i.NextPayment,
+		&i.Created,
+		&i.Updated,
+	)
+	return i, err
+}
+
+const getFunds = `-- name: GetFunds :many
+SELECT id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, expires, next_payment, created, updated
+FROM fund
+ORDER BY created
+`
+
+func (q *Queries) GetFunds(ctx context.Context) ([]Fund, error) {
+	rows, err := q.db.Query(ctx, getFunds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Fund
+	for rows.Next() {
+		var i Fund
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.ProviderID,
+			&i.ProviderName,
+			&i.GoalCents,
+			&i.PayoutFrequency,
+			&i.Active,
+			&i.Expires,
+			&i.NextPayment,
+			&i.Created,
+			&i.Updated,
 		); err != nil {
 			return nil, err
 		}
@@ -272,43 +317,60 @@ func (q *Queries) GetDonationsByMemberPaypalEmail(ctx context.Context, paypalEma
 }
 
 const insertDonation = `-- name: InsertDonation :one
-INSERT INTO donation (donor_id, donation_plan_id)
-VALUES ($1, $2)
-RETURNING id, donor_id, donation_plan_id, created, updated
+INSERT INTO donation (id, donor_id, fund_id, recurring, donation_plan_id)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, recurring, donor_id, donation_plan_id, created, updated, fund_id
 `
 
 type InsertDonationParams struct {
-	DonorID        int32
-	DonationPlanID int32
+	ID             uuid.UUID
+	DonorID        uuid.UUID
+	FundID         uuid.UUID
+	Recurring      bool
+	DonationPlanID uuid.NullUUID
 }
 
 func (q *Queries) InsertDonation(ctx context.Context, arg InsertDonationParams) (Donation, error) {
-	row := q.db.QueryRow(ctx, insertDonation, arg.DonorID, arg.DonationPlanID)
+	row := q.db.QueryRow(ctx, insertDonation,
+		arg.ID,
+		arg.DonorID,
+		arg.FundID,
+		arg.Recurring,
+		arg.DonationPlanID,
+	)
 	var i Donation
 	err := row.Scan(
 		&i.ID,
+		&i.Recurring,
 		&i.DonorID,
 		&i.DonationPlanID,
 		&i.Created,
 		&i.Updated,
+		&i.FundID,
 	)
 	return i, err
 }
 
 const insertDonationPayment = `-- name: InsertDonationPayment :one
-INSERT INTO donation_payment (donation_id, paypal_payment_id, amount_cents)
-VALUES ($1, $2, $3)
+INSERT INTO donation_payment (id, donation_id, paypal_payment_id, amount_cents)
+VALUES ($1, $2, $3, $4)
 RETURNING id, donation_id, paypal_payment_id, amount_cents, created, updated
 `
 
 type InsertDonationPaymentParams struct {
-	DonationID      int32
+	ID              uuid.UUID
+	DonationID      uuid.UUID
 	PaypalPaymentID string
 	AmountCents     int32
 }
 
 func (q *Queries) InsertDonationPayment(ctx context.Context, arg InsertDonationPaymentParams) (DonationPayment, error) {
-	row := q.db.QueryRow(ctx, insertDonationPayment, arg.DonationID, arg.PaypalPaymentID, arg.AmountCents)
+	row := q.db.QueryRow(ctx, insertDonationPayment,
+		arg.ID,
+		arg.DonationID,
+		arg.PaypalPaymentID,
+		arg.AmountCents,
+	)
 	var i DonationPayment
 	err := row.Scan(
 		&i.ID,
@@ -322,28 +384,32 @@ func (q *Queries) InsertDonationPayment(ctx context.Context, arg InsertDonationP
 }
 
 const insertDonationPlan = `-- name: InsertDonationPlan :one
-INSERT INTO donation_plan (name, amount_cents, interval_unit, interval_count, active, paypal_plan_id)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, name, paypal_plan_id, amount_cents, interval_unit, interval_count, active, created, updated
+INSERT INTO donation_plan (id, name, amount_cents, interval_unit, interval_count, active, paypal_plan_id, fund_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, name, paypal_plan_id, amount_cents, interval_unit, interval_count, active, created, updated, fund_id
 `
 
 type InsertDonationPlanParams struct {
+	ID            uuid.UUID
 	Name          string
 	AmountCents   int32
 	IntervalUnit  IntervalUnit
 	IntervalCount int32
 	Active        bool
 	PaypalPlanID  pgtype.Text
+	FundID        uuid.UUID
 }
 
 func (q *Queries) InsertDonationPlan(ctx context.Context, arg InsertDonationPlanParams) (DonationPlan, error) {
 	row := q.db.QueryRow(ctx, insertDonationPlan,
+		arg.ID,
 		arg.Name,
 		arg.AmountCents,
 		arg.IntervalUnit,
 		arg.IntervalCount,
 		arg.Active,
 		arg.PaypalPlanID,
+		arg.FundID,
 	)
 	var i DonationPlan
 	err := row.Scan(
@@ -356,6 +422,57 @@ func (q *Queries) InsertDonationPlan(ctx context.Context, arg InsertDonationPlan
 		&i.Active,
 		&i.Created,
 		&i.Updated,
+		&i.FundID,
+	)
+	return i, err
+}
+
+const insertFund = `-- name: InsertFund :one
+INSERT INTO fund (id, name, description, provider_id, provider_name, active, payout_frequency, goal_cents, expires,
+                  next_payment)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+        (CASE WHEN $7::payout_frequency = 'monthly' THEN (SELECT now() + INTERVAL '1 month') ELSE $9::timestamp END))
+RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, expires, next_payment, created, updated
+`
+
+type InsertFundParams struct {
+	ID              uuid.UUID
+	Name            string
+	Description     string
+	ProviderID      string
+	ProviderName    string
+	Active          bool
+	PayoutFrequency PayoutFrequency
+	GoalCents       pgtype.Int4
+	Expires         pgtype.Timestamptz
+}
+
+func (q *Queries) InsertFund(ctx context.Context, arg InsertFundParams) (Fund, error) {
+	row := q.db.QueryRow(ctx, insertFund,
+		arg.ID,
+		arg.Name,
+		arg.Description,
+		arg.ProviderID,
+		arg.ProviderName,
+		arg.Active,
+		arg.PayoutFrequency,
+		arg.GoalCents,
+		arg.Expires,
+	)
+	var i Fund
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.ProviderID,
+		&i.ProviderName,
+		&i.GoalCents,
+		&i.PayoutFrequency,
+		&i.Active,
+		&i.Expires,
+		&i.NextPayment,
+		&i.Created,
+		&i.Updated,
 	)
 	return i, err
 }
@@ -364,13 +481,13 @@ const updateDonation = `-- name: UpdateDonation :one
 UPDATE donation
 SET (donor_id, donation_plan_id) = ($2, $3)
 WHERE id = $1
-RETURNING id, donor_id, donation_plan_id, created, updated
+RETURNING id, recurring, donor_id, donation_plan_id, created, updated, fund_id
 `
 
 type UpdateDonationParams struct {
-	ID             int32
-	DonorID        int32
-	DonationPlanID int32
+	ID             uuid.UUID
+	DonorID        uuid.UUID
+	DonationPlanID uuid.NullUUID
 }
 
 func (q *Queries) UpdateDonation(ctx context.Context, arg UpdateDonationParams) (Donation, error) {
@@ -378,29 +495,32 @@ func (q *Queries) UpdateDonation(ctx context.Context, arg UpdateDonationParams) 
 	var i Donation
 	err := row.Scan(
 		&i.ID,
+		&i.Recurring,
 		&i.DonorID,
 		&i.DonationPlanID,
 		&i.Created,
 		&i.Updated,
+		&i.FundID,
 	)
 	return i, err
 }
 
 const updateDonationPlan = `-- name: UpdateDonationPlan :one
 UPDATE donation_plan
-SET (name, amount_cents, interval_unit, interval_count, active, paypal_plan_id) = ($2, $3, $4, $5, $6, $7)
+SET (name, amount_cents, interval_unit, interval_count, active, paypal_plan_id, fund_id) = ($2, $3, $4, $5, $6, $7, $8)
 WHERE id = $1
-RETURNING id, name, paypal_plan_id, amount_cents, interval_unit, interval_count, active, created, updated
+RETURNING id, name, paypal_plan_id, amount_cents, interval_unit, interval_count, active, created, updated, fund_id
 `
 
 type UpdateDonationPlanParams struct {
-	ID            int32
+	ID            uuid.UUID
 	Name          string
 	AmountCents   int32
 	IntervalUnit  IntervalUnit
 	IntervalCount int32
 	Active        bool
 	PaypalPlanID  pgtype.Text
+	FundID        uuid.UUID
 }
 
 func (q *Queries) UpdateDonationPlan(ctx context.Context, arg UpdateDonationPlanParams) (DonationPlan, error) {
@@ -412,6 +532,7 @@ func (q *Queries) UpdateDonationPlan(ctx context.Context, arg UpdateDonationPlan
 		arg.IntervalCount,
 		arg.Active,
 		arg.PaypalPlanID,
+		arg.FundID,
 	)
 	var i DonationPlan
 	err := row.Scan(
@@ -424,6 +545,125 @@ func (q *Queries) UpdateDonationPlan(ctx context.Context, arg UpdateDonationPlan
 		&i.Active,
 		&i.Created,
 		&i.Updated,
+		&i.FundID,
+	)
+	return i, err
+}
+
+const updateFund = `-- name: UpdateFund :one
+UPDATE fund
+SET (name, description, active, payout_frequency, goal_cents, expires) = ($2, $3, $4, $5, $6, $7)
+WHERE id = $1
+RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, expires, next_payment, created, updated
+`
+
+type UpdateFundParams struct {
+	ID              uuid.UUID
+	Name            string
+	Description     string
+	Active          bool
+	PayoutFrequency PayoutFrequency
+	GoalCents       pgtype.Int4
+	Expires         pgtype.Timestamptz
+}
+
+func (q *Queries) UpdateFund(ctx context.Context, arg UpdateFundParams) (Fund, error) {
+	row := q.db.QueryRow(ctx, updateFund,
+		arg.ID,
+		arg.Name,
+		arg.Description,
+		arg.Active,
+		arg.PayoutFrequency,
+		arg.GoalCents,
+		arg.Expires,
+	)
+	var i Fund
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.ProviderID,
+		&i.ProviderName,
+		&i.GoalCents,
+		&i.PayoutFrequency,
+		&i.Active,
+		&i.Expires,
+		&i.NextPayment,
+		&i.Created,
+		&i.Updated,
+	)
+	return i, err
+}
+
+const updateFundNextPayment = `-- name: UpdateFundNextPayment :one
+UPDATE fund
+SET next_payment = (SELECT now() + INTERVAL '1 month')
+WHERE id = $1
+RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, expires, next_payment, created, updated
+`
+
+func (q *Queries) UpdateFundNextPayment(ctx context.Context, id uuid.UUID) (Fund, error) {
+	row := q.db.QueryRow(ctx, updateFundNextPayment, id)
+	var i Fund
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.ProviderID,
+		&i.ProviderName,
+		&i.GoalCents,
+		&i.PayoutFrequency,
+		&i.Active,
+		&i.Expires,
+		&i.NextPayment,
+		&i.Created,
+		&i.Updated,
+	)
+	return i, err
+}
+
+const upsertDonationPlan = `-- name: UpsertDonationPlan :one
+INSERT INTO donation_plan (id, name, amount_cents, interval_unit, interval_count, active, paypal_plan_id, fund_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+ON CONFLICT (interval_unit, interval_count) DO UPDATE
+    SET (name, amount_cents, active, paypal_plan_id, fund_id) = ($2, $3, $6, $7, $8)
+RETURNING id, name, paypal_plan_id, amount_cents, interval_unit, interval_count, active, created, updated, fund_id
+`
+
+type UpsertDonationPlanParams struct {
+	ID            uuid.UUID
+	Name          string
+	AmountCents   int32
+	IntervalUnit  IntervalUnit
+	IntervalCount int32
+	Active        bool
+	PaypalPlanID  pgtype.Text
+	FundID        uuid.UUID
+}
+
+func (q *Queries) UpsertDonationPlan(ctx context.Context, arg UpsertDonationPlanParams) (DonationPlan, error) {
+	row := q.db.QueryRow(ctx, upsertDonationPlan,
+		arg.ID,
+		arg.Name,
+		arg.AmountCents,
+		arg.IntervalUnit,
+		arg.IntervalCount,
+		arg.Active,
+		arg.PaypalPlanID,
+		arg.FundID,
+	)
+	var i DonationPlan
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.PaypalPlanID,
+		&i.AmountCents,
+		&i.IntervalUnit,
+		&i.IntervalCount,
+		&i.Active,
+		&i.Created,
+		&i.Updated,
+		&i.FundID,
 	)
 	return i, err
 }

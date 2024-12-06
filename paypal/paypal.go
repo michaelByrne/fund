@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
 )
 
 type Paypal struct {
@@ -19,7 +20,7 @@ func NewPaypal(client *Client, productID string) *Paypal {
 	}
 }
 
-func (p Paypal) CreateProduct(ctx context.Context, name, description string) (string, error) {
+func (p Paypal) CreateFund(ctx context.Context, name, description string) (string, error) {
 	payload := CreateProduct{
 		Name:        name,
 		Description: description,
@@ -27,12 +28,7 @@ func (p Paypal) CreateProduct(ctx context.Context, name, description string) (st
 		Category:    "CHARITY",
 	}
 
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return "", err
-	}
-
-	responseBytes, err := p.client.postWithResponse(ctx, "/v1/catalogs/products", payloadBytes)
+	responseBytes, err := p.client.postWithResponse(ctx, "/v1/catalogs/products", payload)
 	if err != nil {
 		return "", err
 	}
@@ -47,7 +43,7 @@ func (p Paypal) CreateProduct(ctx context.Context, name, description string) (st
 }
 
 func (p Paypal) CreatePlan(ctx context.Context, plan donations.CreatePlan) (string, error) {
-	payload := CreatePlan{
+	payload := CreatePlanRequest{
 		Name:      plan.Name,
 		ProductID: p.productID,
 		BillingCycles: []BillingCycles{
@@ -75,12 +71,7 @@ func (p Paypal) CreatePlan(ctx context.Context, plan donations.CreatePlan) (stri
 		},
 	}
 
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return "", err
-	}
-
-	responseBytes, err := p.client.postWithResponse(ctx, "/v1/billing/plans", payloadBytes)
+	responseBytes, err := p.client.postWithResponse(ctx, "/v1/billing/plans", payload)
 	if err != nil {
 		return "", err
 	}
@@ -100,6 +91,48 @@ func (p Paypal) ActivatePlan(ctx context.Context, planID string) error {
 
 func (p Paypal) DeactivatePlan(ctx context.Context, planID string) error {
 	return p.client.post(ctx, "/v1/billing/plans/"+planID+"/deactivate", nil)
+}
+
+func (p Paypal) InitiateDonation(ctx context.Context, fund donations.Fund, amountCents int32) (string, error) {
+	orderRequest := CreateOrderRequest{
+		Intent: "CAPTURE",
+		PurchaseUnits: []OrderPurchaseUnits{
+			{
+				Amount: Amount{
+					CurrencyCode: "USD",
+					Value:        centsToDecimalString(amountCents),
+				},
+				Description:    fund.Description,
+				SoftDescriptor: fund.Name,
+				ReferenceID:    "donation",
+			},
+		},
+	}
+
+	orderResponseBytes, err := p.client.postWithResponse(ctx, "/v2/checkout/orders", orderRequest)
+	if err != nil {
+		return "", err
+	}
+
+	var orderResponse CreateOrderResponse
+	err = json.Unmarshal(orderResponseBytes, &orderResponse)
+	if err != nil {
+		return "", err
+	}
+
+	return orderResponse.ID, nil
+}
+
+func (p Paypal) FinalizeDonation(ctx context.Context, internalDonationID uuid.UUID, orderID string) error {
+	updates := Updates{
+		{
+			Op:    "add",
+			Path:  "/purchase_units/custom_id",
+			Value: internalDonationID.String(),
+		},
+	}
+
+	return p.client.patch(ctx, "/v2/checkout/orders/"+orderID, updates)
 }
 
 func centsToDecimalString(cents int32) string {

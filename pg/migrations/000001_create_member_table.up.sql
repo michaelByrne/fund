@@ -1,6 +1,6 @@
 CREATE TABLE member
 (
-    id           serial PRIMARY KEY NOT NULL,
+    id           uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     first_name   varchar(50),
     last_name    varchar(50),
     bco_name     varchar(100),

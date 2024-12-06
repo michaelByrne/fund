@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/netip"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -54,44 +55,104 @@ func (ns NullIntervalUnit) Value() (driver.Value, error) {
 	return string(ns.IntervalUnit), nil
 }
 
+type PayoutFrequency string
+
+const (
+	PayoutFrequencyMonthly PayoutFrequency = "monthly"
+	PayoutFrequencyOnce    PayoutFrequency = "once"
+)
+
+func (e *PayoutFrequency) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PayoutFrequency(s)
+	case string:
+		*e = PayoutFrequency(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PayoutFrequency: %T", src)
+	}
+	return nil
+}
+
+type NullPayoutFrequency struct {
+	PayoutFrequency PayoutFrequency
+	Valid           bool // Valid is true if PayoutFrequency is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPayoutFrequency) Scan(value interface{}) error {
+	if value == nil {
+		ns.PayoutFrequency, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PayoutFrequency.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPayoutFrequency) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PayoutFrequency), nil
+}
+
 type Donation struct {
-	ID             int32
-	DonorID        int32
-	DonationPlanID int32
-	Created        pgtype.Timestamp
-	Updated        pgtype.Timestamp
+	ID             uuid.UUID
+	Recurring      bool
+	DonorID        uuid.UUID
+	DonationPlanID uuid.NullUUID
+	Created        pgtype.Timestamptz
+	Updated        pgtype.Timestamptz
+	FundID         uuid.UUID
 }
 
 type DonationPayment struct {
-	ID              int32
-	DonationID      int32
+	ID              uuid.UUID
+	DonationID      uuid.UUID
 	PaypalPaymentID string
 	AmountCents     int32
-	Created         pgtype.Timestamp
-	Updated         pgtype.Timestamp
+	Created         pgtype.Timestamptz
+	Updated         pgtype.Timestamptz
 }
 
 type DonationPlan struct {
-	ID            int32
+	ID            uuid.UUID
 	Name          string
 	PaypalPlanID  pgtype.Text
 	AmountCents   int32
 	IntervalUnit  IntervalUnit
 	IntervalCount int32
 	Active        bool
-	Created       pgtype.Timestamp
-	Updated       pgtype.Timestamp
+	Created       pgtype.Timestamptz
+	Updated       pgtype.Timestamptz
+	FundID        uuid.UUID
+}
+
+type Fund struct {
+	ID              uuid.UUID
+	Name            string
+	Description     string
+	ProviderID      string
+	ProviderName    string
+	GoalCents       pgtype.Int4
+	PayoutFrequency PayoutFrequency
+	Active          bool
+	Expires         pgtype.Timestamptz
+	NextPayment     pgtype.Timestamptz
+	Created         pgtype.Timestamptz
+	Updated         pgtype.Timestamptz
 }
 
 type Member struct {
-	ID              int32
+	ID              uuid.UUID
 	FirstName       pgtype.Text
 	LastName        pgtype.Text
 	BcoName         pgtype.Text
 	IpAddress       netip.Addr
 	PaypalEmail     string
 	PostalCode      pgtype.Text
-	Created         pgtype.Timestamp
-	Updated         pgtype.Timestamp
+	Created         pgtype.Timestamptz
+	Updated         pgtype.Timestamptz
 	ProviderPayerID pgtype.Text
 }

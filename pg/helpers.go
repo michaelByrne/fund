@@ -7,6 +7,7 @@ type upsertOne[DBArg any, DB any] func(ctx context.Context, arg DBArg) (DB, erro
 type getOne[In any, Out any] func(ctx context.Context, arg In) (Out, error)
 type updateOne[In any, Out any] func(ctx context.Context, arg In) (Out, error)
 type getMany[In any, Out any] func(ctx context.Context, arg In) ([]Out, error)
+type getAll[DB any] func(ctx context.Context) ([]DB, error)
 
 type transform[In any, Out any] func(In) Out
 
@@ -47,6 +48,20 @@ func FetchOne[Realm any, DB any, Arg any](ctx context.Context, arg Arg, get getO
 
 func FetchMany[Realm any, DB any, Arg any](ctx context.Context, arg Arg, get getMany[Arg, DB], transform transform[DB, Realm]) ([]Realm, error) {
 	dbRes, err := get(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]Realm, len(dbRes))
+	for i, r := range dbRes {
+		result[i] = transform(r)
+	}
+
+	return result, nil
+}
+
+func FetchAll[Realm any, DB any](ctx context.Context, get getAll[DB], transform transform[DB, Realm]) ([]Realm, error) {
+	dbRes, err := get(ctx)
 	if err != nil {
 		return nil, err
 	}

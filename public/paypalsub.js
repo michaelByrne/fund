@@ -1,4 +1,4 @@
-window.paypal.Buttons({
+window.paypal_sub.Buttons({
     createSubscription: function (data, actions) {
         let providerPlanId = JSON.parse(document.getElementById('provider-plan-id').textContent);
         return actions.subscription.create({
@@ -18,10 +18,11 @@ window.paypal.Buttons({
         let providerPlanId = JSON.parse(document.getElementById('provider-plan-id').textContent);
         let planId = JSON.parse(document.getElementById('plan-id').textContent);
         let bcoName = JSON.parse(document.getElementById('bco-name').textContent);
+        let fundId = JSON.parse(document.getElementById('fund-id').textContent);
 
         let subscription = await actions.subscription.get();
 
-        let resp = await fetch('/subscription/capture', {
+        let resp = await fetch('/donation/plan/complete', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded'
@@ -36,12 +37,13 @@ window.paypal.Buttons({
                 payer_id: subscription.subscriber.payer_id,
                 first_name: subscription.subscriber.name.given_name,
                 last_name: subscription.subscriber.name.surname,
-                bco_name: bcoName
+                bco_name: bcoName,
+                fund_id: fundId
             })
         });
 
         if (resp.ok) {
-            window.location.href = '/subscription/success?name=' + subscription.subscriber.name.given_name;
+            window.location.href = '/donation/success?name=' + subscription.subscriber.name.given_name;
         }
     }
 }).render('#paypal-button-container')

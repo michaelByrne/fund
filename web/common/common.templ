@@ -1,0 +1,37 @@
+package common
+
+import "fmt"
+
+templ Head(clientID string) {
+	<head>
+		<title>BCO Mutual Aid</title>
+		<link rel="icon" type="image/x-icon" href="/static/favicon.ico"/>
+		<link rel="stylesheet" href="/static/styles.css"/>
+		<script type="application/javascript" src="/static/htmx.min.js"></script>
+		<script type="application/javascript" src="/static/hyperscript.min.js"></script>
+		<script type="application/javascript" src="/static/shared.js"></script>
+		<script src={ fmt.Sprintf("https://www.paypal.com/sdk/js?client-id=%s&vault=true&intent=subscription", clientID) } data-namespace="paypal_sub"></script>
+		<script src={ fmt.Sprintf("https://www.paypal.com/sdk/js?client-id=%s&vault=true", clientID) } data-namespace="paypal_once"></script>
+	</head>
+}
+
+templ Home(content templ.Component, clientID string) {
+	@Head(clientID)
+	<body class="flex flex-col h-full bg-[#333333] font-bco text-sm">
+		<div>
+			<div class="flex justify-between items-center w-[95%] mx-auto my-2">
+				<h1 class="text-xl font-bold text-white"><a href="/">elitism. secrecy. redistribution.</a></h1>
+				<span class="text-xs text-gray-200"><a href="/about">about</a></span>
+			</div>
+			<div id="donation" class=" bg-[#c3dae4] w-[95%] mx-auto mt-2">
+				@content
+			</div>
+		</div>
+	</body>
+}
+
+templ ErrorMessage(message string) {
+	<div class="text-gray-900 w-[95%] mx-auto mt-2 bg-[#e4cdc3] p-4 text-lg">{ message }</div>
+}
+
+
