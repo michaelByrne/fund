@@ -3,6 +3,7 @@ package aws
 import (
 	"boardfund/service/auth"
 	"context"
+	"fmt"
 	cognito "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider/types"
 	"time"
@@ -33,6 +34,10 @@ func (c CognitoAuth) Authorize(ctx context.Context, user, pass string) (*auth.To
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	if authResponse.AuthenticationResult == nil {
+		return nil, fmt.Errorf("authentication result is nil")
 	}
 
 	expiration := time.Now().Add(time.Duration(authResponse.AuthenticationResult.ExpiresIn) * time.Second)

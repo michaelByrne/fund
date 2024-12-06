@@ -2,7 +2,7 @@ package authweb
 
 templ Login() {
 	<div class="w-[95%] mx-auto h-full flex items-center">
-		<form hx-post="/login" hx-target="#login" class="w-full">
+		<form target="/login" method="post" class="w-full">
 			<div class="flex sm:flex-row flex-col gap-4">
 				<div class="flex items-center">
 					<label for="username" class="text-md font-semibold px-2">username</label>

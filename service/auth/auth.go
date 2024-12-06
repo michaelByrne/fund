@@ -33,7 +33,7 @@ func (s AuthService) Authenticate(ctx context.Context, username, password string
 		return nil, nil, err
 	}
 
-	parsedToken, err := jwt.ParseString(token.TokenStr)
+	parsedToken, err := jwt.ParseString(token.TokenStr, jwt.WithVerify(false))
 	if err != nil {
 		s.logger.Error("failed to parse token", slog.String("error", err.Error()))
 

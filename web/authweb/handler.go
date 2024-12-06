@@ -31,8 +31,8 @@ func (h AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 
 		return
 	} else if r.Method == http.MethodPost {
-		username := r.FormValue("name")
-		password := r.FormValue("pass")
+		username := r.FormValue("username")
+		password := r.FormValue("password")
 
 		if username == "" || password == "" {
 			w.WriteHeader(http.StatusBadRequest)

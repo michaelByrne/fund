@@ -50,8 +50,8 @@ func main() {
 }
 
 func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) error {
-	clientID := getEnv("PAYPAL_CLIENT_ID")
-	if clientID == "" {
+	paypalClientID := getEnv("PAYPAL_CLIENT_ID")
+	if paypalClientID == "" {
 		return fmt.Errorf("PAYPAL_CLIENT_ID is required")
 	}
 
@@ -100,9 +100,14 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 		return fmt.Errorf("JWK_URL is required")
 	}
 
+	cognitoClientID := getEnv("COGNITO_CLIENT_ID")
+	if cognitoClientID == "" {
+		return fmt.Errorf("COGNITO_CLIENT_ID is required")
+	}
+
 	dbURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", pgUser, pgPass, pgHost, pgPort, pgDB)
 
-	tokenClient := token.NewClient(clientID, clientSecret, baseURL)
+	tokenClient := token.NewClient(paypalClientID, clientSecret, baseURL)
 	tokenStore := token.NewStore(tokenClient)
 	paypalClient := paypal.NewClient(tokenStore, baseURL)
 	paypalService := paypal.NewPaypal(paypalClient, productID)
@@ -159,13 +164,13 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 
 	authMiddleware := middlewares.Verify(verifier.Verify, middlewares.TokenFromCookie, middlewares.TokenFromHeader)
 
-	authorizer := aws.NewCognitoAuth(cognitoClient, clientID)
+	authorizer := aws.NewCognitoAuth(cognitoClient, cognitoClientID)
 
 	donationService := donations.NewDonationService(donationStore, memberStore, paypalService, logger)
 	authService := auth.NewAuthService(authorizer, logger)
 
-	donationHandler := fundweb.NewFundHandler(donationService, sessionManager, authMiddleware, productID, clientID)
-	authHandler := authweb.NewAuthHandler(authService, clientID)
+	donationHandler := fundweb.NewFundHandler(donationService, sessionManager, authMiddleware, productID, paypalClientID)
+	authHandler := authweb.NewAuthHandler(authService, paypalClientID)
 
 	router := http.NewServeMux()
 
