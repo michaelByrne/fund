@@ -44,6 +44,16 @@ resource "aws_cognito_user_pool_client" "bco_pool_client" {
   allowed_oauth_flows_user_pool_client = false
   supported_identity_providers = ["COGNITO"]
 
+  refresh_token_validity = 1
+  access_token_validity  = 60
+  id_token_validity      = 60
+
+  token_validity_units {
+    refresh_token = "days"
+    access_token  = "minutes"
+    id_token      = "minutes"
+  }
+
   explicit_auth_flows = [
     "ALLOW_USER_PASSWORD_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH"
@@ -99,4 +109,31 @@ resource "aws_cognito_user_in_group" "michael_admin_group_membership" {
   user_pool_id = aws_cognito_user_pool.bco_fund_pool.id
   username     = aws_cognito_user.cognito_user_michael.username
   group_name   = aws_cognito_user_group.bco_admin_group.name
+}
+
+module "oidc_github" {
+  source              = "unfunco/oidc-github/aws"
+  version             = "1.7.1"
+  attach_admin_policy = true
+
+  github_repositories = [
+    "michaelByrne/fund"
+  ]
+
+  iam_role_inline_policies = {
+    "actions" : data.aws_iam_policy_document.actions.json
+  }
+}
+
+data "aws_iam_policy_document" "actions" {
+  statement {
+    actions = [
+      "s3:GetObject",
+      "ec2:TerminateInstances",
+      "iam:PassRole",
+      "ec2:RunInstances",
+    ]
+    effect = "Allow"
+    resources = ["*"]
+  }
 }
