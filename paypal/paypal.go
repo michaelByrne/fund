@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
 )
 
 type Paypal struct {
@@ -121,18 +120,6 @@ func (p Paypal) InitiateDonation(ctx context.Context, fund donations.Fund, amoun
 	}
 
 	return orderResponse.ID, nil
-}
-
-func (p Paypal) FinalizeDonation(ctx context.Context, internalDonationID uuid.UUID, orderID string) error {
-	updates := Updates{
-		{
-			Op:    "add",
-			Path:  "/purchase_units/custom_id",
-			Value: internalDonationID.String(),
-		},
-	}
-
-	return p.client.patch(ctx, "/v2/checkout/orders/"+orderID, updates)
 }
 
 func centsToDecimalString(cents int32) string {

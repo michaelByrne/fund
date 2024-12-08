@@ -105,12 +105,6 @@ func (s DonationStore) GetDonationsByDonorID(ctx context.Context, donorID uuid.U
 	return pg.FetchMany(ctx, donorID, query, fromDBDonation)
 }
 
-func (s DonationStore) GetDonationsByMemberPaypalEmail(ctx context.Context, email string) ([]donations.Donation, error) {
-	query := s.queries.GetDonationsByMemberPaypalEmail
-
-	return pg.FetchMany(ctx, email, query, fromDBDonation)
-}
-
 func (s DonationStore) InsertDonationPayment(ctx context.Context, payment donations.InsertDonationPayment) (*donations.DonationPayment, error) {
 	query := s.queries.InsertDonationPayment
 
@@ -127,10 +121,4 @@ func (s DonationStore) GetDonationPaymentsByDonationID(ctx context.Context, dona
 	query := s.queries.GetDonationPaymentsByDonationId
 
 	return pg.FetchMany(ctx, donationID, query, fromDBDonationPayment)
-}
-
-func (s DonationStore) GetDonationPaymentsByMemberPaypalEmail(ctx context.Context, email string) ([]donations.DonationPayment, error) {
-	query := s.queries.GetDonationPaymentsByMemberPaypalEmail
-
-	return pg.FetchMany(ctx, email, query, fromDBDonationPayment)
 }

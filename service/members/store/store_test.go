@@ -4,10 +4,11 @@ import (
 	"boardfund/pg"
 	"boardfund/service/members"
 	"context"
+	"fmt"
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gotest.tools/v3/assert"
 	"testing"
 )
 
@@ -20,29 +21,24 @@ func TestMemberStore_UpsertMember(t *testing.T) {
 		store := NewMemberStore(connPool)
 
 		member := members.UpsertMember{
-			ID:                  uuid.New(),
-			MemberProviderEmail: "member@gmail.com",
-			BCOName:             "gofreescout",
-			IPAddress:           "172.0.0.1",
+			ID:        uuid.New(),
+			Email:     "member@gmail.com",
+			BCOName:   "gofreescout",
+			IPAddress: "172.0.0.1",
 		}
 
 		newMember, err := store.UpsertMember(context.Background(), member)
 		require.NoError(t, err)
 
+		fmt.Println(newMember)
+
 		memberByIDOut, err := store.GetMemberByID(context.Background(), newMember.ID)
 		require.NoError(t, err)
 
 		assert.Equal(t, newMember.ID, memberByIDOut.ID)
-		assert.Equal(t, member.MemberProviderEmail, memberByIDOut.MemberProviderEmail)
+		assert.Equal(t, member.Email, memberByIDOut.Email)
 		assert.Equal(t, member.BCOName, memberByIDOut.BCOName)
 		assert.Equal(t, member.IPAddress, memberByIDOut.IPAddress)
-
-		memberByEmailOut, err := store.GetMemberByPaypalEmail(context.Background(), member.MemberProviderEmail)
-		require.NoError(t, err)
-
-		assert.Equal(t, newMember.ID, memberByEmailOut.ID)
-		assert.Equal(t, member.MemberProviderEmail, memberByEmailOut.MemberProviderEmail)
-		assert.Equal(t, member.BCOName, memberByEmailOut.BCOName)
-		assert.Equal(t, member.IPAddress, memberByEmailOut.IPAddress)
+		assert.ElementsMatch(t, []members.MemberRole{"DONOR"}, memberByIDOut.Roles)
 	})
 }

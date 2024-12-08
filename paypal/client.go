@@ -152,6 +152,8 @@ func (c Client) patch(ctx context.Context, path string, payload any) error {
 		return err
 	}
 
+	fmt.Printf("payloadBytes: %+v\n", string(payloadBytes))
+
 	payloadReader := bytes.NewReader(payloadBytes)
 
 	req, err := http.NewRequestWithContext(ctx, "PATCH", c.baseURL+path, payloadReader)
@@ -160,6 +162,7 @@ func (c Client) patch(ctx context.Context, path string, payload any) error {
 	}
 
 	req.Header.Add("Authorization", token.TokenType+" "+token.AccessToken)
+	req.Header.Add("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -179,6 +182,8 @@ func (c Client) patch(ctx context.Context, path string, payload any) error {
 		if err != nil {
 			return fmt.Errorf("error unmarshalling error response: %w", err)
 		}
+
+		fmt.Printf("paypalError: %+v\n", string(body))
 
 		return paypalError
 	}

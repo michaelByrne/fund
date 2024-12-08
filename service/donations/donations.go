@@ -1,7 +1,6 @@
 package donations
 
 import (
-	"boardfund/service/members"
 	"context"
 	"github.com/google/uuid"
 	"log/slog"
@@ -18,29 +17,22 @@ type donationStore interface {
 	GetFundByID(ctx context.Context, uuid uuid.UUID) (*Fund, error)
 }
 
-type memberStore interface {
-	UpsertMember(ctx context.Context, member members.UpsertMember) (*members.Member, error)
-}
-
 type paymentsProvider interface {
 	CreatePlan(ctx context.Context, plan CreatePlan) (string, error)
 	CreateFund(ctx context.Context, name, description string) (string, error)
 	InitiateDonation(ctx context.Context, fund Fund, amountCents int32) (string, error)
-	FinalizeDonation(ctx context.Context, internalDonationID uuid.UUID, orderID string) error
 }
 
 type DonationService struct {
 	donationStore    donationStore
-	memberStore      memberStore
 	paymentsProvider paymentsProvider
 
 	logger *slog.Logger
 }
 
-func NewDonationService(donationStore donationStore, memberStore memberStore, provider paymentsProvider, logger *slog.Logger) *DonationService {
+func NewDonationService(donationStore donationStore, provider paymentsProvider, logger *slog.Logger) *DonationService {
 	return &DonationService{
 		donationStore:    donationStore,
-		memberStore:      memberStore,
 		paymentsProvider: provider,
 		logger:           logger,
 	}
@@ -97,27 +89,10 @@ func (s DonationService) CreateDonationPlan(ctx context.Context, plan CreatePlan
 	return planOut, nil
 }
 
-func (s DonationService) CompleteRecurringDonation(ctx context.Context, completion RecurringCompletion) error {
-	upsertMember := members.UpsertMember{
-		ID:                  uuid.New(),
-		MemberProviderEmail: completion.PayerEmail,
-		IPAddress:           completion.IPAddress,
-		BCOName:             completion.BCOName,
-		ProviderPayerID:     completion.PayerID,
-		FirstName:           completion.PayerFirstName,
-		LastName:            completion.PayerLastName,
-	}
-
-	member, err := s.memberStore.UpsertMember(ctx, upsertMember)
-	if err != nil {
-		s.logger.Error("failed to upsert member", slog.String("error", err.Error()))
-
-		return err
-	}
-
+func (s DonationService) CompleteRecurringDonation(ctx context.Context, memberID uuid.UUID, completion RecurringCompletion) error {
 	insertDonation := InsertDonation{
 		ID:        uuid.New(),
-		DonorID:   member.ID,
+		DonorID:   memberID,
 		PlanID:    completion.PlanID,
 		FundID:    completion.FundID,
 		Recurring: true,
@@ -130,7 +105,7 @@ func (s DonationService) CompleteRecurringDonation(ctx context.Context, completi
 		ProviderPaymentID: "initial",
 	}
 
-	_, err = s.donationStore.InsertDonationWithPayment(ctx, insertDonation, insertPayment)
+	_, err := s.donationStore.InsertDonationWithPayment(ctx, insertDonation, insertPayment)
 	if err != nil {
 		s.logger.Error("failed to create donation with payment", slog.String("error", err.Error()))
 
@@ -158,46 +133,24 @@ func (s DonationService) InitiateDonation(ctx context.Context, fundID uuid.UUID,
 	return providerOrderID, nil
 }
 
-func (s DonationService) CompleteDonation(ctx context.Context, completion OneTimeCompletion) error {
-	upsertMember := members.UpsertMember{
-		MemberProviderEmail: completion.PayerEmail,
-		IPAddress:           completion.IPAddress,
-		BCOName:             completion.BCOName,
-		ProviderPayerID:     completion.PayerID,
-		FirstName:           completion.PayerFirstName,
-		LastName:            completion.PayerLastName,
-	}
-
-	member, err := s.memberStore.UpsertMember(ctx, upsertMember)
-	if err != nil {
-		s.logger.Error("failed to upsert member", slog.String("error", err.Error()))
-
-		return err
-	}
-
+func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUID, completion OneTimeCompletion) error {
 	insertDonation := InsertDonation{
-		ID:      uuid.New(),
-		DonorID: member.ID,
-		FundID:  completion.FundID,
+		ID:              uuid.New(),
+		DonorID:         memberID,
+		FundID:          completion.FundID,
+		ProviderOrderID: completion.ProviderOrderID,
 	}
 
 	insertPayment := InsertDonationPayment{
 		ID:                uuid.New(),
 		AmountCents:       completion.AmountCents,
-		ProviderPaymentID: "initial",
+		ProviderPaymentID: completion.ProviderPaymentID,
 		DonationID:        insertDonation.ID,
 	}
 
-	_, err = s.donationStore.InsertDonationWithPayment(ctx, insertDonation, insertPayment)
+	_, err := s.donationStore.InsertDonationWithPayment(ctx, insertDonation, insertPayment)
 	if err != nil {
 		s.logger.Error("failed to create donation with payment", slog.String("error", err.Error()))
-
-		return err
-	}
-
-	err = s.paymentsProvider.FinalizeDonation(ctx, insertDonation.ID, "orderID")
-	if err != nil {
-		s.logger.Error("failed to finalize donation with provider", slog.String("error", err.Error()))
 
 		return err
 	}

@@ -1,1 +1,0 @@
-CREATE UNIQUE INDEX member_paypal_email_idx ON member (paypal_email);

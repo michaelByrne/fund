@@ -4,8 +4,8 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: UpsertDonationPlan :one
-INSERT INTO donation_plan (id, name, amount_cents, interval_unit, interval_count, active, paypal_plan_id, fund_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO donation_plan (id, name, amount_cents, interval_unit, interval_count, active, paypal_plan_id, fund_id, updated)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
 ON CONFLICT (interval_unit, interval_count) DO UPDATE
     SET (name, amount_cents, active, paypal_plan_id, fund_id) = ($2, $3, $6, $7, $8)
 RETURNING *;
@@ -17,7 +17,7 @@ WHERE id = $1;
 
 -- name: UpdateDonationPlan :one
 UPDATE donation_plan
-SET (name, amount_cents, interval_unit, interval_count, active, paypal_plan_id, fund_id) = ($2, $3, $4, $5, $6, $7, $8)
+SET (name, amount_cents, interval_unit, interval_count, active, paypal_plan_id, fund_id, updated) = ($2, $3, $4, $5, $6, $7, $8, now())
 WHERE id = $1
 RETURNING *;
 
@@ -27,8 +27,8 @@ FROM donation_plan
 ORDER BY created;
 
 -- name: InsertDonation :one
-INSERT INTO donation (id, donor_id, fund_id, recurring, donation_plan_id)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO donation (id, donor_id, fund_id, recurring, donation_plan_id, provider_order_id)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: GetDonationById :one
@@ -49,7 +49,7 @@ WHERE member.paypal_email = $1;
 
 -- name: UpdateDonation :one
 UPDATE donation
-SET (donor_id, donation_plan_id) = ($2, $3)
+SET (donor_id, donation_plan_id,provider_order_id, updated) = ($2, $3,$4, now())
 WHERE id = $1
 RETURNING *;
 
@@ -77,20 +77,20 @@ RETURNING *;
 
 -- name: InsertFund :one
 INSERT INTO fund (id, name, description, provider_id, provider_name, active, payout_frequency, goal_cents, expires,
-                  next_payment)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+                  principal, next_payment)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         (CASE WHEN $7::payout_frequency = 'monthly' THEN (SELECT now() + INTERVAL '1 month') ELSE $9::timestamp END))
 RETURNING *;
 
 -- name: UpdateFund :one
 UPDATE fund
-SET (name, description, active, payout_frequency, goal_cents, expires) = ($2, $3, $4, $5, $6, $7)
+SET (name, description, active, payout_frequency, goal_cents, expires, principal, updated) = ($2, $3, $4, $5, $6, $7, $8, now())
 WHERE id = $1
 RETURNING *;
 
 -- name: UpdateFundNextPayment :one
 UPDATE fund
-SET next_payment = (SELECT now() + INTERVAL '1 month')
+SET (next_payment, updated) = ((SELECT now() + INTERVAL '1 month'), now())
 WHERE id = $1
 RETURNING *;
 

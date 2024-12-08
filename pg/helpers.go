@@ -1,6 +1,13 @@
 package pg
 
-import "context"
+import (
+	"context"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
 
 type insertOne[DBArg any, DB any] func(ctx context.Context, arg DBArg) (DB, error)
 type upsertOne[DBArg any, DB any] func(ctx context.Context, arg DBArg) (DB, error)
@@ -84,4 +91,53 @@ func UpdateOne[DBArg any, StoreArg any, Realm any, DB any](ctx context.Context, 
 	result := transformOut(dbRes)
 
 	return &result, nil
+}
+
+func GetDBPool(dbURI string) (*pgxpool.Pool, error) {
+	config, err := pgxpool.ParseConfig(dbURI)
+	if err != nil {
+		return nil, err
+	}
+
+	dbpool, err := pgxpool.NewWithConfig(context.Background(), config)
+
+	customTypes, err := getCustomDataTypes(context.Background(), dbpool)
+	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		for _, t := range customTypes {
+			conn.TypeMap().RegisterType(t)
+		}
+		return nil
+	}
+
+	dbpool.Close()
+	dbpool, err = pgxpool.NewWithConfig(context.Background(), config)
+
+	return dbpool, err
+}
+
+func getCustomDataTypes(ctx context.Context, pool *pgxpool.Pool) ([]*pgtype.Type, error) {
+	// Get a single connection just to load type information.
+	conn, err := pool.Acquire(ctx)
+	defer conn.Release()
+	if err != nil {
+		return nil, err
+	}
+
+	dataTypeNames := []string{
+		"role",
+		"_role",
+	}
+
+	var typesToRegister []*pgtype.Type
+	for _, typeName := range dataTypeNames {
+		dataType, err := conn.Conn().LoadType(ctx, typeName)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to load type %s: %v", typeName, err)
+		}
+		// You need to register only for this connection too, otherwise the array type will look for the register element type.
+		conn.Conn().TypeMap().RegisterType(dataType)
+		typesToRegister = append(typesToRegister, dataType)
+	}
+
+	return typesToRegister, nil
 }

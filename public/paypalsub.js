@@ -1,4 +1,8 @@
 window.paypal_sub.Buttons({
+    style: {
+        shape: 'rect',
+        color: 'blue',
+    },
     createSubscription: function (data, actions) {
         let providerPlanId = JSON.parse(document.getElementById('provider-plan-id').textContent);
         return actions.subscription.create({
@@ -17,7 +21,6 @@ window.paypal_sub.Buttons({
     onApprove: async function (data, actions) {
         let providerPlanId = JSON.parse(document.getElementById('provider-plan-id').textContent);
         let planId = JSON.parse(document.getElementById('plan-id').textContent);
-        let bcoName = JSON.parse(document.getElementById('bco-name').textContent);
         let fundId = JSON.parse(document.getElementById('fund-id').textContent);
 
         let subscription = await actions.subscription.get();
@@ -37,7 +40,6 @@ window.paypal_sub.Buttons({
                 payer_id: subscription.subscriber.payer_id,
                 first_name: subscription.subscriber.name.given_name,
                 last_name: subscription.subscriber.name.surname,
-                bco_name: bcoName,
                 fund_id: fundId
             })
         });

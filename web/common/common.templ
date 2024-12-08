@@ -1,6 +1,9 @@
 package common
 
-import "fmt"
+import (
+	"boardfund/service/members"
+	"fmt"
+)
 
 templ Head(clientID string) {
 	<head>
@@ -15,13 +18,13 @@ templ Head(clientID string) {
 	</head>
 }
 
-templ Home(content templ.Component, clientID string) {
+templ Home(content templ.Component, links templ.Component, clientID string) {
 	@Head(clientID)
 	<body class="flex flex-col h-full bg-[#333333] font-bco text-sm">
 		<div>
-			<div class="flex justify-between items-center w-[95%] mx-auto my-2">
+			<div class="flex flex-row justify-between items-center w-[95%] mx-auto my-2">
 				<h1 class="text-xl font-bold text-white"><a href="/">elitism. secrecy. redistribution.</a></h1>
-				<span class="text-xs text-gray-200"><a href="/about">about</a></span>
+				@links
 			</div>
 			<div id="donation" class=" bg-[#c3dae4] w-[95%] mx-auto mt-2">
 				@content
@@ -30,8 +33,29 @@ templ Home(content templ.Component, clientID string) {
 	</body>
 }
 
+templ Links(member *members.Member) {
+	<span class="order-last justify-self">
+		<span class="text-xs text-gray-200 order-2 ml-1"><a href="/about">about</a></span>
+		if  member != nil {
+			if len(member.Roles) > 0 {
+				if sliceContains(member.Roles, "ADMIN") {
+					<span class="text-xs text-gray-200 order-4 ml-1"><a href="/admin">admin</a></span>
+				}
+			}
+			<span class="text-xs text-gray-200 order-3 ml-1"><a href="/logout">logout</a></span>
+		}
+	</span>
+}
+
 templ ErrorMessage(message string) {
 	<div class="text-gray-900 w-[95%] mx-auto mt-2 bg-[#e4cdc3] p-4 text-lg">{ message }</div>
 }
 
-
+func sliceContains[T comparable](slice []T, value T) bool {
+	for _, v := range slice {
+		if v == value {
+			return true
+		}
+	}
+	return false
+}

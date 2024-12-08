@@ -54,7 +54,7 @@ func SetupTestDatabase() (testcontainers.Container, *pgxpool.Pool, error) {
 		return nil, nil, err
 	}
 
-	connPool, err := pgxpool.New(context.Background(), dbURI)
+	connPool, err := GetDBPool(dbURI)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -50,6 +50,11 @@ resource "aws_cognito_user_pool_client" "bco_pool_client" {
   ]
 }
 
+resource "aws_cognito_user_group" "bco_admin_group" {
+  name         = "bco-admin-group"
+  user_pool_id = aws_cognito_user_pool.bco_fund_pool.id
+}
+
 resource "aws_cognito_user" "cognito_user_gofreescout" {
   user_pool_id = aws_cognito_user_pool.bco_fund_pool.id
   username     = "gofreescout"
@@ -59,4 +64,39 @@ resource "aws_cognito_user" "cognito_user_gofreescout" {
     email_verified = "true"
     member_id      = "123456"
   }
+
+  lifecycle {
+    ignore_changes = [
+      attributes,
+    ]
+  }
+}
+
+resource "aws_cognito_user" "cognito_user_michael" {
+  user_pool_id = aws_cognito_user_pool.bco_fund_pool.id
+  username     = "michael"
+
+  attributes = {
+    email          = "mpbyrne@gmail.com"
+    email_verified = "true"
+    member_id      = "123456"
+  }
+
+  lifecycle {
+    ignore_changes = [
+      attributes,
+    ]
+  }
+}
+
+resource "aws_cognito_user_in_group" "gofreescout_admin_group_membership" {
+  user_pool_id = aws_cognito_user_pool.bco_fund_pool.id
+  username     = aws_cognito_user.cognito_user_gofreescout.username
+  group_name   = aws_cognito_user_group.bco_admin_group.name
+}
+
+resource "aws_cognito_user_in_group" "michael_admin_group_membership" {
+  user_pool_id = aws_cognito_user_pool.bco_fund_pool.id
+  username     = aws_cognito_user.cognito_user_michael.username
+  group_name   = aws_cognito_user_group.bco_admin_group.name
 }

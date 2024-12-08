@@ -2,7 +2,9 @@ package fundweb
 
 import (
 	"boardfund/service/donations"
+	"boardfund/service/members"
 	"boardfund/web/common"
+	"boardfund/web/mux"
 	"encoding/json"
 	"fmt"
 	"github.com/a-h/templ"
@@ -37,7 +39,7 @@ func NewFundHandler(
 	}
 }
 
-func (h *FundHandler) Register(r *http.ServeMux) {
+func (h *FundHandler) Register(r *mux.Router) {
 	r.HandleFunc("/fund", h.fund)
 	r.HandleFunc("/donation/plan", h.createDonationPlan)
 	r.HandleFunc("/donation/once", h.createOneTimeDonation)
@@ -121,6 +123,14 @@ type initDonationResponse struct {
 func (h *FundHandler) createOneTimeDonation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		templ.Handler(common.ErrorMessage("unauthorized")).Component.Render(ctx, w)
+
+		return
+	}
+
 	err := r.ParseForm()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -138,7 +148,6 @@ func (h *FundHandler) createOneTimeDonation(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	bcoName := r.FormValue("bconame")
 	fundID := r.FormValue("fund")
 	if fundID == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -164,16 +173,24 @@ func (h *FundHandler) createOneTimeDonation(w http.ResponseWriter, r *http.Reque
 	}
 
 	if isHx(r) {
-		templ.Handler(Paypal(*fund, amountCents, bcoName)).Component.Render(ctx, w)
+		templ.Handler(Paypal(*fund, amountCents)).Component.Render(ctx, w)
 
 		return
 	}
 
-	templ.Handler(common.Home(Paypal(*fund, amountCents, bcoName), h.clientID)).Component.Render(ctx, w)
+	templ.Handler(common.Home(Paypal(*fund, amountCents), common.Links(&member), h.clientID)).Component.Render(ctx, w)
 }
 
 func (h *FundHandler) donate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		templ.Handler(common.ErrorMessage("unauthorized")).Component.Render(ctx, w)
+
+		return
+	}
 
 	fundIDStr := r.PathValue("fundId")
 	fundID, err := uuid.Parse(fundIDStr)
@@ -198,7 +215,7 @@ func (h *FundHandler) donate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	templ.Handler(common.Home(Fund(*fund), h.clientID)).Component.Render(ctx, w)
+	templ.Handler(common.Home(Fund(*fund), common.Links(&member), h.clientID)).Component.Render(ctx, w)
 }
 
 func (h *FundHandler) ping(w http.ResponseWriter, r *http.Request) {
@@ -207,19 +224,29 @@ func (h *FundHandler) ping(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FundHandler) donationSuccess(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Query().Get("name")
-	if name == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage("name is required")).Component.Render(r.Context(), w)
+	ctx := r.Context()
+
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		templ.Handler(common.ErrorMessage("unauthorized")).Component.Render(ctx, w)
 
 		return
 	}
 
-	templ.Handler(common.Home(ThankYou(name), h.clientID)).Component.Render(r.Context(), w)
+	templ.Handler(common.Home(ThankYou(member.FirstName), common.Links(&member), h.clientID)).Component.Render(r.Context(), w)
 }
 
 func (h *FundHandler) completeOneTimeDonation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		templ.Handler(common.ErrorMessage("unauthorized")).Component.Render(ctx, w)
+
+		return
+	}
 
 	err := r.ParseForm()
 	if err != nil {
@@ -238,7 +265,6 @@ func (h *FundHandler) completeOneTimeDonation(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	bcoName := r.FormValue("bco_name")
 	fundID := r.FormValue("fund_id")
 	if fundID == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -247,13 +273,18 @@ func (h *FundHandler) completeOneTimeDonation(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	firstName := r.FormValue("first_name")
-	lastName := r.FormValue("last_name")
-	payerID := r.FormValue("payer_id")
-	payerEmail := r.FormValue("payer_email")
-	if payerEmail == "" {
+	orderID := r.FormValue("order_id")
+	if orderID == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("payer_email is required"))
+		w.Write([]byte("order_id is required"))
+
+		return
+	}
+
+	paymentID := r.FormValue("payment_id")
+	if paymentID == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("payment_id is required"))
 
 		return
 	}
@@ -277,17 +308,13 @@ func (h *FundHandler) completeOneTimeDonation(w http.ResponseWriter, r *http.Req
 	}
 
 	completion := donations.OneTimeCompletion{
-		AmountCents:    amountCents,
-		FundID:         fundUUID,
-		IPAddress:      ipAddress,
-		BCOName:        bcoName,
-		PayerID:        payerID,
-		PayerEmail:     payerEmail,
-		PayerFirstName: firstName,
-		PayerLastName:  lastName,
+		AmountCents:       amountCents,
+		FundID:            fundUUID,
+		ProviderOrderID:   orderID,
+		ProviderPaymentID: paymentID,
 	}
 
-	err = h.donationService.CompleteDonation(ctx, completion)
+	err = h.donationService.CompleteDonation(ctx, member.ID, completion)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
@@ -301,6 +328,14 @@ func (h *FundHandler) completeOneTimeDonation(w http.ResponseWriter, r *http.Req
 func (h *FundHandler) completeRecurringDonation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		templ.Handler(common.ErrorMessage("unauthorized")).Component.Render(ctx, w)
+
+		return
+	}
+
 	err := r.ParseForm()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -309,7 +344,6 @@ func (h *FundHandler) completeRecurringDonation(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	orderID := r.FormValue("order_id")
 	planIDStr := r.FormValue("plan_id")
 	if planIDStr == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -342,7 +376,6 @@ func (h *FundHandler) completeRecurringDonation(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	providerPlanID := r.FormValue("provider_plan_id")
 	amountStr := r.FormValue("amount")
 	amountCents, err := dollarStringToCents(amountStr)
 	if err != nil {
@@ -352,42 +385,25 @@ func (h *FundHandler) completeRecurringDonation(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	email := r.FormValue("email")
-	payerID := r.FormValue("payer_id")
-	firstName := r.FormValue("first_name")
-	lastName := r.FormValue("last_name")
-	providerDonationID := r.FormValue("provider_donation_id")
-	bcoName := r.FormValue("bco_name")
+	orderID := r.FormValue("order_id")
+	if orderID == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		templ.Handler(common.ErrorMessage("order_id is required")).Component.Render(ctx, w)
 
-	ipAddress := r.RemoteAddr
-	if strings.Contains(ipAddress, "[::1]") {
-		ipAddress = "127.0.0.1"
-	}
-
-	splitIP := strings.Split(ipAddress, ":")
-	if len(splitIP) > 1 {
-		ipAddress = splitIP[0]
+		return
 	}
 
 	completion := donations.RecurringCompletion{
-		ProviderOrderID: orderID,
 		PlanID: uuid.NullUUID{
 			UUID:  planUUID,
 			Valid: true,
 		},
-		ProviderPlanID:     providerPlanID,
-		ProviderDonationID: providerDonationID,
-		AmountCents:        amountCents,
-		PayerEmail:         email,
-		PayerID:            payerID,
-		PayerFirstName:     firstName,
-		PayerLastName:      lastName,
-		IPAddress:          ipAddress,
-		BCOName:            bcoName,
-		FundID:             fundUUID,
+		AmountCents:     amountCents,
+		FundID:          fundUUID,
+		ProviderOrderID: orderID,
 	}
 
-	err = h.donationService.CompleteRecurringDonation(ctx, completion)
+	err = h.donationService.CompleteRecurringDonation(ctx, member.ID, completion)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
@@ -395,11 +411,19 @@ func (h *FundHandler) completeRecurringDonation(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	templ.Handler(ThankYou(firstName)).Component.Render(ctx, w)
+	templ.Handler(ThankYou(member.FirstName)).Component.Render(ctx, w)
 }
 
 func (h *FundHandler) createDonationPlan(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		templ.Handler(common.ErrorMessage("unauthorized")).Component.Render(ctx, w)
+
+		return
+	}
 
 	err := r.ParseForm()
 	if err != nil {
@@ -432,7 +456,6 @@ func (h *FundHandler) createDonationPlan(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	bcoName := r.FormValue("bconame")
 	fundID := r.FormValue("fund")
 	if fundID == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -473,16 +496,24 @@ func (h *FundHandler) createDonationPlan(w http.ResponseWriter, r *http.Request)
 	}
 
 	if isHx(r) {
-		templ.Handler(PaypalSubscription(*newPlan, *fund, bcoName)).Component.Render(ctx, w)
+		templ.Handler(PaypalSubscription(*newPlan, *fund)).Component.Render(ctx, w)
 
 		return
 	}
 
-	templ.Handler(common.Home(PaypalSubscription(*newPlan, *fund, bcoName), h.clientID)).Component.Render(ctx, w)
+	templ.Handler(common.Home(PaypalSubscription(*newPlan, *fund), common.Links(&member), h.clientID)).Component.Render(ctx, w)
 }
 
 func (h *FundHandler) home(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		templ.Handler(common.ErrorMessage("unauthorized")).Component.Render(ctx, w)
+
+		return
+	}
 
 	funds, err := h.donationService.ListFunds(ctx)
 	if err != nil {
@@ -492,7 +523,7 @@ func (h *FundHandler) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	templ.Handler(common.Home(Funds(funds), h.clientID)).Component.Render(ctx, w)
+	templ.Handler(common.Home(Funds(funds), common.Links(&member), h.clientID)).Component.Render(ctx, w)
 }
 
 func (h *FundHandler) fund(w http.ResponseWriter, r *http.Request) {

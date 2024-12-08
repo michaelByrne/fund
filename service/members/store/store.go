@@ -25,12 +25,6 @@ func (s MemberStore) GetMemberByID(ctx context.Context, id uuid.UUID) (*members.
 	return pg.FetchOne(ctx, id, query, fromDBMember)
 }
 
-func (s MemberStore) GetMemberByPaypalEmail(ctx context.Context, email string) (*members.Member, error) {
-	query := s.queries.GetMemberByPaypalEmail
-
-	return pg.FetchOne(ctx, email, query, fromDBMember)
-}
-
 func (s MemberStore) UpsertMember(ctx context.Context, member members.UpsertMember) (*members.Member, error) {
 	query := s.queries.UpsertMember
 

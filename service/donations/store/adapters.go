@@ -19,6 +19,7 @@ func fromDBFund(fund db.Fund) donations.Fund {
 		GoalCents:       fund.GoalCents.Int32,
 		Created:         fund.Created.Time,
 		Updated:         fund.Updated.Time,
+		Principal:       fund.Principal,
 	}
 
 	if !fund.Expires.Time.IsZero() {
@@ -41,6 +42,7 @@ func toDBFundInsertParams(fund donations.InsertFund) db.InsertFundParams {
 			Valid: true,
 		},
 		PayoutFrequency: db.PayoutFrequency(fund.PayoutFrequency),
+		Principal:       fund.Principal,
 	}
 
 	if fund.Expires != nil {
@@ -64,6 +66,7 @@ func toDBFundUpdateParams(fund donations.UpdateFund) db.UpdateFundParams {
 			Valid: true,
 		},
 		PayoutFrequency: db.PayoutFrequency(fund.PayoutFrequency),
+		Principal:       fund.Principal,
 	}
 
 	if fund.Expires != nil {
@@ -109,22 +112,24 @@ func toDBDonationPlanUpsertParams(plan donations.UpsertDonationPlan) db.UpsertDo
 
 func fromDBDonation(donation db.Donation) donations.Donation {
 	return donations.Donation{
-		ID:             donation.ID,
-		DonorID:        donation.DonorID,
-		DonationPlanID: donation.DonationPlanID,
-		FundID:         donation.FundID,
-		Recurring:      donation.Recurring,
-		Created:        donation.Created.Time,
-		Updated:        donation.Updated.Time,
+		ID:              donation.ID,
+		DonorID:         donation.DonorID,
+		DonationPlanID:  donation.DonationPlanID,
+		FundID:          donation.FundID,
+		Recurring:       donation.Recurring,
+		Created:         donation.Created.Time,
+		Updated:         donation.Updated.Time,
+		ProviderOrderID: donation.ProviderOrderID,
 	}
 }
 
 func toDBDonationInsertParams(donation donations.InsertDonation) db.InsertDonationParams {
 	return db.InsertDonationParams{
-		ID:        donation.ID,
-		DonorID:   donation.DonorID,
-		Recurring: false,
-		FundID:    donation.FundID,
+		ID:              donation.ID,
+		DonorID:         donation.DonorID,
+		Recurring:       false,
+		FundID:          donation.FundID,
+		ProviderOrderID: donation.ProviderOrderID,
 	}
 }
 

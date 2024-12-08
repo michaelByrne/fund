@@ -22,8 +22,17 @@ func NewRouter(mux Mux, middlewares ...Middleware) *Router {
 	}
 }
 
-func (r *Router) Use(middlewares ...Middleware) {
-	r.middlewares = append(r.middlewares, middlewares...)
+func (r *Router) Use(middlewares ...interface{}) {
+	for _, mw := range middlewares {
+		switch m := mw.(type) {
+		case Middleware:
+			r.middlewares = append(r.middlewares, m)
+		case func(http.Handler) http.Handler: // Adapt http.Handler middleware
+			r.middlewares = append(r.middlewares, adaptHandlerMiddleware(m))
+		default:
+			panic("unsupported middleware type")
+		}
+	}
 }
 
 func (r *Router) Handle(pattern string, handler http.Handler) {
@@ -52,4 +61,12 @@ func compileHandlerWithMiddleware(middlewares []Middleware, f http.HandlerFunc) 
 	}
 
 	return f
+}
+
+func adaptHandlerMiddleware(handlerMiddleware func(http.Handler) http.Handler) Middleware {
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			handlerMiddleware(next).ServeHTTP(w, r)
+		}
+	}
 }

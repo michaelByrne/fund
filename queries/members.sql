@@ -1,13 +1,15 @@
--- name: InsertMember :one
-INSERT INTO member (id, bco_name, ip_address, paypal_email, first_name, last_name, provider_payer_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING *;
-
 -- name: UpsertMember :one
-INSERT INTO member (id, bco_name, ip_address, paypal_email, first_name, last_name, provider_payer_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT (paypal_email) DO UPDATE
-SET bco_name = $2, ip_address = $3, first_name = $5, last_name = $6, provider_payer_id = $7
+INSERT INTO member (id, bco_name, email, cognito_id, first_name, last_name, provider_payer_id, roles)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+ON CONFLICT (id) DO UPDATE
+    SET bco_name          = $2,
+        email             = $3,
+        cognito_id        = $4,
+        first_name        = $5,
+        last_name         = $6,
+        provider_payer_id = $7,
+        roles             = $8,
+        updated           = now()
 RETURNING *;
 
 -- name: GetMemberById :one
@@ -15,7 +17,3 @@ SELECT *
 FROM member
 WHERE id = $1;
 
--- name: GetMemberByPaypalEmail :one
-SELECT *
-FROM member
-WHERE paypal_email = $1;

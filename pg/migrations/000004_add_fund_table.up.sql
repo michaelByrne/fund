@@ -2,18 +2,19 @@ CREATE TYPE payout_frequency AS ENUM ('monthly', 'once');
 
 CREATE TABLE fund
 (
-    id               uuid             NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+    id               uuid PRIMARY KEY NOT NULL,
     name             varchar(200)     NOT NULL,
     description      text             NOT NULL,
     provider_id      varchar(200)     NOT NULL,
     provider_name    varchar(200)     NOT NULL,
     goal_cents       int,
     payout_frequency payout_frequency NOT NULL,
-    active           bool             NOT NULL             DEFAULT true,
+    active           bool             NOT NULL DEFAULT true,
+    principal        uuid REFERENCES member (id),
     expires          timestamp,
     next_payment     timestamp        NOT NULL,
-    created          timestamp        NOT NULL             DEFAULT now(),
-    updated          timestamp        NOT NULL             DEFAULT now()
+    created          timestamp        NOT NULL DEFAULT now(),
+    updated          timestamp        NOT NULL DEFAULT now()
 );
 
 CREATE OR REPLACE FUNCTION set_expires_default()

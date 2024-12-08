@@ -3,6 +3,12 @@ package auth
 import "time"
 
 type Token struct {
-	TokenStr string
-	Expires  time.Time
+	AccessTokenStr string
+	IDTokenStr     string
+	Expires        time.Time
+}
+
+type AuthResponse struct {
+	Token         *Token
+	ResetPassword bool
 }

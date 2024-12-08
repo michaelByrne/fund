@@ -17,6 +17,7 @@ const (
 
 type Fund struct {
 	ID              uuid.UUID       `json:"id"`
+	Principal       uuid.NullUUID   `json:"principal"`
 	Name            string          `json:"name"`
 	Description     string          `json:"description"`
 	ProviderID      string          `json:"provider_id"`
@@ -40,6 +41,7 @@ type InsertFund struct {
 	GoalCents       int32
 	PayoutFrequency string
 	Expires         *time.Time
+	Principal       uuid.NullUUID
 }
 
 type UpdateFund struct {
@@ -50,18 +52,20 @@ type UpdateFund struct {
 	GoalCents       int32
 	PayoutFrequency string
 	Expires         *time.Time
+	Principal       uuid.NullUUID
 }
 
 type Donation struct {
-	ID             uuid.UUID
-	DonorID        uuid.UUID
-	DonationPlanID uuid.NullUUID
-	FundID         uuid.UUID
-	Recurring      bool
-	ProviderID     string
-	Payment        *DonationPayment
-	Created        time.Time
-	Updated        time.Time
+	ID              uuid.UUID
+	DonorID         uuid.UUID
+	DonationPlanID  uuid.NullUUID
+	FundID          uuid.UUID
+	Recurring       bool
+	ProviderID      string
+	ProviderOrderID string
+	Payment         *DonationPayment
+	Created         time.Time
+	Updated         time.Time
 }
 
 type DonationPayment struct {
@@ -83,29 +87,23 @@ type DonationOrderCapture struct {
 }
 
 type RecurringCompletion struct {
-	ProviderOrderID    string        `json:"provider_order_id"`
-	PlanID             uuid.NullUUID `json:"plan_id"`
-	ProviderPlanID     string        `json:"provider_plan_id"`
-	ProviderDonationID string        `json:"provider_donation_id"`
-	IPAddress          string
-	PayerEmail         string    `json:"payer_email"`
-	AmountCents        int32     `json:"amount_cents"`
-	PayerFirstName     string    `json:"first_name"`
-	PayerLastName      string    `json:"last_name"`
-	PayerID            string    `json:"payer_id"`
-	BCOName            string    `json:"bco_name"`
-	FundID             uuid.UUID `json:"fund_id"`
+	PlanID          uuid.NullUUID `json:"plan_id"`
+	AmountCents     int32         `json:"amount_cents"`
+	FundID          uuid.UUID     `json:"fund_id"`
+	ProviderOrderID string        `json:"provider_order_id"`
 }
 
 type OneTimeCompletion struct {
-	AmountCents    int32
-	FundID         uuid.UUID
-	IPAddress      string
-	BCOName        string
-	PayerID        string
-	PayerEmail     string
-	PayerFirstName string
-	PayerLastName  string
+	AmountCents       int32
+	FundID            uuid.UUID
+	IPAddress         string
+	BCOName           string
+	PayerID           string
+	PayerEmail        string
+	PayerFirstName    string
+	PayerLastName     string
+	ProviderOrderID   string
+	ProviderPaymentID string
 }
 
 type DonationCompletionResponse struct {
@@ -152,11 +150,12 @@ type CreatePlan struct {
 }
 
 type InsertDonation struct {
-	ID        uuid.UUID
-	DonorID   uuid.UUID
-	FundID    uuid.UUID
-	Recurring bool
-	PlanID    uuid.NullUUID
+	ID              uuid.UUID
+	DonorID         uuid.UUID
+	FundID          uuid.UUID
+	Recurring       bool
+	PlanID          uuid.NullUUID
+	ProviderOrderID string
 }
 
 type UpdateDonation struct {

@@ -7,14 +7,13 @@ package db
 
 import (
 	"context"
-	"net/netip"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getMemberById = `-- name: GetMemberById :one
-SELECT id, first_name, last_name, bco_name, ip_address, paypal_email, postal_code, created, updated, provider_payer_id
+SELECT id, first_name, last_name, bco_name, roles, email, ip_address, last_login, cognito_id, paypal_email, postal_code, created, updated, provider_payer_id
 FROM member
 WHERE id = $1
 `
@@ -27,73 +26,11 @@ func (q *Queries) GetMemberById(ctx context.Context, id uuid.UUID) (Member, erro
 		&i.FirstName,
 		&i.LastName,
 		&i.BcoName,
+		&i.Roles,
+		&i.Email,
 		&i.IpAddress,
-		&i.PaypalEmail,
-		&i.PostalCode,
-		&i.Created,
-		&i.Updated,
-		&i.ProviderPayerID,
-	)
-	return i, err
-}
-
-const getMemberByPaypalEmail = `-- name: GetMemberByPaypalEmail :one
-SELECT id, first_name, last_name, bco_name, ip_address, paypal_email, postal_code, created, updated, provider_payer_id
-FROM member
-WHERE paypal_email = $1
-`
-
-func (q *Queries) GetMemberByPaypalEmail(ctx context.Context, paypalEmail string) (Member, error) {
-	row := q.db.QueryRow(ctx, getMemberByPaypalEmail, paypalEmail)
-	var i Member
-	err := row.Scan(
-		&i.ID,
-		&i.FirstName,
-		&i.LastName,
-		&i.BcoName,
-		&i.IpAddress,
-		&i.PaypalEmail,
-		&i.PostalCode,
-		&i.Created,
-		&i.Updated,
-		&i.ProviderPayerID,
-	)
-	return i, err
-}
-
-const insertMember = `-- name: InsertMember :one
-INSERT INTO member (id, bco_name, ip_address, paypal_email, first_name, last_name, provider_payer_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, first_name, last_name, bco_name, ip_address, paypal_email, postal_code, created, updated, provider_payer_id
-`
-
-type InsertMemberParams struct {
-	ID              uuid.UUID
-	BcoName         pgtype.Text
-	IpAddress       netip.Addr
-	PaypalEmail     string
-	FirstName       pgtype.Text
-	LastName        pgtype.Text
-	ProviderPayerID pgtype.Text
-}
-
-func (q *Queries) InsertMember(ctx context.Context, arg InsertMemberParams) (Member, error) {
-	row := q.db.QueryRow(ctx, insertMember,
-		arg.ID,
-		arg.BcoName,
-		arg.IpAddress,
-		arg.PaypalEmail,
-		arg.FirstName,
-		arg.LastName,
-		arg.ProviderPayerID,
-	)
-	var i Member
-	err := row.Scan(
-		&i.ID,
-		&i.FirstName,
-		&i.LastName,
-		&i.BcoName,
-		&i.IpAddress,
+		&i.LastLogin,
+		&i.CognitoID,
 		&i.PaypalEmail,
 		&i.PostalCode,
 		&i.Created,
@@ -104,32 +41,41 @@ func (q *Queries) InsertMember(ctx context.Context, arg InsertMemberParams) (Mem
 }
 
 const upsertMember = `-- name: UpsertMember :one
-INSERT INTO member (id, bco_name, ip_address, paypal_email, first_name, last_name, provider_payer_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT (paypal_email) DO UPDATE
-SET bco_name = $2, ip_address = $3, first_name = $5, last_name = $6, provider_payer_id = $7
-RETURNING id, first_name, last_name, bco_name, ip_address, paypal_email, postal_code, created, updated, provider_payer_id
+INSERT INTO member (id, bco_name, email, cognito_id, first_name, last_name, provider_payer_id, roles)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+ON CONFLICT (id) DO UPDATE
+    SET bco_name          = $2,
+        email             = $3,
+        cognito_id        = $4,
+        first_name        = $5,
+        last_name         = $6,
+        provider_payer_id = $7,
+        roles             = $8,
+        updated           = now()
+RETURNING id, first_name, last_name, bco_name, roles, email, ip_address, last_login, cognito_id, paypal_email, postal_code, created, updated, provider_payer_id
 `
 
 type UpsertMemberParams struct {
 	ID              uuid.UUID
 	BcoName         pgtype.Text
-	IpAddress       netip.Addr
-	PaypalEmail     string
+	Email           string
+	CognitoID       pgtype.Text
 	FirstName       pgtype.Text
 	LastName        pgtype.Text
 	ProviderPayerID pgtype.Text
+	Roles           []Role
 }
 
 func (q *Queries) UpsertMember(ctx context.Context, arg UpsertMemberParams) (Member, error) {
 	row := q.db.QueryRow(ctx, upsertMember,
 		arg.ID,
 		arg.BcoName,
-		arg.IpAddress,
-		arg.PaypalEmail,
+		arg.Email,
+		arg.CognitoID,
 		arg.FirstName,
 		arg.LastName,
 		arg.ProviderPayerID,
+		arg.Roles,
 	)
 	var i Member
 	err := row.Scan(
@@ -137,7 +83,11 @@ func (q *Queries) UpsertMember(ctx context.Context, arg UpsertMemberParams) (Mem
 		&i.FirstName,
 		&i.LastName,
 		&i.BcoName,
+		&i.Roles,
+		&i.Email,
 		&i.IpAddress,
+		&i.LastLogin,
+		&i.CognitoID,
 		&i.PaypalEmail,
 		&i.PostalCode,
 		&i.Created,

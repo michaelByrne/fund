@@ -6,15 +6,18 @@ import (
 	"boardfund/jwtauth/keyset"
 	"boardfund/paypal"
 	"boardfund/paypal/token"
+	"boardfund/pg"
 	"boardfund/service/auth"
 	"boardfund/service/donations"
 	donationstore "boardfund/service/donations/store"
+	"boardfund/service/members"
 	memberstore "boardfund/service/members/store"
+	"boardfund/web/adminweb"
 	"boardfund/web/authweb"
 	"boardfund/web/fundweb"
+	"boardfund/web/memberweb"
 	"boardfund/web/middlewares"
-	"github.com/golang-migrate/migrate/v4/database/pgx/v5"
-
+	"boardfund/web/mux"
 	"context"
 	"embed"
 	"errors"
@@ -24,8 +27,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	cognito "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/golang-migrate/migrate/v4"
+	pgxmigrate "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"io"
 	"log"
@@ -105,6 +108,11 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 		return fmt.Errorf("COGNITO_CLIENT_ID is required")
 	}
 
+	userPoolID := getEnv("COGNITO_USER_POOL_ID")
+	if userPoolID == "" {
+		return fmt.Errorf("COGNITO_USER_POOL_ID is required")
+	}
+
 	dbURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", pgUser, pgPass, pgHost, pgPort, pgDB)
 
 	tokenClient := token.NewClient(paypalClientID, clientSecret, baseURL)
@@ -112,7 +120,7 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 	paypalClient := paypal.NewClient(tokenStore, baseURL)
 	paypalService := paypal.NewPaypal(paypalClient, productID)
 
-	pool, err := pgxpool.New(ctx, dbURI)
+	pool, err := pg.GetDBPool(dbURI)
 	if err != nil {
 		return fmt.Errorf("failed to create pgx pool: %w", err)
 	}
@@ -124,7 +132,7 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 		return err
 	}
 
-	driver, err := pgx.WithInstance(db, &pgx.Config{})
+	driver, err := pgxmigrate.WithInstance(db, &pgxmigrate.Config{})
 	if err != nil {
 		return err
 	}
@@ -163,16 +171,22 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 	verifier := jwtauth.NewToken(kset)
 
 	authMiddleware := middlewares.Verify(verifier.Verify, middlewares.TokenFromCookie, middlewares.TokenFromHeader)
+	adminAuthMiddleware := middlewares.Verify(verifier.VerifyAdmin, middlewares.TokenFromCookie, middlewares.TokenFromHeader)
 
-	authorizer := aws.NewCognitoAuth(cognitoClient, cognitoClientID)
+	authorizer := aws.NewCognitoAuth(cognitoClient, cognitoClientID, userPoolID)
 
-	donationService := donations.NewDonationService(donationStore, memberStore, paypalService, logger)
-	authService := auth.NewAuthService(authorizer, logger)
+	donationService := donations.NewDonationService(donationStore, paypalService, logger)
+	memberService := members.NewMemberService(memberStore, authorizer, logger)
+	authService := auth.NewAuthService(authorizer, memberStore, logger)
 
 	donationHandler := fundweb.NewFundHandler(donationService, sessionManager, authMiddleware, productID, paypalClientID)
-	authHandler := authweb.NewAuthHandler(authService, paypalClientID)
+	authHandler := authweb.NewAuthHandler(authService, sessionManager, paypalClientID)
+	memberHandler := memberweb.NewMemberHandler(memberService, sessionManager, authMiddleware)
+	adminHandler := adminweb.NewAdminHandler(adminAuthMiddleware, memberService, donationService, sessionManager, paypalClientID)
 
-	router := http.NewServeMux()
+	router := mux.NewRouter(http.NewServeMux())
+
+	router.Use(sessionManager.LoadAndSave)
 
 	router.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
 		http.StripPrefix("/static/", http.FileServer(http.Dir("public"))).ServeHTTP(w, r)
@@ -180,6 +194,8 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 
 	authHandler.Register(router)
 	donationHandler.Register(router)
+	memberHandler.Register(router)
+	adminHandler.Register(router)
 
 	server := &http.Server{
 		Addr:    ":8080",

@@ -97,14 +97,58 @@ func (ns NullPayoutFrequency) Value() (driver.Value, error) {
 	return string(ns.PayoutFrequency), nil
 }
 
+type Role string
+
+const (
+	RoleADMIN Role = "ADMIN"
+	RoleDONOR Role = "DONOR"
+	RolePAYEE Role = "PAYEE"
+)
+
+func (e *Role) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = Role(s)
+	case string:
+		*e = Role(s)
+	default:
+		return fmt.Errorf("unsupported scan type for Role: %T", src)
+	}
+	return nil
+}
+
+type NullRole struct {
+	Role  Role
+	Valid bool // Valid is true if Role is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.Role, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.Role.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.Role), nil
+}
+
 type Donation struct {
-	ID             uuid.UUID
-	Recurring      bool
-	DonorID        uuid.UUID
-	DonationPlanID uuid.NullUUID
-	Created        pgtype.Timestamptz
-	Updated        pgtype.Timestamptz
-	FundID         uuid.UUID
+	ID              uuid.UUID
+	Recurring       bool
+	DonorID         uuid.UUID
+	DonationPlanID  uuid.NullUUID
+	ProviderOrderID string
+	Created         pgtype.Timestamptz
+	Updated         pgtype.Timestamptz
+	FundID          uuid.UUID
 }
 
 type DonationPayment struct {
@@ -138,6 +182,7 @@ type Fund struct {
 	GoalCents       pgtype.Int4
 	PayoutFrequency PayoutFrequency
 	Active          bool
+	Principal       uuid.NullUUID
 	Expires         pgtype.Timestamptz
 	NextPayment     pgtype.Timestamptz
 	Created         pgtype.Timestamptz
@@ -149,10 +194,20 @@ type Member struct {
 	FirstName       pgtype.Text
 	LastName        pgtype.Text
 	BcoName         pgtype.Text
-	IpAddress       netip.Addr
-	PaypalEmail     string
+	Roles           []Role
+	Email           string
+	IpAddress       *netip.Addr
+	LastLogin       pgtype.Timestamptz
+	CognitoID       pgtype.Text
+	PaypalEmail     pgtype.Text
 	PostalCode      pgtype.Text
 	Created         pgtype.Timestamptz
 	Updated         pgtype.Timestamptz
 	ProviderPayerID pgtype.Text
+}
+
+type Session struct {
+	Token  string
+	Data   []byte
+	Expiry pgtype.Timestamptz
 }

@@ -1,5 +1,58 @@
 package authweb
 
+templ Password() {
+	<div class="w-[50%] h-full flex items-start pt-6 ml-4">
+		<form target="/password" method="post" class="w-full">
+			<div class="flex flex-col gap-4">
+				<div class="flex items-center">
+					<label for="old" class="text-md font-semibold px-2 w-40">username</label>
+					<input
+						type="text"
+						name="username"
+						id="username"
+						class="flex-1 text-sm border border-slate-300 shadow-sm px-3 py-2"
+					/>
+				</div>
+				<div class="flex items-center">
+					<label for="old" class="text-md font-semibold px-2 w-40">old password</label>
+					<input
+						type="password"
+						name="old"
+						id="old"
+						class="flex-1 text-sm border border-slate-300 shadow-sm px-3 py-2"
+					/>
+				</div>
+				<div class="flex items-center">
+					<label for="new" class="text-md font-semibold px-2 w-40">new password</label>
+					<input
+						type="password"
+						name="new"
+						id="new"
+						class="flex-1 text-sm border border-slate-300 shadow-sm px-3 py-2"
+					/>
+				</div>
+				<div class="flex items-center">
+					<label for="confirm" class="text-md font-semibold px-2 w-40">confirm new</label>
+					<input
+						type="password"
+						name="confirm"
+						id="confirm"
+						class="flex-1 text-sm border border-slate-300 shadow-sm px-3 py-2"
+					/>
+				</div>
+				<div class="flex">
+					<button
+						type="submit"
+						class="px-6 py-3 text-md font-medium bg-stone-100 text-black hover:bg-[#e4cdc3] hover:shadow-md"
+					>
+						Reset
+					</button>
+				</div>
+			</div>
+		</form>
+	</div>
+}
+
 templ Login() {
 	<div class="w-[95%] mx-auto h-full flex items-center">
 		<form target="/login" method="post" class="w-full">
@@ -31,7 +84,7 @@ templ Login() {
 					</button>
 				</div>
 				<div class="flex ml-auto items-center">
-				    <a href="/invite" class="text-xs text-blue-400 hover:text-blue-800">request invite</a>
+					<a href="/invite" class="text-xs text-blue-400 hover:text-blue-800">request invite</a>
 				</div>
 			</div>
 		</form>

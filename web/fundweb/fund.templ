@@ -39,18 +39,7 @@ templ DonationForm(fund donations.Fund) {
 			</div>
 			@Frequency(fund.PayoutFrequency)
 		</div>
-		<div class="initials flex md:flex-row flex-col">
-			<div class="space-x-2 flex items-center relative mt-6">
-				<span>My bco username is</span>
-				<div>
-					<div class="space-x-2 flex items-center">
-						<input type="text" name="bconame" id="bconame" class="w-24 block pl-1 text-sm border-slate-300 shadow-sm"/>
-					</div>
-				</div>.
-				<span>(optional)</span>
-			</div>
-		</div>
-		<div class="btn mt-4 w-[100%] bg-transparent items-center">
+		<div class="btn mt-6 w-[100%] bg-transparent items-center">
 			<button
 				type="submit"
 				class="px-4 py-2 mx-auto text-center text-md bg-stone-100 text-black hover:text-black hover:bg-[#e4cdc3] hover:font-medium hover:shadow-md"
@@ -162,11 +151,10 @@ templ Frequency(freq donations.PayoutFrequency) {
 	}
 }
 
-templ PaypalSubscription(plan donations.DonationPlan, fund donations.Fund, bcoName string) {
-	<div class="payment-container">
+templ PaypalSubscription(plan donations.DonationPlan, fund donations.Fund) {
+	<div class="payment-container w-[70%]">
 		@templ.JSONScript("provider-plan-id", plan.ProviderPlanID)
 		@templ.JSONScript("plan-id", plan.ID.String())
-		@templ.JSONScript("bco-name", bcoName)
 		@templ.JSONScript("fund-id", fund.ID.String())
 		<h4 class="mb-2 mx-auto mt-2 text-lg font-semibold">You are giving ${ centsToDecimalString(plan.AmountCents) } every { strings.ToLower(string(plan.IntervalUnit)) } to { fund.Name }.</h4>
 		<div id="paypal-button-container"></div>
@@ -174,10 +162,9 @@ templ PaypalSubscription(plan donations.DonationPlan, fund donations.Fund, bcoNa
 	</div>
 }
 
-templ Paypal(fund donations.Fund, amountCents int32, bcoName string) {
-	<div class="payment-container">
+templ Paypal(fund donations.Fund, amountCents int32) {
+	<div class="payment-container w-[70%]">
 		@templ.JSONScript("fund-id", fund.ID.String())
-		@templ.JSONScript("bco-name", bcoName)
 		@templ.JSONScript("amount", amountCents)
 		<h4 class="mb-2 mx-auto mt-2 text-lg font-semibold">You are giving ${ centsToDecimalString(amountCents) } to { fund.Name }.</h4>
 		<div id="paypal-button-container"></div>
