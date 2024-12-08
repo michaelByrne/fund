@@ -6,6 +6,13 @@ terraform {
     }
   }
 
+  backend "s3" {
+    bucket  = "tf-fund"
+    key     = "fund-tfstate"
+    region  = "us-west-2"
+    encrypt = true
+  }
+
   required_version = ">= 1.2.0"
 }
 
