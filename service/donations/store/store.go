@@ -6,6 +6,7 @@ import (
 	"boardfund/service/donations"
 	"context"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -19,6 +20,120 @@ func NewDonationStore(conn *pgxpool.Pool) DonationStore {
 		queries: db.New(conn),
 		conn:    conn,
 	}
+}
+
+func (s DonationStore) GetTotalDonatedByMemberID(ctx context.Context, id uuid.UUID) (int64, error) {
+	query := s.queries.GetTotalDonatedByMember
+
+	resultIdentity := func(amount int64) int64 { return amount }
+
+	return pg.FetchScalar(ctx, id, query, resultIdentity)
+}
+
+func (s DonationStore) GetActiveFunds(ctx context.Context) ([]donations.Fund, error) {
+	query := s.queries.GetActiveFunds
+
+	return pg.FetchAll(ctx, query, fromDBFund)
+}
+
+func (s DonationStore) SetDonationToActiveBySubscriptionID(ctx context.Context, id string) (*donations.Donation, error) {
+	query := s.queries.SetDonationsToActiveBySubscriptionId
+
+	argIdentity := func(id string) pgtype.Text { return pgtype.Text{String: id, Valid: true} }
+
+	return pg.UpdateOne(ctx, id, query, argIdentity, fromDBDonation)
+}
+
+func (s DonationStore) SetFundAndDonationsToInactive(ctx context.Context, id uuid.UUID) ([]donations.Donation, error) {
+	tx, err := s.conn.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer tx.Rollback(ctx)
+
+	txQueries := s.queries.WithTx(tx)
+
+	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
+
+	fundQuery := txQueries.SetFundToInactive
+
+	_, err = pg.UpdateOne(ctx, id, fundQuery, argIdentity, fromDBFund)
+	if err != nil {
+		return nil, err
+	}
+
+	donationQuery := txQueries.SetDonationsToInactiveByFundId
+
+	updated, err := pg.UpdateMany(ctx, id, donationQuery, argIdentity, fromDBDonation)
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return updated, nil
+}
+
+func (s DonationStore) SetFundAndDonationsToActive(ctx context.Context, id uuid.UUID) ([]donations.Donation, error) {
+	tx, err := s.conn.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer tx.Rollback(ctx)
+
+	txQueries := s.queries.WithTx(tx)
+
+	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
+
+	fundQuery := txQueries.SetFundToActive
+
+	_, err = pg.UpdateOne(ctx, id, fundQuery, argIdentity, fromDBFund)
+	if err != nil {
+		return nil, err
+	}
+
+	donationQuery := txQueries.SetDonationsToActiveByFundId
+
+	updated, err := pg.UpdateMany(ctx, id, donationQuery, argIdentity, fromDBDonation)
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return updated, nil
+}
+
+func (s DonationStore) SetDonationsToInactiveByDonorID(ctx context.Context, donorID uuid.UUID) ([]donations.Donation, error) {
+	query := s.queries.SetDonationsToInactiveByDonorId
+
+	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
+
+	return pg.UpdateMany(ctx, donorID, query, argIdentity, fromDBDonation)
+}
+
+func (s DonationStore) SetDonationsToActive(ctx context.Context, ids []uuid.UUID) ([]donations.Donation, error) {
+	query := s.queries.SetDonationsToActive
+
+	argListIdentity := func(ids []uuid.UUID) []uuid.UUID { return ids }
+
+	return pg.UpdateMany(ctx, ids, query, argListIdentity, fromDBDonation)
+}
+
+func (s DonationStore) SetDonationToInactive(ctx context.Context, id uuid.UUID) (*donations.Donation, error) {
+	query := s.queries.SetDonationToInactive
+
+	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
+
+	return pg.UpdateOne(ctx, id, query, argIdentity, fromDBDonation)
 }
 
 func (s DonationStore) GetFunds(ctx context.Context) ([]donations.Fund, error) {

@@ -1,4 +1,4 @@
-package fundweb
+package homeweb
 
 import (
 	"boardfund/service/donations"
@@ -7,19 +7,22 @@ import (
 	"boardfund/web/mux"
 	"encoding/json"
 	"fmt"
-	"github.com/a-h/templ"
 	"github.com/alexedwards/scs/v2"
 	"github.com/google/uuid"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 )
 
+const internalErrMessage = "internal error"
+
 type FundHandler struct {
 	donationService *donations.DonationService
 	sessionManager  *scs.SessionManager
 	withAuth        func(http.HandlerFunc) http.HandlerFunc
+	logger          *slog.Logger
 	productID       string
 	clientID        string
 }
@@ -28,12 +31,14 @@ func NewFundHandler(
 	donationService *donations.DonationService,
 	sessionManager *scs.SessionManager,
 	withAuth func(http.HandlerFunc) http.HandlerFunc,
+	logger *slog.Logger,
 	productID, clientID string,
 ) *FundHandler {
 	return &FundHandler{
 		donationService: donationService,
 		sessionManager:  sessionManager,
 		withAuth:        withAuth,
+		logger:          logger,
 		productID:       productID,
 		clientID:        clientID,
 	}
@@ -50,6 +55,7 @@ func (h *FundHandler) Register(r *mux.Router) {
 	r.HandleFunc("/donate/{fundId}", h.withAuth(h.donate))
 	r.HandleFunc("/error", h.error)
 	r.HandleFunc("/ping", h.ping)
+	r.HandleFunc("/about", h.about)
 	r.HandleFunc("/", h.withAuth(h.home))
 }
 
@@ -59,23 +65,46 @@ func (h *FundHandler) error(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(nil, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	errorText := r.FormValue("error")
 
-	templ.Handler(common.ErrorMessage(errorText)).Component.Render(ctx, w)
+	common.ErrorMessage(nil, errorText, "/", r.URL.Path).Render(ctx, w)
+}
+
+func (h *FundHandler) about(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		About(nil, r.URL.Path).Render(ctx, w)
+
+		return
+	}
+
+	About(&member, r.URL.Path).Render(ctx, w)
 }
 
 func (h *FundHandler) initiateOneTimeDonation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		common.ErrorMessage(nil, "unauthorized", "/", r.URL.Path).Render(ctx, w)
+
+		return
+	}
+
 	err := r.ParseForm()
 	if err != nil {
+		h.logger.Error("unable to parse form", slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -83,24 +112,30 @@ func (h *FundHandler) initiateOneTimeDonation(w http.ResponseWriter, r *http.Req
 	amountStr := r.FormValue("amount_cents")
 	amountCents, err := strconv.Atoi(amountStr)
 	if err != nil {
+		h.logger.Error("unable to parse amount", slog.String("amount", amountStr), slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	fundID := r.FormValue("fund_id")
 	if fundID == "" {
+		h.logger.Error("missing fund id")
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage("fund_id is required")).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	fundUUID, err := uuid.Parse(fundID)
 	if err != nil {
+		h.logger.Error("unable to parse fund id", slog.String("fund_id", fundID), slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -108,7 +143,7 @@ func (h *FundHandler) initiateOneTimeDonation(w http.ResponseWriter, r *http.Req
 	providerPaymentID, err := h.donationService.InitiateDonation(ctx, fundUUID, int32(amountCents))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -126,15 +161,17 @@ func (h *FundHandler) createOneTimeDonation(w http.ResponseWriter, r *http.Reque
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
-		templ.Handler(common.ErrorMessage("unauthorized")).Component.Render(ctx, w)
+		common.ErrorMessage(nil, "unauthorized", "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	err := r.ParseForm()
 	if err != nil {
+		h.logger.Error("unable to parse form", slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -142,24 +179,30 @@ func (h *FundHandler) createOneTimeDonation(w http.ResponseWriter, r *http.Reque
 	amountStr := r.FormValue("amount")
 	amountCents, err := dollarStringToCents(amountStr)
 	if err != nil {
+		h.logger.Error("unable to parse amount", slog.String("amount", amountStr), slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	fundID := r.FormValue("fund")
 	if fundID == "" {
+		h.logger.Error("missing fund id")
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage("fund is required")).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	fundUUID, err := uuid.Parse(fundID)
 	if err != nil {
+		h.logger.Error("unable to parse fund id", slog.String("fund_id", fundID), slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -167,18 +210,12 @@ func (h *FundHandler) createOneTimeDonation(w http.ResponseWriter, r *http.Reque
 	fund, err := h.donationService.GetFundByID(ctx, fundUUID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
-	if isHx(r) {
-		templ.Handler(Paypal(*fund, amountCents)).Component.Render(ctx, w)
-
-		return
-	}
-
-	templ.Handler(common.Home(Paypal(*fund, amountCents), common.Links(&member), h.clientID)).Component.Render(ctx, w)
+	Paypal(*fund, amountCents, h.clientID).Render(ctx, w)
 }
 
 func (h *FundHandler) donate(w http.ResponseWriter, r *http.Request) {
@@ -187,7 +224,7 @@ func (h *FundHandler) donate(w http.ResponseWriter, r *http.Request) {
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
-		templ.Handler(common.ErrorMessage("unauthorized")).Component.Render(ctx, w)
+		common.ErrorMessage(&member, "unauthorized", "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -196,7 +233,7 @@ func (h *FundHandler) donate(w http.ResponseWriter, r *http.Request) {
 	fundID, err := uuid.Parse(fundIDStr)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -204,18 +241,13 @@ func (h *FundHandler) donate(w http.ResponseWriter, r *http.Request) {
 	fund, err := h.donationService.GetFundByID(ctx, fundID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
-	if isHx(r) {
-		templ.Handler(Fund(*fund)).Component.Render(ctx, w)
-
-		return
-	}
-
-	templ.Handler(common.Home(Fund(*fund), common.Links(&member), h.clientID)).Component.Render(ctx, w)
+	w.Header().Set("HX-Redirect", r.URL.Path)
+	Fund(*fund, &member, r.URL.Path).Render(ctx, w)
 }
 
 func (h *FundHandler) ping(w http.ResponseWriter, r *http.Request) {
@@ -229,12 +261,12 @@ func (h *FundHandler) donationSuccess(w http.ResponseWriter, r *http.Request) {
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
-		templ.Handler(common.ErrorMessage("unauthorized")).Component.Render(ctx, w)
+		common.ErrorMessage(&member, "unauthorized", "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
-	templ.Handler(common.Home(ThankYou(member.FirstName), common.Links(&member), h.clientID)).Component.Render(r.Context(), w)
+	ThankYou(member, r.URL.Path).Render(ctx, w)
 }
 
 func (h *FundHandler) completeOneTimeDonation(w http.ResponseWriter, r *http.Request) {
@@ -243,15 +275,17 @@ func (h *FundHandler) completeOneTimeDonation(w http.ResponseWriter, r *http.Req
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
-		templ.Handler(common.ErrorMessage("unauthorized")).Component.Render(ctx, w)
+		common.ErrorMessage(&member, "unauthorized", "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	err := r.ParseForm()
 	if err != nil {
+		h.logger.Error("unable to parse form", slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -259,16 +293,20 @@ func (h *FundHandler) completeOneTimeDonation(w http.ResponseWriter, r *http.Req
 	amountStr := r.FormValue("amount")
 	amountCents, err := dollarStringToCents(amountStr)
 	if err != nil {
+		h.logger.Error("unable to parse amount", slog.String("amount", amountStr), slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	fundID := r.FormValue("fund_id")
 	if fundID == "" {
+		h.logger.Error("missing fund id")
+
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("fund_id is required"))
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -276,23 +314,27 @@ func (h *FundHandler) completeOneTimeDonation(w http.ResponseWriter, r *http.Req
 	orderID := r.FormValue("order_id")
 	if orderID == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("order_id is required"))
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	paymentID := r.FormValue("payment_id")
 	if paymentID == "" {
+		h.logger.Error("missing payment id")
+
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("payment_id is required"))
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	fundUUID, err := uuid.Parse(fundID)
 	if err != nil {
+		h.logger.Error("unable to parse fund id", slog.String("fund_id", fundID), slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(err.Error()))
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -331,47 +373,57 @@ func (h *FundHandler) completeRecurringDonation(w http.ResponseWriter, r *http.R
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
-		templ.Handler(common.ErrorMessage("unauthorized")).Component.Render(ctx, w)
+		common.ErrorMessage(&member, "unauthorized", "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	err := r.ParseForm()
 	if err != nil {
+		h.logger.Error("unable to parse form", slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	planIDStr := r.FormValue("plan_id")
 	if planIDStr == "" {
+		h.logger.Error("missing plan id")
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage("plan_id is required")).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	planUUID, err := uuid.Parse(planIDStr)
 	if err != nil {
+		h.logger.Error("unable to parse plan id", slog.String("plan_id", planIDStr), slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	fundIDStr := r.FormValue("fund_id")
 	if fundIDStr == "" {
+		h.logger.Error("missing fund id")
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage("fund_id is required")).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	fundUUID, err := uuid.Parse(fundIDStr)
 	if err != nil {
+		h.logger.Error("unable to parse fund id", slog.String("fund_id", fundIDStr), slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -379,16 +431,30 @@ func (h *FundHandler) completeRecurringDonation(w http.ResponseWriter, r *http.R
 	amountStr := r.FormValue("amount")
 	amountCents, err := dollarStringToCents(amountStr)
 	if err != nil {
+		h.logger.Error("unable to parse amount", slog.String("amount", amountStr), slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
+
+		return
+	}
+
+	providerSubscriptionID := r.FormValue("subscription_id")
+	if providerSubscriptionID == "" {
+		h.logger.Error("missing subscription id")
+
+		w.WriteHeader(http.StatusBadRequest)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	orderID := r.FormValue("order_id")
 	if orderID == "" {
+		h.logger.Error("missing order_id")
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage("order_id is required")).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -398,20 +464,21 @@ func (h *FundHandler) completeRecurringDonation(w http.ResponseWriter, r *http.R
 			UUID:  planUUID,
 			Valid: true,
 		},
-		AmountCents:     amountCents,
-		FundID:          fundUUID,
-		ProviderOrderID: orderID,
+		AmountCents:            amountCents,
+		FundID:                 fundUUID,
+		ProviderOrderID:        orderID,
+		ProviderSubscriptionID: providerSubscriptionID,
 	}
 
 	err = h.donationService.CompleteRecurringDonation(ctx, member.ID, completion)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
-	templ.Handler(ThankYou(member.FirstName)).Component.Render(ctx, w)
+	ThankYou(member, r.URL.Path).Render(ctx, w)
 }
 
 func (h *FundHandler) createDonationPlan(w http.ResponseWriter, r *http.Request) {
@@ -420,54 +487,64 @@ func (h *FundHandler) createDonationPlan(w http.ResponseWriter, r *http.Request)
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
-		templ.Handler(common.ErrorMessage("unauthorized")).Component.Render(ctx, w)
+		common.ErrorMessage(nil, "unauthorized", "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	err := r.ParseForm()
 	if err != nil {
+		h.logger.Error("unable to parse form", slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	interval := r.FormValue("interval")
 	if interval == "" {
+		h.logger.Error("missing interval")
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage("interval is required")).Component.Render(ctx, w)
+		common.ErrorMessage(&member, "interval is required", "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 	amount := r.FormValue("amount")
 	if amount == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage("amount is required")).Component.Render(ctx, w)
+		common.ErrorMessage(&member, "amount is required", "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	amountInt, err := strconv.Atoi(amount)
 	if err != nil {
+		h.logger.Error("unable to parse amount", slog.String("amount", amount), slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	fundID := r.FormValue("fund")
 	if fundID == "" {
+		h.logger.Error("missing fund id")
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage("fund is required")).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
 	fundUUID, err := uuid.Parse(fundID)
 	if err != nil {
+		h.logger.Error("unable to parse fund id", slog.String("fund_id", fundID), slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -482,7 +559,7 @@ func (h *FundHandler) createDonationPlan(w http.ResponseWriter, r *http.Request)
 	newPlan, err := h.donationService.CreateDonationPlan(ctx, plan)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -490,18 +567,12 @@ func (h *FundHandler) createDonationPlan(w http.ResponseWriter, r *http.Request)
 	fund, err := h.donationService.GetFundByID(ctx, fundUUID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
-	if isHx(r) {
-		templ.Handler(PaypalSubscription(*newPlan, *fund)).Component.Render(ctx, w)
-
-		return
-	}
-
-	templ.Handler(common.Home(PaypalSubscription(*newPlan, *fund), common.Links(&member), h.clientID)).Component.Render(ctx, w)
+	PaypalSubscription(*newPlan, h.clientID, fund.Name).Render(ctx, w)
 }
 
 func (h *FundHandler) home(w http.ResponseWriter, r *http.Request) {
@@ -510,20 +581,20 @@ func (h *FundHandler) home(w http.ResponseWriter, r *http.Request) {
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
-		templ.Handler(common.ErrorMessage("unauthorized")).Component.Render(ctx, w)
+		common.ErrorMessage(&member, "unauthorized", "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
-	funds, err := h.donationService.ListFunds(ctx)
+	funds, err := h.donationService.ListActiveFunds(ctx)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		templ.Handler(common.ErrorMessage(err.Error())).Component.Render(ctx, w)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
-	templ.Handler(common.Home(Funds(funds), common.Links(&member), h.clientID)).Component.Render(ctx, w)
+	Funds(funds, &member, r.URL.Path).Render(ctx, w)
 }
 
 func (h *FundHandler) fund(w http.ResponseWriter, r *http.Request) {

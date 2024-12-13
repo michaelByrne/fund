@@ -1,0 +1,1 @@
+ALTER TABLE donation ADD COLUMN provider_subscription_id VARCHAR(255);

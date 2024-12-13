@@ -4,10 +4,11 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: UpsertDonationPlan :one
-INSERT INTO donation_plan (id, name, amount_cents, interval_unit, interval_count, active, paypal_plan_id, fund_id, updated)
+INSERT INTO donation_plan (id, name, amount_cents, interval_unit, interval_count, active, paypal_plan_id, fund_id,
+                           updated)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
-ON CONFLICT (interval_unit, interval_count) DO UPDATE
-    SET (name, amount_cents, active, paypal_plan_id, fund_id) = ($2, $3, $6, $7, $8)
+ON CONFLICT (interval_unit, amount_cents) DO UPDATE
+    SET (name, active, paypal_plan_id, fund_id) = ($2, $6, $7, $8)
 RETURNING *;
 
 -- name: GetDonationPlanById :one
@@ -17,7 +18,8 @@ WHERE id = $1;
 
 -- name: UpdateDonationPlan :one
 UPDATE donation_plan
-SET (name, amount_cents, interval_unit, interval_count, active, paypal_plan_id, fund_id, updated) = ($2, $3, $4, $5, $6, $7, $8, now())
+SET (name, amount_cents, interval_unit, interval_count, active, paypal_plan_id, fund_id,
+     updated) = ($2, $3, $4, $5, $6, $7, $8, now())
 WHERE id = $1
 RETURNING *;
 
@@ -27,8 +29,8 @@ FROM donation_plan
 ORDER BY created;
 
 -- name: InsertDonation :one
-INSERT INTO donation (id, donor_id, fund_id, recurring, donation_plan_id, provider_order_id)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO donation (id, donor_id, fund_id, recurring, donation_plan_id, provider_order_id, provider_subscription_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: GetDonationById :one
@@ -49,9 +51,29 @@ WHERE member.paypal_email = $1;
 
 -- name: UpdateDonation :one
 UPDATE donation
-SET (donor_id, donation_plan_id,provider_order_id, updated) = ($2, $3,$4, now())
+SET (donor_id, donation_plan_id, provider_order_id, updated) = ($2, $3, $4, now())
 WHERE id = $1
 RETURNING *;
+
+-- name: SetDonationToInactive :one
+UPDATE donation
+SET active = false
+WHERE id = $1
+RETURNING *;
+
+-- name: SetDonationsToInactiveByDonorId :many
+UPDATE donation
+SET active = false
+WHERE donor_id = $1
+  AND active = true
+RETURNING *;
+
+-- name: SetDonationsToActive :many
+UPDATE donation
+SET active = true
+WHERE id IN ($1::uuid[])
+RETURNING *;
+
 
 -- name: GetDonationPaymentById :one
 SELECT *
@@ -84,7 +106,8 @@ RETURNING *;
 
 -- name: UpdateFund :one
 UPDATE fund
-SET (name, description, active, payout_frequency, goal_cents, expires, principal, updated) = ($2, $3, $4, $5, $6, $7, $8, now())
+SET (name, description, active, payout_frequency, goal_cents, expires, principal,
+     updated) = ($2, $3, $4, $5, $6, $7, $8, now())
 WHERE id = $1
 RETURNING *;
 
@@ -103,3 +126,47 @@ ORDER BY created;
 SELECT *
 FROM fund
 WHERE id = $1;
+
+-- name: SetFundToInactive :one
+UPDATE fund
+SET active = false
+WHERE id = $1
+RETURNING *;
+
+-- name: SetDonationsToInactiveByFundId :many
+UPDATE donation
+SET active = false
+WHERE fund_id = $1
+  AND active = true
+RETURNING *;
+
+-- name: SetFundToActive :one
+UPDATE fund
+SET active = true
+WHERE id = $1
+RETURNING *;
+
+-- name: SetDonationsToActiveByFundId :many
+UPDATE donation
+SET active = true
+WHERE fund_id = $1
+  AND active = false
+RETURNING *;
+
+-- name: SetDonationsToActiveBySubscriptionId :one
+UPDATE donation
+SET active = true
+WHERE provider_subscription_id = $1
+RETURNING *;
+
+-- name: GetActiveFunds :many
+SELECT *
+FROM fund
+WHERE active = true
+ORDER BY created DESC;
+
+-- name: GetTotalDonatedByMember :one
+SELECT sum(amount_cents)
+FROM donation
+         JOIN donation_payment dp on donation.id = dp.donation_id
+WHERE donor_id = $1;

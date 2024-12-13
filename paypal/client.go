@@ -50,6 +50,16 @@ func (c Client) post(ctx context.Context, path string, payload any) error {
 		return err
 	}
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		var paypalErr ErrPaypal
+		err = json.NewDecoder(resp.Body).Decode(&paypalErr)
+		if err != nil {
+			return fmt.Errorf("error decoding paypal error: %w", err)
+		}
+
+		return paypalErr
+	}
+
 	defer resp.Body.Close()
 
 	return nil

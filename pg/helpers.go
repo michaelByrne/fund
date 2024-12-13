@@ -13,10 +13,26 @@ type insertOne[DBArg any, DB any] func(ctx context.Context, arg DBArg) (DB, erro
 type upsertOne[DBArg any, DB any] func(ctx context.Context, arg DBArg) (DB, error)
 type getOne[In any, Out any] func(ctx context.Context, arg In) (Out, error)
 type updateOne[In any, Out any] func(ctx context.Context, arg In) (Out, error)
+type updateMany[In any, Out any] func(ctx context.Context, arg In) ([]Out, error)
 type getMany[In any, Out any] func(ctx context.Context, arg In) ([]Out, error)
 type getAll[DB any] func(ctx context.Context) ([]DB, error)
 
 type transform[In any, Out any] func(In) Out
+
+func UpdateMany[DBArg any, StoreArg, Realm any, DB any](ctx context.Context, arg StoreArg, update updateMany[DBArg, DB], transformIn transform[StoreArg, DBArg], transformOut transform[DB, Realm]) ([]Realm, error) {
+	dbArg := transformIn(arg)
+	dbRes, err := update(ctx, dbArg)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]Realm, len(dbRes))
+	for i, r := range dbRes {
+		result[i] = transformOut(r)
+	}
+
+	return result, nil
+}
 
 func CreateOne[DBArg any, StoreArg, Realm any, DB any](ctx context.Context, arg StoreArg, insert insertOne[DBArg, DB], transformIn transform[StoreArg, DBArg], transformOut transform[DB, Realm]) (*Realm, error) {
 	dbArg := transformIn(arg)
@@ -51,6 +67,18 @@ func FetchOne[Realm any, DB any, Arg any](ctx context.Context, arg Arg, get getO
 	result := transform(dbRes)
 
 	return &result, nil
+}
+
+func FetchScalar[Arg any, Realm any, DB any](ctx context.Context, arg Arg, get getOne[Arg, DB], transform transform[DB, Realm]) (Realm, error) {
+	var realmZero Realm
+	dbRes, err := get(ctx, arg)
+	if err != nil {
+		return realmZero, err
+	}
+
+	result := transform(dbRes)
+
+	return result, nil
 }
 
 func FetchMany[Realm any, DB any, Arg any](ctx context.Context, arg Arg, get getMany[Arg, DB], transform transform[DB, Realm]) ([]Realm, error) {

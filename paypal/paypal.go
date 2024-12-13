@@ -19,6 +19,24 @@ func NewPaypal(client *Client, productID string) *Paypal {
 	}
 }
 
+func (p Paypal) CancelSubscriptions(ctx context.Context, ids []string) ([]string, error) {
+	var cancelledIDs []string
+	for _, id := range ids {
+		request := CancelSubscriptionRequest{
+			Reason: "customer cancelled",
+		}
+
+		err := p.client.post(ctx, "/v1/billing/subscriptions/"+id+"/cancel", request)
+		if err != nil {
+			return cancelledIDs, err
+		}
+
+		cancelledIDs = append(cancelledIDs, id)
+	}
+
+	return cancelledIDs, nil
+}
+
 func (p Paypal) CreateFund(ctx context.Context, name, description string) (string, error) {
 	payload := CreateProduct{
 		Name:        name,

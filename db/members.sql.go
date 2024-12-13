@@ -7,13 +7,57 @@ package db
 
 import (
 	"context"
+	"net/netip"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getActiveMembers = `-- name: GetActiveMembers :many
+SELECT id, first_name, last_name, bco_name, roles, email, ip_address, last_login, cognito_id, paypal_email, postal_code, created, updated, provider_payer_id, active
+FROM member
+WHERE active = true
+ORDER BY created DESC
+`
+
+func (q *Queries) GetActiveMembers(ctx context.Context) ([]Member, error) {
+	rows, err := q.db.Query(ctx, getActiveMembers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Member
+	for rows.Next() {
+		var i Member
+		if err := rows.Scan(
+			&i.ID,
+			&i.FirstName,
+			&i.LastName,
+			&i.BcoName,
+			&i.Roles,
+			&i.Email,
+			&i.IpAddress,
+			&i.LastLogin,
+			&i.CognitoID,
+			&i.PaypalEmail,
+			&i.PostalCode,
+			&i.Created,
+			&i.Updated,
+			&i.ProviderPayerID,
+			&i.Active,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getMemberById = `-- name: GetMemberById :one
-SELECT id, first_name, last_name, bco_name, roles, email, ip_address, last_login, cognito_id, paypal_email, postal_code, created, updated, provider_payer_id
+SELECT id, first_name, last_name, bco_name, roles, email, ip_address, last_login, cognito_id, paypal_email, postal_code, created, updated, provider_payer_id, active
 FROM member
 WHERE id = $1
 `
@@ -36,6 +80,205 @@ func (q *Queries) GetMemberById(ctx context.Context, id uuid.UUID) (Member, erro
 		&i.Created,
 		&i.Updated,
 		&i.ProviderPayerID,
+		&i.Active,
+	)
+	return i, err
+}
+
+const getMemberWithDonations = `-- name: GetMemberWithDonations :one
+SELECT m.id, m.first_name, m.last_name, m.bco_name, m.roles, m.email, m.ip_address, m.last_login, m.cognito_id, m.paypal_email, m.postal_code, m.created, m.updated, m.provider_payer_id, m.active,
+       COALESCE(
+               CASE
+                   WHEN COUNT(d.*) = 0 THEN '[]'::json
+                   ELSE json_agg(
+                           json_build_object(
+                                   'id', d.id,
+                                   'donor_id', d.donor_id,
+                                   'donation_plan_id', d.donation_plan_id,
+                                   'fund_id', d.fund_id,
+                                   'fund_name', f.name,
+                                   'recurring', d.recurring,
+                                   'provider_order_id', d.provider_order_id,
+                                   'provider_subscription_id', d.provider_subscription_id,
+                                   'created', d.created,
+                                   'updated', d.updated,
+                                   'plan', (SELECT json_build_object(
+                                                           'id', dp.id,
+                                                           'amount_cents', dp.amount_cents,
+                                                           'interval_count', dp.interval_count,
+                                                           'interval_unit', dp.interval_unit,
+                                                           'created', dp.created,
+                                                           'updated', dp.updated
+                                                   )
+                                            FROM donation_plan dp
+                                            WHERE dp.id = d.donation_plan_id),
+                                   'payments', COALESCE(
+                                           (SELECT json_agg(
+                                                           json_build_object(
+                                                                   'id', p.id,
+                                                                   'donation_id', p.donation_id,
+                                                                   'amount_cents', p.amount_cents,
+                                                                   'created', p.created,
+                                                                   'updated', p.updated
+                                                           )
+                                                   )
+                                            FROM donation_payment p
+                                            WHERE p.donation_id = d.id),
+                                           '[]'::json
+                                               )
+                           )
+                        )::json
+                   END,
+               '[]'::json
+       ) AS donations
+FROM member m
+         LEFT JOIN donation d ON m.id = d.donor_id
+         LEFT JOIN fund f ON d.fund_id = f.id
+WHERE m.id = $1
+GROUP BY m.id
+`
+
+type GetMemberWithDonationsRow struct {
+	ID              uuid.UUID
+	FirstName       pgtype.Text
+	LastName        pgtype.Text
+	BcoName         pgtype.Text
+	Roles           []Role
+	Email           string
+	IpAddress       *netip.Addr
+	LastLogin       NullDBTime
+	CognitoID       pgtype.Text
+	PaypalEmail     pgtype.Text
+	PostalCode      pgtype.Text
+	Created         DBTime
+	Updated         DBTime
+	ProviderPayerID pgtype.Text
+	Active          bool
+	Donations       interface{}
+}
+
+func (q *Queries) GetMemberWithDonations(ctx context.Context, id uuid.UUID) (GetMemberWithDonationsRow, error) {
+	row := q.db.QueryRow(ctx, getMemberWithDonations, id)
+	var i GetMemberWithDonationsRow
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.BcoName,
+		&i.Roles,
+		&i.Email,
+		&i.IpAddress,
+		&i.LastLogin,
+		&i.CognitoID,
+		&i.PaypalEmail,
+		&i.PostalCode,
+		&i.Created,
+		&i.Updated,
+		&i.ProviderPayerID,
+		&i.Active,
+		&i.Donations,
+	)
+	return i, err
+}
+
+const getMembers = `-- name: GetMembers :many
+SELECT id, first_name, last_name, bco_name, roles, email, ip_address, last_login, cognito_id, paypal_email, postal_code, created, updated, provider_payer_id, active
+FROM member
+ORDER BY created DESC
+`
+
+func (q *Queries) GetMembers(ctx context.Context) ([]Member, error) {
+	rows, err := q.db.Query(ctx, getMembers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Member
+	for rows.Next() {
+		var i Member
+		if err := rows.Scan(
+			&i.ID,
+			&i.FirstName,
+			&i.LastName,
+			&i.BcoName,
+			&i.Roles,
+			&i.Email,
+			&i.IpAddress,
+			&i.LastLogin,
+			&i.CognitoID,
+			&i.PaypalEmail,
+			&i.PostalCode,
+			&i.Created,
+			&i.Updated,
+			&i.ProviderPayerID,
+			&i.Active,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setMemberToActive = `-- name: SetMemberToActive :one
+UPDATE member
+SET active = true
+WHERE id = $1
+RETURNING id, first_name, last_name, bco_name, roles, email, ip_address, last_login, cognito_id, paypal_email, postal_code, created, updated, provider_payer_id, active
+`
+
+func (q *Queries) SetMemberToActive(ctx context.Context, id uuid.UUID) (Member, error) {
+	row := q.db.QueryRow(ctx, setMemberToActive, id)
+	var i Member
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.BcoName,
+		&i.Roles,
+		&i.Email,
+		&i.IpAddress,
+		&i.LastLogin,
+		&i.CognitoID,
+		&i.PaypalEmail,
+		&i.PostalCode,
+		&i.Created,
+		&i.Updated,
+		&i.ProviderPayerID,
+		&i.Active,
+	)
+	return i, err
+}
+
+const setMemberToInactive = `-- name: SetMemberToInactive :one
+UPDATE member
+SET active = false
+WHERE id = $1
+RETURNING id, first_name, last_name, bco_name, roles, email, ip_address, last_login, cognito_id, paypal_email, postal_code, created, updated, provider_payer_id, active
+`
+
+func (q *Queries) SetMemberToInactive(ctx context.Context, id uuid.UUID) (Member, error) {
+	row := q.db.QueryRow(ctx, setMemberToInactive, id)
+	var i Member
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.BcoName,
+		&i.Roles,
+		&i.Email,
+		&i.IpAddress,
+		&i.LastLogin,
+		&i.CognitoID,
+		&i.PaypalEmail,
+		&i.PostalCode,
+		&i.Created,
+		&i.Updated,
+		&i.ProviderPayerID,
+		&i.Active,
 	)
 	return i, err
 }
@@ -52,7 +295,7 @@ ON CONFLICT (id) DO UPDATE
         provider_payer_id = $7,
         roles             = $8,
         updated           = now()
-RETURNING id, first_name, last_name, bco_name, roles, email, ip_address, last_login, cognito_id, paypal_email, postal_code, created, updated, provider_payer_id
+RETURNING id, first_name, last_name, bco_name, roles, email, ip_address, last_login, cognito_id, paypal_email, postal_code, created, updated, provider_payer_id, active
 `
 
 type UpsertMemberParams struct {
@@ -93,6 +336,7 @@ func (q *Queries) UpsertMember(ctx context.Context, arg UpsertMemberParams) (Mem
 		&i.Created,
 		&i.Updated,
 		&i.ProviderPayerID,
+		&i.Active,
 	)
 	return i, err
 }

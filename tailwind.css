@@ -23,3 +23,29 @@ th {
 .clickable {
     cursor: pointer;
 }
+
+.disabled {
+    cursor: default;
+}
+
+.deactivate-popup-button {
+    border-radius: 0;
+}
+
+.deactivate-popup {
+    border-radius: 0;
+}
+
+.deactivate-modal {
+    border-radius: 0;
+    color: #333333;
+}
+
+.blingy {
+    background-image: url("/static/blingy.gif");
+    background-color:rgb(0,0,0);
+    background-position:top left;
+    background-repeat:repeat;
+    background-attachment:fixed;
+    z-index: -1;
+}

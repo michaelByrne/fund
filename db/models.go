@@ -141,14 +141,16 @@ func (ns NullRole) Value() (driver.Value, error) {
 }
 
 type Donation struct {
-	ID              uuid.UUID
-	Recurring       bool
-	DonorID         uuid.UUID
-	DonationPlanID  uuid.NullUUID
-	ProviderOrderID string
-	Created         pgtype.Timestamptz
-	Updated         pgtype.Timestamptz
-	FundID          uuid.UUID
+	ID                     uuid.UUID
+	Recurring              bool
+	DonorID                uuid.UUID
+	DonationPlanID         uuid.NullUUID
+	ProviderOrderID        string
+	Created                DBTime
+	Updated                DBTime
+	FundID                 uuid.UUID
+	Active                 bool
+	ProviderSubscriptionID pgtype.Text
 }
 
 type DonationPayment struct {
@@ -156,8 +158,8 @@ type DonationPayment struct {
 	DonationID      uuid.UUID
 	PaypalPaymentID string
 	AmountCents     int32
-	Created         pgtype.Timestamptz
-	Updated         pgtype.Timestamptz
+	Created         DBTime
+	Updated         DBTime
 }
 
 type DonationPlan struct {
@@ -168,8 +170,8 @@ type DonationPlan struct {
 	IntervalUnit  IntervalUnit
 	IntervalCount int32
 	Active        bool
-	Created       pgtype.Timestamptz
-	Updated       pgtype.Timestamptz
+	Created       DBTime
+	Updated       DBTime
 	FundID        uuid.UUID
 }
 
@@ -183,10 +185,10 @@ type Fund struct {
 	PayoutFrequency PayoutFrequency
 	Active          bool
 	Principal       uuid.NullUUID
-	Expires         pgtype.Timestamptz
-	NextPayment     pgtype.Timestamptz
-	Created         pgtype.Timestamptz
-	Updated         pgtype.Timestamptz
+	Expires         NullDBTime
+	NextPayment     DBTime
+	Created         DBTime
+	Updated         DBTime
 }
 
 type Member struct {
@@ -197,13 +199,14 @@ type Member struct {
 	Roles           []Role
 	Email           string
 	IpAddress       *netip.Addr
-	LastLogin       pgtype.Timestamptz
+	LastLogin       NullDBTime
 	CognitoID       pgtype.Text
 	PaypalEmail     pgtype.Text
 	PostalCode      pgtype.Text
-	Created         pgtype.Timestamptz
-	Updated         pgtype.Timestamptz
+	Created         DBTime
+	Updated         DBTime
 	ProviderPayerID pgtype.Text
+	Active          bool
 }
 
 type Session struct {

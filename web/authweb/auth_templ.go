@@ -8,6 +8,8 @@ package authweb
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
+import "boardfund/web/common"
+
 func Password() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -29,7 +31,25 @@ func Password() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"w-[50%] h-full flex items-start pt-6 ml-4\"><form target=\"/password\" method=\"post\" class=\"w-full\"><div class=\"flex flex-col gap-4\"><div class=\"flex items-center\"><label for=\"old\" class=\"text-md font-semibold px-2 w-40\">username</label> <input type=\"text\" name=\"username\" id=\"username\" class=\"flex-1 text-sm border border-slate-300 shadow-sm px-3 py-2\"></div><div class=\"flex items-center\"><label for=\"old\" class=\"text-md font-semibold px-2 w-40\">old password</label> <input type=\"password\" name=\"old\" id=\"old\" class=\"flex-1 text-sm border border-slate-300 shadow-sm px-3 py-2\"></div><div class=\"flex items-center\"><label for=\"new\" class=\"text-md font-semibold px-2 w-40\">new password</label> <input type=\"password\" name=\"new\" id=\"new\" class=\"flex-1 text-sm border border-slate-300 shadow-sm px-3 py-2\"></div><div class=\"flex items-center\"><label for=\"confirm\" class=\"text-md font-semibold px-2 w-40\">confirm new</label> <input type=\"password\" name=\"confirm\" id=\"confirm\" class=\"flex-1 text-sm border border-slate-300 shadow-sm px-3 py-2\"></div><div class=\"flex\"><button type=\"submit\" class=\"px-6 py-3 text-md font-medium bg-stone-100 text-black hover:bg-[#e4cdc3] hover:shadow-md\">Reset</button></div></div></form></div>")
+		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+			if !templ_7745c5c3_IsBuffer {
+				defer func() {
+					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err == nil {
+						templ_7745c5c3_Err = templ_7745c5c3_BufErr
+					}
+				}()
+			}
+			ctx = templ.InitializeContext(ctx)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"w-[50%] flex items-start pt-6 ml-4\"><form action=\"/password\" method=\"post\" class=\"w-full\"><div class=\"flex flex-col gap-4\"><div class=\"flex items-center\"><label for=\"old\" class=\"text-md font-semibold px-2 w-40\">username</label> <input type=\"text\" name=\"username\" id=\"username\" required class=\"flex-1 text-sm border border-slate-300 shadow-sm px-3 py-2\"></div><div class=\"flex items-center\"><label for=\"old\" class=\"text-md font-semibold px-2 w-40\">old password</label> <input type=\"password\" name=\"old\" id=\"old\" required class=\"flex-1 text-sm border border-slate-300 shadow-sm px-3 py-2\"></div><div class=\"flex items-center\"><label for=\"new\" class=\"text-md font-semibold px-2 w-40\">new password</label> <input type=\"password\" name=\"new\" id=\"new\" required class=\"flex-1 text-sm border border-slate-300 shadow-sm px-3 py-2\"></div><div class=\"flex items-center\"><label for=\"confirm\" class=\"text-md font-semibold px-2 w-40\">confirm new</label> <input type=\"password\" name=\"confirm\" id=\"confirm\" required class=\"flex-1 text-sm border border-slate-300 shadow-sm px-3 py-2\"></div><div class=\"flex\"><button type=\"submit\" class=\"px-6 py-3 text-md font-medium bg-stone-100 text-black hover:bg-[#e4cdc3] hover:shadow-md\">Reset</button></div></div></form></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			return templ_7745c5c3_Err
+		})
+		templ_7745c5c3_Err = common.Layout(nil, "/password").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -53,12 +73,30 @@ func Login() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var2 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var2 == nil {
-			templ_7745c5c3_Var2 = templ.NopComponent
+		templ_7745c5c3_Var3 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var3 == nil {
+			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"w-[95%] mx-auto h-full flex items-center\"><form target=\"/login\" method=\"post\" class=\"w-full\"><div class=\"flex sm:flex-row flex-col gap-4\"><div class=\"flex items-center\"><label for=\"username\" class=\"text-md font-semibold px-2\">username</label> <input type=\"text\" name=\"username\" id=\"username\" class=\"w-full max-w-xs text-sm border border-slate-300 shadow-sm px-3 py-2\"></div><div class=\"flex items-center\"><label for=\"password\" class=\"text-md font-semibold px-2\">password</label> <input type=\"password\" name=\"password\" id=\"password\" class=\"w-full max-w-xs text-sm border border-slate-300 shadow-sm px-3 py-2\"></div><div class=\"flex ml-4\"><button type=\"submit\" class=\"px-6 py-3 text-md font-medium bg-stone-100 text-black hover:bg-[#e4cdc3] hover:shadow-md\">Login</button></div><div class=\"flex ml-auto items-center\"><a href=\"/invite\" class=\"text-xs text-blue-400 hover:text-blue-800\">request invite</a></div></div></form></div>")
+		templ_7745c5c3_Var4 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+			if !templ_7745c5c3_IsBuffer {
+				defer func() {
+					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err == nil {
+						templ_7745c5c3_Err = templ_7745c5c3_BufErr
+					}
+				}()
+			}
+			ctx = templ.InitializeContext(ctx)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"w-[95%] mx-auto pt-4 flex items-center self-center\"><form action=\"/login\" target=\"_self\" method=\"post\" class=\"w-full\"><div class=\"flex sm:flex-row flex-col gap-4\"><div class=\"flex items-center\"><label for=\"username\" class=\"text-md font-semibold px-2\">username</label> <input type=\"text\" name=\"username\" id=\"username\" required class=\"w-full max-w-xs text-sm border border-slate-300 shadow-sm px-3 py-2\"></div><div class=\"flex items-center\"><label for=\"password\" class=\"text-md font-semibold px-2\">password</label> <input type=\"password\" name=\"password\" id=\"password\" required class=\"w-full max-w-xs text-sm border border-slate-300 shadow-sm px-3 py-2\"></div><div class=\"flex ml-4\"><button type=\"submit\" class=\"px-6 py-3 text-md font-medium bg-stone-100 text-black hover:bg-[#e4cdc3] hover:shadow-md\">Login</button></div><div class=\"flex ml-auto items-center\"><a href=\"/invite\" class=\"text-xs text-blue-400 hover:text-blue-800\">request invite</a></div></div></form></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			return templ_7745c5c3_Err
+		})
+		templ_7745c5c3_Err = common.Layout(nil, "/login").Render(templ.WithChildren(ctx, templ_7745c5c3_Var4), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

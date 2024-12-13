@@ -34,6 +34,7 @@ window.paypal_sub.Buttons({
                 order_id: data.orderID,
                 provider_plan_id: providerPlanId,
                 provider_donation_id: subscription.id,
+                subscription_id: subscription.id,
                 plan_id: planId,
                 amount: subscription.billing_info.last_payment.amount.value,
                 email: subscription.subscriber.email_address,

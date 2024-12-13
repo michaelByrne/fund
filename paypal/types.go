@@ -193,3 +193,7 @@ type Updates []struct {
 	Path  string `json:"path"`
 	Value any    `json:"value"`
 }
+
+type CancelSubscriptionRequest struct {
+	Reason string `json:"reason"`
+}

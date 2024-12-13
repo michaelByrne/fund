@@ -2,7 +2,9 @@ package store
 
 import (
 	"boardfund/db"
+	"boardfund/service/donations"
 	"boardfund/service/members"
+	"encoding/json"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -85,5 +87,81 @@ func fromDBMember(member db.Member) members.Member {
 		ProviderPayerID: member.ProviderPayerID.String,
 		CognitoID:       member.CognitoID.String,
 		Roles:           convertRolesFromDB(member.Roles),
+		Active:          member.Active,
+		Created:         member.Created.Time,
+		Updated:         member.Updated.Time,
 	}
+}
+
+func fromDBMemberWithDonations(member db.GetMemberWithDonationsRow) (*members.Member, error) {
+	memberOut := &members.Member{
+		ID:              member.ID,
+		Email:           member.Email,
+		BCOName:         member.BcoName.String,
+		CognitoID:       member.CognitoID.String,
+		FirstName:       member.FirstName.String,
+		LastName:        member.LastName.String,
+		ProviderPayerID: member.ProviderPayerID.String,
+		Active:          member.Active,
+		Created:         member.Created.Time,
+		Updated:         member.Updated.Time,
+	}
+
+	for _, role := range member.Roles {
+		memberOut.Roles = append(memberOut.Roles, members.MemberRole(role))
+	}
+
+	donationsBytes, err := json.Marshal(member.Donations)
+	if err != nil {
+		return nil, err
+	}
+
+	var dbDonations []members.MemberDonation
+	err = json.Unmarshal(donationsBytes, &dbDonations)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, donation := range dbDonations {
+		var paymentsOut []donations.DonationPayment
+		for _, payment := range donation.Payments {
+			paymentOut := donations.DonationPayment{
+				ID:          payment.ID,
+				DonationID:  payment.DonationID,
+				AmountCents: payment.AmountCents,
+				Created:     payment.Created.Time,
+				Updated:     payment.Updated.Time,
+			}
+
+			paymentsOut = append(paymentsOut, paymentOut)
+		}
+
+		donationOut := donations.Donation{
+			ID:                     donation.ID,
+			DonorID:                donation.DonorID,
+			FundID:                 donation.FundID,
+			FundName:               donation.FundName,
+			Recurring:              donation.Recurring,
+			Created:                donation.Created.Time,
+			Updated:                donation.Updated.Time,
+			ProviderOrderID:        donation.ProviderOrderID,
+			Payments:               paymentsOut,
+			ProviderSubscriptionID: donation.ProviderSubscriptionID,
+		}
+
+		if donation.Plan != nil {
+			donationOut.Plan = &donations.DonationPlan{
+				ID:            donation.Plan.ID,
+				AmountCents:   int32(donation.Plan.AmountCents),
+				IntervalCount: donation.Plan.IntervalCount,
+				IntervalUnit:  donations.IntervalUnit(donation.Plan.IntervalUnit),
+				Created:       donation.Plan.Created.Time,
+				Updated:       donation.Plan.Updated.Time,
+			}
+		}
+
+		memberOut.Donations = append(memberOut.Donations, donationOut)
+	}
+
+	return memberOut, nil
 }

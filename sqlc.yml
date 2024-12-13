@@ -9,15 +9,17 @@ sql:
         out: "./db"
         sql_package: "pgx/v5"
         overrides:
+          - db_type: "public.donations"
+            go_type:
+              type: "Donation"
+              slice: true
           - db_type: "pg_catalog.timestamp"
             go_type:
-              import: "github.com/jackc/pgx/v5/pgtype"
-              type: "Timestamptz"
+              type: "DBTime"
           - db_type: "pg_catalog.timestamp"
             nullable: true
             go_type:
-              import: "github.com/jackc/pgx/v5/pgtype"
-              type: "Timestamptz"
+              type: "NullDBTime"
           - db_type: "uuid"
             go_type:
               import: "github.com/google/uuid"

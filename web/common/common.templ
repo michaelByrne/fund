@@ -1,61 +1,59 @@
 package common
 
-import (
-	"boardfund/service/members"
-	"fmt"
-)
+import "boardfund/service/members"
+import "strings"
 
-templ Head(clientID string) {
+templ Head() {
 	<head>
 		<title>BCO Mutual Aid</title>
 		<link rel="icon" type="image/x-icon" href="/static/favicon.ico"/>
 		<link rel="stylesheet" href="/static/styles.css"/>
 		<script type="application/javascript" src="/static/htmx.min.js"></script>
-		<script type="application/javascript" src="/static/hyperscript.min.js"></script>
+		<script type="application/javascript" src="/static/responsetargets.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+		<script type="application/javascript" src="/static/surreal.js"></script>
 		<script type="application/javascript" src="/static/shared.js"></script>
-		<script src={ fmt.Sprintf("https://www.paypal.com/sdk/js?client-id=%s&vault=true&intent=subscription", clientID) } data-namespace="paypal_sub"></script>
-		<script src={ fmt.Sprintf("https://www.paypal.com/sdk/js?client-id=%s&vault=true", clientID) } data-namespace="paypal_once"></script>
 	</head>
 }
 
-templ Home(content templ.Component, links templ.Component, clientID string) {
-	@Head(clientID)
+templ Layout(member *members.Member, path string) {
+	@Head()
 	<body class="flex flex-col h-full bg-[#333333] font-bco text-sm">
-		<div>
-			<div class="flex flex-row justify-between items-center w-[95%] mx-auto my-2">
-				<h1 class="text-xl font-bold text-white"><a href="/">elitism. secrecy. redistribution.</a></h1>
-				@links
+		<div class="flex flex-col min-h-[40%]">
+			<div class="flex flex-row justify-between items-center w-[90%] mx-auto my-2">
+				<h1 class="text-xl font-bold text-white text-shadow shadow-[#808080]"><a href="/">elitism. secrecy. redistribution.</a></h1>
+				@Links(member, path)
 			</div>
-			<div id="donation" class=" bg-[#c3dae4] w-[95%] mx-auto mt-2">
-				@content
+			<div id="donation" class="bg-[#c3dae4] w-[90%] shadow-blue-boxy mx-auto h-full flex-grow">
+				{ children... }
 			</div>
 		</div>
 	</body>
 }
 
-templ Links(member *members.Member) {
+templ Links(member *members.Member, currentPath string) {
 	<span class="order-last justify-self">
-		<span class="text-xs text-gray-200 order-2 ml-1"><a href="/about">about</a></span>
-		if  member != nil {
-			if len(member.Roles) > 0 {
-				if sliceContains(member.Roles, "ADMIN") {
-					<span class="text-xs text-gray-200 order-4 ml-1"><a href="/admin">admin</a></span>
-				}
+		<span class="text-xs order-2 ml-1">
+			<a href="/about" class={ "text-gray-200", templ.KV("text-gray-500 disabled", currentPath == "/about") }>about</a>
+		</span>
+		if member != nil {
+			if member.IsAdmin() {
+				<span class="text-xs order-4 ml-1">
+					<a href="/admin" class={ "text-gray-200", templ.KV("text-gray-500 disabled", strings.HasPrefix(currentPath, "/admin")) }>admin</a>
+				</span>
 			}
 			<span class="text-xs text-gray-200 order-3 ml-1"><a href="/logout">logout</a></span>
 		}
 	</span>
 }
 
-templ ErrorMessage(message string) {
-	<div class="text-gray-900 w-[95%] mx-auto mt-2 bg-[#e4cdc3] p-4 text-lg">{ message }</div>
-}
-
-func sliceContains[T comparable](slice []T, value T) bool {
-	for _, v := range slice {
-		if v == value {
-			return true
-		}
+templ ErrorMessage(member *members.Member, message, link, currentPath string) {
+	@Layout(member, currentPath) {
+		<div class="mx-auto bg-[#e4cdc3] p-4 text-md flex">
+			<span class="text-gray-900">{ message }</span>
+			if link != "" {
+				<a href={ templ.SafeURL(link) } class="text-blue-400 text-sm ml-auto hover:text-blue-800">try again</a>
+			}
+		</div>
 	}
-	return false
 }

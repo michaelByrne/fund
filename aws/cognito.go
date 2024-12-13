@@ -3,10 +3,13 @@ package aws
 import (
 	"boardfund/service/auth"
 	"context"
+	"errors"
 	"fmt"
 	cognito "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider/types"
+	"github.com/aws/smithy-go"
 	"github.com/google/uuid"
+	"log/slog"
 	"time"
 )
 
@@ -20,13 +23,16 @@ type Cognito interface {
 type CognitoAuth struct {
 	awsCognito Cognito
 
+	logger *slog.Logger
+
 	clientID   string
 	userPoolID string
 }
 
-func NewCognitoAuth(awsCognito Cognito, clientID, userPoolID string) *CognitoAuth {
+func NewCognitoAuth(awsCognito Cognito, logger *slog.Logger, clientID, userPoolID string) *CognitoAuth {
 	return &CognitoAuth{
 		awsCognito: awsCognito,
+		logger:     logger,
 		clientID:   clientID,
 		userPoolID: userPoolID,
 	}
@@ -39,7 +45,9 @@ func (c CognitoAuth) Authorize(ctx context.Context, user, pass string) (*auth.Au
 		AuthParameters: map[string]string{"USERNAME": user, "PASSWORD": pass},
 	})
 	if err != nil {
-		return nil, err
+		c.logger.Error("failed to auth", slog.String("error", err.Error()))
+
+		return nil, handleCognitoError(err, auth.ErrAuthenticateOther)
 	}
 
 	if initiateResponse.AuthenticationResult == nil {
@@ -70,7 +78,9 @@ func (c CognitoAuth) SetPassword(ctx context.Context, user, old, new string) err
 		AuthParameters: map[string]string{"USERNAME": user, "PASSWORD": old},
 	})
 	if err != nil {
-		return err
+		c.logger.Error("failed to auth", slog.String("error", err.Error()))
+
+		return handleCognitoError(err, auth.ErrAuthenticateOther)
 	}
 
 	_, err = c.awsCognito.AdminSetUserPassword(ctx, &cognito.AdminSetUserPasswordInput{
@@ -105,7 +115,7 @@ func (c CognitoAuth) CreateUser(ctx context.Context, username, email string, mem
 		},
 	})
 	if err != nil {
-		return "", err
+		return "", handleCognitoError(err, auth.ErrNewUserOther)
 	}
 
 	var cognitoID string
@@ -132,4 +142,24 @@ func (c CognitoAuth) DeleteUser(ctx context.Context, username string) error {
 
 func toPointer[T any](v T) *T {
 	return &v
+}
+
+func handleCognitoError(err, base error) error {
+	var target smithy.APIError
+	if !errors.As(err, &target) {
+		return base
+	}
+
+	switch target.ErrorCode() {
+	case "UserNotFoundException":
+		return auth.ErrUserNotFound
+	case "NotAuthorizedException":
+		return auth.ErrInvalidCredentials
+	case "UsernameExistsException":
+		return auth.ErrUsernameExists
+	case "InvalidPasswordException":
+		return auth.ErrInvalidPassword
+	default:
+		return base
+	}
 }

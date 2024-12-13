@@ -19,6 +19,34 @@ func NewMemberStore(conn *pgxpool.Pool) MemberStore {
 	}
 }
 
+func (s MemberStore) GetActiveMembers(ctx context.Context) ([]members.Member, error) {
+	query := s.queries.GetActiveMembers
+
+	return pg.FetchAll(ctx, query, fromDBMember)
+}
+
+func (s MemberStore) SetMemberToInactive(ctx context.Context, id uuid.UUID) (*members.Member, error) {
+	query := s.queries.SetMemberToInactive
+
+	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
+
+	return pg.UpdateOne(ctx, id, query, argIdentity, fromDBMember)
+}
+
+func (s MemberStore) SetMemberToActive(ctx context.Context, id uuid.UUID) (*members.Member, error) {
+	query := s.queries.SetMemberToActive
+
+	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
+
+	return pg.UpdateOne(ctx, id, query, argIdentity, fromDBMember)
+}
+
+func (s MemberStore) GetMembers(ctx context.Context) ([]members.Member, error) {
+	query := s.queries.GetMembers
+
+	return pg.FetchAll(ctx, query, fromDBMember)
+}
+
 func (s MemberStore) GetMemberByID(ctx context.Context, id uuid.UUID) (*members.Member, error) {
 	query := s.queries.GetMemberById
 
@@ -29,4 +57,15 @@ func (s MemberStore) UpsertMember(ctx context.Context, member members.UpsertMemb
 	query := s.queries.UpsertMember
 
 	return pg.UpsertOne(ctx, member, query, toDBMemberUpsertParams, fromDBMember)
+}
+
+func (s MemberStore) GetMemberWithDonations(ctx context.Context, id uuid.UUID) (*members.Member, error) {
+	query := s.queries.GetMemberWithDonations
+
+	member, err := query(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return fromDBMemberWithDonations(member)
 }

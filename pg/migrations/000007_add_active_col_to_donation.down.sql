@@ -1,0 +1,1 @@
+ALTER TABLE donation DROP COLUMN active;

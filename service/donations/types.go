@@ -56,16 +56,37 @@ type UpdateFund struct {
 }
 
 type Donation struct {
-	ID              uuid.UUID
-	DonorID         uuid.UUID
-	DonationPlanID  uuid.NullUUID
-	FundID          uuid.UUID
-	Recurring       bool
-	ProviderID      string
-	ProviderOrderID string
-	Payment         *DonationPayment
-	Created         time.Time
-	Updated         time.Time
+	ID                     uuid.UUID
+	DonorID                uuid.UUID
+	DonationPlanID         uuid.NullUUID
+	FundID                 uuid.UUID
+	FundName               string
+	Recurring              bool
+	ProviderID             string
+	ProviderOrderID        string
+	ProviderSubscriptionID string
+	Payment                *DonationPayment
+	Payments               []DonationPayment
+	Plan                   *DonationPlan
+	Created                time.Time
+	Updated                time.Time
+}
+
+func (d Donation) TotalDonatedCents() int32 {
+	var total int32
+	for _, payment := range d.Payments {
+		total += payment.AmountCents
+	}
+
+	return total
+}
+
+func (d Donation) LastPayment() *DonationPayment {
+	if len(d.Payments) == 0 {
+		return nil
+	}
+
+	return &d.Payments[len(d.Payments)-1]
 }
 
 type DonationPayment struct {
@@ -87,10 +108,11 @@ type DonationOrderCapture struct {
 }
 
 type RecurringCompletion struct {
-	PlanID          uuid.NullUUID `json:"plan_id"`
-	AmountCents     int32         `json:"amount_cents"`
-	FundID          uuid.UUID     `json:"fund_id"`
-	ProviderOrderID string        `json:"provider_order_id"`
+	PlanID                 uuid.NullUUID `json:"plan_id"`
+	AmountCents            int32         `json:"amount_cents"`
+	FundID                 uuid.UUID     `json:"fund_id"`
+	ProviderOrderID        string        `json:"provider_order_id"`
+	ProviderSubscriptionID string        `json:"provider_subscription_id"`
 }
 
 type OneTimeCompletion struct {
@@ -150,12 +172,13 @@ type CreatePlan struct {
 }
 
 type InsertDonation struct {
-	ID              uuid.UUID
-	DonorID         uuid.UUID
-	FundID          uuid.UUID
-	Recurring       bool
-	PlanID          uuid.NullUUID
-	ProviderOrderID string
+	ID                     uuid.UUID
+	DonorID                uuid.UUID
+	FundID                 uuid.UUID
+	Recurring              bool
+	PlanID                 uuid.NullUUID
+	ProviderOrderID        string
+	ProviderSubscriptionID string
 }
 
 type UpdateDonation struct {

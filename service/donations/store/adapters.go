@@ -46,8 +46,10 @@ func toDBFundInsertParams(fund donations.InsertFund) db.InsertFundParams {
 	}
 
 	if fund.Expires != nil {
-		insertFund.Expires = pgtype.Timestamptz{
-			Time:  *fund.Expires,
+		insertFund.Expires = db.NullDBTime{
+			DBTime: db.DBTime{
+				Time: *fund.Expires,
+			},
 			Valid: true,
 		}
 	}
@@ -70,8 +72,10 @@ func toDBFundUpdateParams(fund donations.UpdateFund) db.UpdateFundParams {
 	}
 
 	if fund.Expires != nil {
-		updateFund.Expires = pgtype.Timestamptz{
-			Time:  *fund.Expires,
+		updateFund.Expires = db.NullDBTime{
+			DBTime: db.DBTime{
+				Time: *fund.Expires,
+			},
 			Valid: true,
 		}
 	}
@@ -111,7 +115,7 @@ func toDBDonationPlanUpsertParams(plan donations.UpsertDonationPlan) db.UpsertDo
 }
 
 func fromDBDonation(donation db.Donation) donations.Donation {
-	return donations.Donation{
+	donationOut := donations.Donation{
 		ID:              donation.ID,
 		DonorID:         donation.DonorID,
 		DonationPlanID:  donation.DonationPlanID,
@@ -121,16 +125,32 @@ func fromDBDonation(donation db.Donation) donations.Donation {
 		Updated:         donation.Updated.Time,
 		ProviderOrderID: donation.ProviderOrderID,
 	}
+
+	if donation.ProviderSubscriptionID.Valid {
+		donationOut.ProviderSubscriptionID = donation.ProviderSubscriptionID.String
+	}
+
+	return donationOut
 }
 
 func toDBDonationInsertParams(donation donations.InsertDonation) db.InsertDonationParams {
-	return db.InsertDonationParams{
+	insertDonation := db.InsertDonationParams{
 		ID:              donation.ID,
 		DonorID:         donation.DonorID,
-		Recurring:       false,
+		Recurring:       donation.Recurring,
 		FundID:          donation.FundID,
 		ProviderOrderID: donation.ProviderOrderID,
+		DonationPlanID:  donation.PlanID,
 	}
+
+	if donation.ProviderSubscriptionID != "" {
+		insertDonation.ProviderSubscriptionID = pgtype.Text{
+			String: donation.ProviderSubscriptionID,
+			Valid:  true,
+		}
+	}
+
+	return insertDonation
 }
 
 func fromDBDonationPayment(payment db.DonationPayment) donations.DonationPayment {

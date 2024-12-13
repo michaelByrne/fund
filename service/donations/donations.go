@@ -2,6 +2,7 @@ package donations
 
 import (
 	"context"
+	"fmt"
 	"github.com/google/uuid"
 	"log/slog"
 )
@@ -15,12 +16,18 @@ type donationStore interface {
 	InsertDonationWithPayment(ctx context.Context, donation InsertDonation, payment InsertDonationPayment) (*Donation, error)
 	GetFunds(ctx context.Context) ([]Fund, error)
 	GetFundByID(ctx context.Context, uuid uuid.UUID) (*Fund, error)
+	SetDonationToInactive(ctx context.Context, id uuid.UUID) (*Donation, error)
+	SetFundAndDonationsToInactive(ctx context.Context, id uuid.UUID) ([]Donation, error)
+	SetFundAndDonationsToActive(ctx context.Context, id uuid.UUID) ([]Donation, error)
+	SetDonationToActiveBySubscriptionID(ctx context.Context, id string) (*Donation, error)
+	GetActiveFunds(ctx context.Context) ([]Fund, error)
 }
 
 type paymentsProvider interface {
 	CreatePlan(ctx context.Context, plan CreatePlan) (string, error)
 	CreateFund(ctx context.Context, name, description string) (string, error)
 	InitiateDonation(ctx context.Context, fund Fund, amountCents int32) (string, error)
+	CancelSubscriptions(ctx context.Context, ids []string) ([]string, error)
 }
 
 type DonationService struct {
@@ -36,6 +43,62 @@ func NewDonationService(donationStore donationStore, provider paymentsProvider, 
 		paymentsProvider: provider,
 		logger:           logger,
 	}
+}
+
+func (s DonationService) ListActiveFunds(ctx context.Context) ([]Fund, error) {
+	funds, err := s.donationStore.GetActiveFunds(ctx)
+	if err != nil {
+		s.logger.Error("failed to get active funds", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	return funds, nil
+}
+
+func (s DonationService) DeactivateFund(ctx context.Context, id uuid.UUID) error {
+	deactivated, err := s.donationStore.SetFundAndDonationsToInactive(ctx, id)
+	if err != nil {
+		s.logger.Error("failed to deactivate fund", slog.String("error", err.Error()))
+
+		return err
+	}
+
+	toCancel := extractProviderSubscriptionIDs(deactivated)
+
+	cancelled, err := s.paymentsProvider.CancelSubscriptions(ctx, toCancel)
+	if err != nil {
+		s.logger.Error("failed to cancel subscriptions", slog.String("error", err.Error()))
+
+		return err
+	}
+
+	if len(cancelled) != len(toCancel) {
+		uncancelled := uncancelledSubscriptions(cancelled, toCancel)
+		s.logger.Error("failed to cancel all subscriptions", slog.String("uncancelled", fmt.Sprintf("%v", uncancelled)))
+
+		for _, sub := range uncancelled {
+			_, err = s.donationStore.SetDonationToActiveBySubscriptionID(ctx, sub)
+			if err != nil {
+				s.logger.Error("failed to reactivate donation", slog.String("error", err.Error()))
+
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s DonationService) DeactivateDonation(ctx context.Context, id uuid.UUID) (*Donation, error) {
+	donation, err := s.donationStore.SetDonationToInactive(ctx, id)
+	if err != nil {
+		s.logger.Error("failed to set donation to inactive", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	return donation, nil
 }
 
 func (s DonationService) ListFunds(ctx context.Context) ([]Fund, error) {
@@ -91,11 +154,13 @@ func (s DonationService) CreateDonationPlan(ctx context.Context, plan CreatePlan
 
 func (s DonationService) CompleteRecurringDonation(ctx context.Context, memberID uuid.UUID, completion RecurringCompletion) error {
 	insertDonation := InsertDonation{
-		ID:        uuid.New(),
-		DonorID:   memberID,
-		PlanID:    completion.PlanID,
-		FundID:    completion.FundID,
-		Recurring: true,
+		ID:                     uuid.New(),
+		DonorID:                memberID,
+		PlanID:                 completion.PlanID,
+		FundID:                 completion.FundID,
+		ProviderOrderID:        completion.ProviderOrderID,
+		ProviderSubscriptionID: completion.ProviderSubscriptionID,
+		Recurring:              true,
 	}
 
 	insertPayment := InsertDonationPayment{
@@ -206,4 +271,36 @@ func (s DonationService) UpdateFund(ctx context.Context, updateFund Fund) (*Fund
 	}
 
 	return fund, nil
+}
+
+func extractProviderSubscriptionIDs(donations []Donation) []string {
+	var subscriptionIDs []string
+
+	for _, donation := range donations {
+		if donation.ProviderSubscriptionID != "" {
+			subscriptionIDs = append(subscriptionIDs, donation.ProviderSubscriptionID)
+		}
+	}
+
+	return subscriptionIDs
+}
+
+func uncancelledSubscriptions(cancelled []string, all []string) []string {
+	var uncancelled []string
+
+	for _, sub := range all {
+		var found bool
+		for _, c := range cancelled {
+			if sub == c {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			uncancelled = append(uncancelled, sub)
+		}
+	}
+
+	return uncancelled
 }

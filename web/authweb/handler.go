@@ -31,12 +31,22 @@ func (h AuthHandler) Register(r *mux.Router) {
 	r.HandleFunc("/logout", h.logout)
 	r.HandleFunc("GET /password", h.passwordPage)
 	r.HandleFunc("POST /password", h.resetPassword)
+	r.HandleFunc("GET /auth/error", h.errorPage)
+}
+
+func (h AuthHandler) errorPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	errStr := r.URL.Query().Get("msg")
+	link := r.URL.Query().Get("link")
+
+	common.ErrorMessage(nil, errStr, link, r.URL.Path).Render(ctx, w)
 }
 
 func (h AuthHandler) passwordPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	templ.Handler(common.Home(Password(), common.Links(nil), h.clientID)).Component.Render(ctx, w)
+	Password().Render(ctx, w)
 }
 
 func (h AuthHandler) resetPassword(w http.ResponseWriter, r *http.Request) {
@@ -47,31 +57,15 @@ func (h AuthHandler) resetPassword(w http.ResponseWriter, r *http.Request) {
 	newPassword := r.FormValue("new")
 	confirmNew := r.FormValue("confirm")
 
-	if username == "" || password == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage("username and password are required")).Component.Render(ctx, w)
-
-		return
-	}
-
-	if newPassword == "" || confirmNew == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage("new password and confirm new password are required")).Component.Render(ctx, w)
-
-		return
-	}
-
 	if newPassword != confirmNew {
-		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage("new password and confirm new password do not match")).Component.Render(ctx, w)
+		errRedirect(w, r, "passwords do not match", "/password")
 
 		return
 	}
 
 	member, authResp, err := h.authService.ResetPassword(ctx, username, password, newPassword)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		templ.Handler(common.ErrorMessage("failed to reset password")).Component.Render(ctx, w)
+		errRedirect(w, r, err.Error(), "/password")
 
 		return
 	}
@@ -103,7 +97,7 @@ func (h AuthHandler) loginPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	templ.Handler(common.Home(Login(), common.Links(nil), h.clientID)).Component.Render(ctx, w)
+	Login().Render(ctx, w)
 }
 
 func (h AuthHandler) login(w http.ResponseWriter, r *http.Request) {
@@ -112,23 +106,21 @@ func (h AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 
-	if username == "" || password == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		templ.Handler(common.ErrorMessage("username and password are required")).Component.Render(ctx, w)
-
-		return
-	}
-
 	member, authResp, err := h.authService.Authenticate(ctx, username, password)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		templ.Handler(common.ErrorMessage("failed to authenticate")).Component.Render(ctx, w)
+		errRedirect(w, r, err.Error(), "/login")
 
 		return
 	}
 
 	if authResp.ResetPassword {
 		http.Redirect(w, r, "/password", http.StatusFound)
+
+		return
+	}
+
+	if !member.Active {
+		http.Redirect(w, r, "/", http.StatusFound)
 
 		return
 	}
@@ -148,6 +140,10 @@ func setTokenCookie(name, token string, expiration time.Time, w http.ResponseWri
 	cookie.HttpOnly = true
 
 	http.SetCookie(w, cookie)
+}
+
+func errRedirect(w http.ResponseWriter, r *http.Request, msg, link string) {
+	http.Redirect(w, r, "/auth/error?msg="+msg+"&link="+link, http.StatusFound)
 }
 
 func isHx(r *http.Request) bool {

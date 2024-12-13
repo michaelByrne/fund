@@ -14,8 +14,7 @@ import (
 	memberstore "boardfund/service/members/store"
 	"boardfund/web/adminweb"
 	"boardfund/web/authweb"
-	"boardfund/web/fundweb"
-	"boardfund/web/memberweb"
+	"boardfund/web/homeweb"
 	"boardfund/web/middlewares"
 	"boardfund/web/mux"
 	"context"
@@ -173,15 +172,14 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 	authMiddleware := middlewares.Verify(verifier.Verify, middlewares.TokenFromCookie, middlewares.TokenFromHeader)
 	adminAuthMiddleware := middlewares.Verify(verifier.VerifyAdmin, middlewares.TokenFromCookie, middlewares.TokenFromHeader)
 
-	authorizer := aws.NewCognitoAuth(cognitoClient, cognitoClientID, userPoolID)
+	authorizer := aws.NewCognitoAuth(cognitoClient, logger, cognitoClientID, userPoolID)
 
 	donationService := donations.NewDonationService(donationStore, paypalService, logger)
-	memberService := members.NewMemberService(memberStore, authorizer, logger)
+	memberService := members.NewMemberService(memberStore, donationStore, authorizer, paypalService, logger)
 	authService := auth.NewAuthService(authorizer, memberStore, logger)
 
-	donationHandler := fundweb.NewFundHandler(donationService, sessionManager, authMiddleware, productID, paypalClientID)
+	donationHandler := homeweb.NewFundHandler(donationService, sessionManager, authMiddleware, logger, productID, paypalClientID)
 	authHandler := authweb.NewAuthHandler(authService, sessionManager, paypalClientID)
-	memberHandler := memberweb.NewMemberHandler(memberService, sessionManager, authMiddleware)
 	adminHandler := adminweb.NewAdminHandler(adminAuthMiddleware, memberService, donationService, sessionManager, paypalClientID)
 
 	router := mux.NewRouter(http.NewServeMux())
@@ -194,7 +192,6 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 
 	authHandler.Register(router)
 	donationHandler.Register(router)
-	memberHandler.Register(router)
 	adminHandler.Register(router)
 
 	server := &http.Server{
