@@ -224,7 +224,7 @@ resource "aws_ses_receipt_rule_set" "mail_rule_set" {
 
 resource "aws_ses_receipt_rule" "store" {
   name          = "store"
-  rule_set_name = "default-rule-set"
+  rule_set_name = aws_ses_receipt_rule_set.mail_rule_set.rule_set_name
   enabled       = true
   scan_enabled  = true
 
