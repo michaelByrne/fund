@@ -40,7 +40,8 @@ resource "aws_cognito_user_pool" "bco_fund_pool" {
 
     invite_message_template {
       email_message = <<-EOT
-      Hello {username}! You're invited to test the BCO Mutual Aid app.
+      Hello {username}!
+        You're invited to test the BCO Mutual Aid app.
       Your temporary password is {####}. You'll be prompted to change your password at login.
       Please visit ${var.fund_pass_url} to do that.
       The app is wired up to a sandbox Paypal account. You can use the following credentials to log in:
