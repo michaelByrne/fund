@@ -218,22 +218,20 @@ POLICY
   ]
 }
 
+resource "aws_ses_receipt_rule_set" "mail_rule_set" {
+  rule_set_name = "mail-rule-set"
+}
+
 resource "aws_ses_receipt_rule" "store" {
   name          = "store"
   rule_set_name = "default-rule-set"
   enabled       = true
   scan_enabled  = true
 
-  add_header_action {
-    header_name  = "Custom-Header"
-    header_value = "Added by SES"
-    position     = 1
-  }
-
   s3_action {
-    bucket_name = aws_s3_bucket.mail_bucket.id
+    bucket_name       = aws_s3_bucket.mail_bucket.id
     object_key_prefix = "incoming"
-    position    = 2
+    position          = 2
   }
 
   depends_on = [
