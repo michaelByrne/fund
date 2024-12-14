@@ -39,16 +39,7 @@ resource "aws_cognito_user_pool" "bco_fund_pool" {
     allow_admin_create_user_only = true
 
     invite_message_template {
-      email_message = <<-EOT
-      Hello {username}!
-        You're invited to test the BCO Mutual Aid app.
-      Your temporary password is {####}. You'll be prompted to change your password at login.
-      Please visit ${var.fund_pass_url} to do that.
-      The app is wired up to a sandbox Paypal account. You can use the following credentials to log in:
-      Email: ${var.paypal_email}
-      Password: ${var.paypal_pass}
-      EOT
-
+      email_message = "Hello {username}!\nYou're invited to test the BCO Mutual Aid app. Your temporary password is {####}.\nYou'll be prompted to change your password at login. Please visit ${var.fund_pass_url} to do that.\nThe app is wired up to a sandbox Paypal account. You can use the following credentials to log in:\nEmail: ${var.paypal_email}\nPassword: ${var.paypal_pass}"
       email_subject = "testing BCO Mutual Aid"
       sms_message = "Hello {username}! Your temporary password is {####}. You'll be prompted to change your password at login."
     }
