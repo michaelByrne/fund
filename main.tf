@@ -208,7 +208,7 @@ resource "aws_s3_bucket_policy" "mail_bucket_policy" {
                 "Service": "ses.amazonaws.com"
             },
             "Action": "s3:PutObject",
-            "Resource": "arn:aws:s3:::${aws_s3_bucket.mail_bucket.id}/*",
+            "Resource": "arn:aws:s3:::${aws_s3_bucket.mail_bucket.id}/*"
         }
     ]
 }
