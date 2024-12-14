@@ -95,7 +95,7 @@ func MembersList(members []members.Member) templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div id=\"members-list\"><h3 class=\"text-md font-semibold mt-2 mb-5 p-2 inline-block bg-[#c9e4c3]\">current members</h3><ul id=\"admin-members\" class=\"max-w-[90%] overflow-y-auto\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div id=\"members-list\" class=\"max-w-full\"><h3 class=\"text-md font-semibold mt-2 mb-4 p-2 inline-block bg-[#c9e4c3]\">current members</h3><div class=\"border-y-2 border-[#ffd4a3]\"><ul id=\"admin-members\" class=\"max-h-[calc(90vh-200px)] overflow-y-auto\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -105,7 +105,7 @@ func MembersList(members []members.Member) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</ul></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</ul></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -134,27 +134,27 @@ func MemberRow(member members.Member) templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<li class=\"clickable member-row p-2 flex flex-col md:flex-row md:items-center gap-2 odd:bg-[#acccdb] odd:hover:bg-[#dbbbac] even:hover:bg-[#e4cdc3]\" hx-get=\"")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<li class=\"clickable member-row p-2 flex flex-col md:flex-row md:items-center odd:bg-[#acccdb] odd:hover:bg-[#dbbbac] even:hover:bg-[#e4cdc3]\" hx-get=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/admin/member/%s", member.ID.String()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 33, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 35, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"><div class=\"flex items-center w-full\"><!-- Name and email container --><div class=\"flex flex-col w-full md:flex-row md:items-center\"><span class=\"font-medium\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"><div class=\"flex items-center w-full\"><div class=\"flex flex-col w-full md:flex-row md:items-center\"><span class=\"font-medium\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(member.BCOName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 38, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 39, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -167,13 +167,13 @@ func MemberRow(member members.Member) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(member.Email)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 39, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 40, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><!-- Button --><button hx-post=\"")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><button hx-post=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -228,7 +228,7 @@ func AddMember() templ.Component {
 			templ_7745c5c3_Var10 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"w-full mx-auto max-w-md\"><h3 class=\"text-md font-semibold mt-2 mb-4 inline-block bg-[#c9e4c3] p-2\">new member</h3><form hx-post=\"/admin/member\" hx-swap=\"afterbegin\" hx-target=\"#admin-members\" id=\"new-member\" class=\"w-[85%] py-4 bg-[#acccdb]\"><div class=\"grid grid-cols-3 gap-4 mt-6\"><label for=\"first\" class=\"col-span-1 text-right\">first name</label> <input type=\"text\" required name=\"first\" id=\"first\" placeholder=\"first\" class=\"col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm\"> <label for=\"last\" class=\"col-span-1 text-right\">last name</label> <input type=\"text\" required name=\"last\" id=\"last\" placeholder=\"last\" class=\"col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm\"> <label for=\"email\" class=\"col-span-1 text-right\">email</label> <input type=\"email\" required name=\"email\" placeholder=\"email\" id=\"email\" class=\"col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm\"> <label for=\"username\" class=\"col-span-1 text-right\">username</label> <input type=\"text\" required name=\"username\" placeholder=\"hotdoghorny\" id=\"username\" class=\"col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm\"></div><div class=\"mt-6 flex justify-center\"><button type=\"submit\" class=\"px-4 py-2 text-center text-md bg-stone-100 text-black hover:text-black hover:bg-[#e4cdc3] hover:font-medium hover:shadow-md\">submit</button></div></form></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"w-full mx-auto max-w-md\"><h3 class=\"text-md font-semibold mt-2 mb-4 inline-block bg-[#c9e4c3] p-2\">new member</h3><form hx-post=\"/admin/member\" hx-swap=\"afterbegin\" hx-target=\"#admin-members\" id=\"new-member\" class=\"w-[85%] py-4 bg-[#acccdb] border-y-2 border-[#ffd4a3]\"><div class=\"grid grid-cols-3 gap-4 mt-6\"><label for=\"first\" class=\"col-span-1 text-right\">first name</label> <input type=\"text\" required name=\"first\" id=\"first\" placeholder=\"first\" class=\"col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm\"> <label for=\"last\" class=\"col-span-1 text-right\">last name</label> <input type=\"text\" required name=\"last\" id=\"last\" placeholder=\"last\" class=\"col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm\"> <label for=\"email\" class=\"col-span-1 text-right\">email</label> <input type=\"email\" required name=\"email\" placeholder=\"email\" id=\"email\" class=\"col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm\"> <label for=\"username\" class=\"col-span-1 text-right\">username</label> <input type=\"text\" required name=\"username\" placeholder=\"hotdoghorny\" id=\"username\" class=\"col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm\"></div><div class=\"mt-6 flex justify-center\"><button type=\"submit\" class=\"px-4 py-2 text-center text-md bg-stone-100 text-black hover:text-black hover:bg-[#e4cdc3] hover:font-medium hover:shadow-md\">submit</button></div></form></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -269,7 +269,7 @@ func Member(viewedMember members.Member, member *members.Member, path string) te
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div id=\"admin-member\" class=\"w-full\"><h3 class=\"text-base font-semibold mb-4 mt-2 pl-2\">member: <span class=\"underline\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div id=\"admin-member\" class=\"w-full h-full overflow-auto\"><h3 class=\"text-base font-semibold mb-5 mt-2 pl-2\">member: <span class=\"underline\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -334,20 +334,20 @@ func Member(viewedMember members.Member, member *members.Member, path string) te
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div class=\"flex flex-row items-center my-2\"><h4 class=\"font-semibold bg-[#c9e4c3] p-2\">total contributions:</h4><span class=\"ml-auto bg-[#c9e4c3] p-2\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div class=\"flex flex-row items-center my-2\"><h4 class=\"font-semibold bg-[#c9e4c3] p-2\">total contributions:</h4><span class=\"ml-auto bg-[#c9e4c3] p-2\">$")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var18 string
-			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDollarString(viewedMember.GetTotalDonatedCents()))
+			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDecimalString(viewedMember.GetTotalDonatedCents()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 105, Col: 102}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 105, Col: 104}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div></div><hr class=\"border-[#acccdb]\"><div class=\"my-4 w-[80%]\"><button id=\"toggle-donations\" class=\"hover:text-grey-600 hover:bg-[#e4cdc3] font-semibold p-2\"><span class=\"underline\">donations</span><span class=\"text-lg pl-1\">&#8594;</span><script>\n            \t\t    me().on(\"click\", () => {\n                            const donationsList = me(\"#donations-list\");\n                            if (donationsList.classList.contains(\"hidden\")) {\n                                donationsList.classList.remove(\"hidden\");\n                                me(\"#toggle-donations\").innerHTML = \"<span class='underline'>donations</span><span class='text-lg pl-1'>&#8595;</span>\";\n                            } else {\n                                donationsList.classList.add(\"hidden\");\n                                me(\"#toggle-donations\").innerHTML = \"<span class='underline'>donations</span><span class='text-lg pl-1'>&#8594;</span>\";\n                            }\n                        });\n            \t\t</script></button><div id=\"donations-list\" class=\"mt-2 pt-2 hidden\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div></div><hr class=\"border-[#acccdb]\"><div class=\"my-4 w-[80%] overflow-auto\"><button id=\"toggle-donations\" class=\"hover:text-grey-600 hover:bg-[#e4cdc3] font-semibold px-2\"><span class=\"underline\">donations</span><span class=\"text-lg pl-1\">&#8594;</span><script>\n            \t\t    me().on(\"click\", () => {\n                            const donationsList = me(\"#donations-list\");\n                            if (donationsList.classList.contains(\"hidden\")) {\n                                donationsList.classList.remove(\"hidden\");\n                                me(\"#toggle-donations\").innerHTML = \"<span class='underline'>donations</span><span class='text-lg pl-1'>&#8595;</span>\";\n                            } else {\n                                donationsList.classList.add(\"hidden\");\n                                me(\"#toggle-donations\").innerHTML = \"<span class='underline'>donations</span><span class='text-lg pl-1'>&#8594;</span>\";\n                            }\n                        });\n            \t\t</script></button>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -355,7 +355,7 @@ func Member(viewedMember members.Member, member *members.Member, path string) te
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div></div>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -390,7 +390,7 @@ func DonationsList(donations []donations.Donation) templ.Component {
 			templ_7745c5c3_Var19 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"sm:block\"><table class=\"w-full text-sm text-left border-collapse\"><thead><tr class=\"font-semibold\"><th class=\"py-2 text-left\">created</th><th class=\"py-2 text-center\">fund</th><th class=\"py-2 text-center\">last payment</th><th class=\"py-2 text-center\">total contributed</th><th class=\"py-2 text-right\">plan</th></tr></thead> <tbody>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div id=\"donations-list\" class=\"hidden mt-6\"><div class=\"max-h-[300px] overflow-y-auto\"><table class=\"w-full text-sm text-left border-collapse\"><thead class=\"sticky top-0 z-10 bg-white\"><tr class=\"font-semibold\"><th class=\"text-left pb-3 w-1/5\"><span class=\"inline-block bg-peach p-2\">date</span></th><th class=\"text-center pb-3 w-1/5\"><span class=\"inline-block bg-peach p-2\">fund</span></th><th class=\"text-center pb-3 w-1/5\"><span class=\"inline-block bg-peach p-2\">last payment</span></th><th class=\"text-center pb-3 w-1/5\"><span class=\"inline-block bg-peach p-2\">total donated</span></th><th class=\"text-center pb-3 w-1/5\"><span class=\"inline-block bg-peach p-2\">plan</span></th></tr></thead> <tbody>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -402,7 +402,7 @@ func DonationsList(donations []donations.Donation) templ.Component {
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(donation.Created.Format("01-02-2006"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 151, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 160, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -415,7 +415,7 @@ func DonationsList(donations []donations.Donation) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(donation.FundName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 152, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 161, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -429,14 +429,14 @@ func DonationsList(donations []donations.Donation) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<td class=\"py-2 text-center\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<td class=\"py-2 text-center\">$")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var22 string
-			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDollarString(donation.TotalDonatedCents()))
+			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDecimalString(donation.TotalDonatedCents()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 154, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 163, Col: 89}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -455,7 +455,7 @@ func DonationsList(donations []donations.Donation) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</tbody></table></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</tbody></table></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -485,14 +485,14 @@ func DonationPlan(plan *donations.DonationPlan) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if plan != nil {
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<td class=\"py-2 text-right\" data-label=\"plan\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<td class=\"py-2 text-center\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var24 string
-			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s / %s", centsToDollarString(plan.AmountCents), strings.ToLower(string(plan.IntervalUnit))))
+			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("$%s / %s", centsToDecimalString(plan.AmountCents), strings.ToLower(string(plan.IntervalUnit))))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 165, Col: 155}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 175, Col: 140}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
@@ -503,7 +503,7 @@ func DonationPlan(plan *donations.DonationPlan) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<td class=\"py-2 pr-4 text-right\" data-label=\"plan\">-</td>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<td class=\"py-2 text-center\">-</td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -534,14 +534,14 @@ func LastPayment(payment *donations.DonationPayment) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if payment != nil {
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<td class=\"py-2 text-center\" data-label=\"last payment\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<td class=\"py-2 text-center\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var26 string
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(payment.Created.Format("01-02-2006"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 173, Col: 95}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 183, Col: 69}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 			if templ_7745c5c3_Err != nil {
@@ -552,7 +552,7 @@ func LastPayment(payment *donations.DonationPayment) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<td class=\"py-2 pr-4 text-center\" data-label=\"last payment\">-</td>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<td class=\"py-2 text-center\">-</td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -20,11 +20,36 @@ provider "aws" {
   region = "us-west-2"
 }
 
+variable "paypal_email" {
+  type = string
+}
+
+variable "paypal_pass" {
+  type = string
+}
+
+variable "fund_pass_url" {
+  type = string
+}
+
 resource "aws_cognito_user_pool" "bco_fund_pool" {
   name = "bco-fund-pool"
 
   admin_create_user_config {
     allow_admin_create_user_only = true
+
+    invite_message_template {
+      email_message = <<EOT
+      Hello {username}! You're invited to test the BCO Mutual Aid app.\n
+      Your temporary password is {####}. You'll be prompted to change your password at login.\n
+      Please visit ${var.fund_pass_url} to do that.\n
+      The app is wired up to a sandbox Paypal account. You can use the following credentials to log in:\n
+      Email: ${var.paypal_email}\n
+      Password: ${var.paypal_pass}\n
+      EOT
+
+      email_subject = "testing BCO Mutual Aid"
+    }
   }
 
   schema {

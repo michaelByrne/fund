@@ -5,6 +5,7 @@ import (
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -16,35 +17,59 @@ templ Funds(funds []donations.Fund, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div id="funds">
 			@FundsTitle()
-			<table class="w-[95%] ml-4 flex flex-row flex-no-wrap overflow-hidden mb-5 mt-4 text-sm">
-				<thead>
-					<tr class="flex flex-col flex-no wrap sm:table-row mb-2 sm:mb-0">
-						<th class="p2 text-left font-semibold">Name</th>
-						<th class="p2 text-left font-semibold">Donors</th>
-						<th class="p2 text-left font-semibold">Commitment</th>
-						<th class="p2 text-left font-semibold">Goal</th>
-						<th class="p2 text-left font-semibold">Frequency</th>
-						<th class="p2 text-left font-semibold">Expires</th>
-						<th class="p2 text-left font-semibold">Next Payout</th>
-					</tr>
-				</thead>
-				<tbody class="flex-1 sm:flex-none">
-					for _, fund := range funds {
-						<tr
-							hx-get={ fmt.Sprintf("/donate/%s", fund.ID.String()) }
-							class="clickable odd:bg-[#acccdb] odd:hover:bg-[#dbbbac] even:bg-[#c3dae4] even:hover:bg-[#e4cdc3] flex flex-col flex-no wrap sm:table-row mb-2 sm:mb-0"
-						>
-							<td>{ fund.Name }</td>
-							<td>3</td>
-							<td>$666</td>
-							@TableGoal(fund.GoalCents)
-							<td>{ string(fund.PayoutFrequency) }</td>
-							@TableExpires(fund.Expires)
-							<td>{ fund.NextPayment.Format("01-02-2006") }</td>
+			<div class="overflow-hidden w-[95%] ml-4 mb-5 mt-4">
+				<table class="table-auto w-full border-collapse text-sm hidden sm:table">
+					<thead>
+						<tr>
+							<th class="p-2 text-left font-semibold w-[30%]">Name</th>
+							<th class="p-2 text-left font-semibold w-[12%]">Donors</th>
+							<th class="p-2 text-left font-semibold w-[12%]">Commitment</th>
+							<th class="p-2 text-left font-semibold w-[12%]">Goal</th>
+							<th class="p-2 text-left font-semibold w-[12%]">Frequency</th>
+							<th class="p-2 text-left font-semibold w-[11%]">Expires</th>
+							<th class="p-2 text-left font-semibold w-[11%]">Next Payout</th>
 						</tr>
+					</thead>
+					<tbody>
+						for _, fund := range funds {
+							<tr
+								hx-get={ fmt.Sprintf("/donate/%s", fund.ID.String()) }
+								class="clickable odd:bg-[#acccdb] odd:hover:bg-[#dbbbac] even:bg-[#c3dae4] even:hover:bg-[#e4cdc3]"
+							>
+								<td class="p-2">{ fund.Name }</td>
+								<td class="p-2">3</td>
+								<td class="p-2">$666</td>
+								@TableGoal(fund.GoalCents)
+								<td class="p-2">{ string(fund.PayoutFrequency) }</td>
+								@TableExpires(fund.Expires)
+								<td class="p-2">{ fund.NextPayment.Format("01-02-2006") }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+				<div class="block sm:hidden text-sm">
+					for _, fund := range funds {
+						<div
+							hx-get={ fmt.Sprintf("/donate/%s", fund.ID.String()) }
+							class="clickable mb-4 p-4 bg-[#f7f7f7] odd:bg-[#acccdb] even:bg-[#c3dae4] hover:bg-[#dbbbac]"
+						>
+							<p class="font-semibold text-lg mb-2">{ fund.Name }</p>
+							<div class="text-sm">
+								<p><span class="font-bold">Donors:</span> 3</p>
+								<p><span class="font-bold">Commitment:</span> $666</p>
+								<p>
+									<span class="font-bold">Goal:</span> @TableGoal(fund.GoalCents)
+								</p>
+								<p><span class="font-bold">Frequency:</span> { string(fund.PayoutFrequency) }</p>
+								<p>
+									<span class="font-bold">Expires:</span> @TableExpires(fund.Expires)
+								</p>
+								<p><span class="font-bold">Next Payout:</span> { fund.NextPayment.Format("01-02-2006") }</p>
+							</div>
+						</div>
 					}
-				</tbody>
-			</table>
+				</div>
+			</div>
 		</div>
 	}
 }
@@ -75,7 +100,25 @@ templ About(member *members.Member, path string) {
 }
 
 func centsToDecimalString(cents int32) string {
-	x := float64(cents)
-	x = x / 100
-	return fmt.Sprintf("%.2f", x)
+	x := float64(cents) / 100
+
+	s := fmt.Sprintf("%.2f", x)
+
+	parts := strings.Split(s, ".")
+	integerPart := parts[0]
+	decimalPart := parts[1]
+
+	n := len(integerPart)
+	if n > 3 {
+		var result strings.Builder
+		for i, digit := range integerPart {
+			if (n-i)%3 == 0 && i != 0 {
+				result.WriteString(",")
+			}
+			result.WriteRune(digit)
+		}
+		integerPart = result.String()
+	}
+
+	return integerPart + "." + decimalPart
 }

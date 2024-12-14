@@ -208,6 +208,14 @@ func (s DonationStore) GetDonationByID(ctx context.Context, id uuid.UUID) (*dona
 	return pg.FetchOne(ctx, id, query, fromDBDonation)
 }
 
+func (s DonationStore) GetTotalDonatedByFundID(ctx context.Context, id uuid.UUID) (int64, error) {
+	query := s.queries.GetTotalDonatedByFund
+
+	resultIdentity := func(amount int64) int64 { return amount }
+
+	return pg.FetchScalar(ctx, id, query, resultIdentity)
+}
+
 func (s DonationStore) InsertDonation(ctx context.Context, donation donations.InsertDonation) (*donations.Donation, error) {
 	query := s.queries.InsertDonation
 

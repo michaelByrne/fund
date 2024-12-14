@@ -17,28 +17,28 @@ templ Members(members []members.Member, member *members.Member, path string) {
 }
 
 templ MembersList(members []members.Member) {
-	<div id="members-list">
-		<h3 class="text-md font-semibold mt-2 mb-5 p-2 inline-block bg-[#c9e4c3]">current members</h3>
-		<ul id="admin-members" class="max-w-[90%] overflow-y-auto">
-			for _, member := range members {
-				@MemberRow(member)
-			}
-		</ul>
+	<div id="members-list" class="max-w-full">
+		<h3 class="text-md font-semibold mt-2 mb-4 p-2 inline-block bg-[#c9e4c3]">current members</h3>
+		<div class="border-y-2 border-[#ffd4a3]">
+			<ul id="admin-members" class="max-h-[calc(90vh-200px)] overflow-y-auto">
+				for _, member := range members {
+					@MemberRow(member)
+				}
+			</ul>
+		</div>
 	</div>
 }
 
 templ MemberRow(member members.Member) {
 	<li
-		class="clickable member-row p-2 flex flex-col md:flex-row md:items-center gap-2 odd:bg-[#acccdb] odd:hover:bg-[#dbbbac] even:hover:bg-[#e4cdc3]"
+		class="clickable member-row p-2 flex flex-col md:flex-row md:items-center odd:bg-[#acccdb] odd:hover:bg-[#dbbbac] even:hover:bg-[#e4cdc3]"
 		hx-get={ fmt.Sprintf("/admin/member/%s", member.ID.String()) }
 	>
 		<div class="flex items-center w-full">
-			<!-- Name and email container -->
 			<div class="flex flex-col w-full md:flex-row md:items-center">
 				<span class="font-medium">{ member.BCOName }</span>
 				<span class="text-sm text-gray-600 md:ml-auto">{ member.Email }</span>
 			</div>
-			<!-- Button -->
 			<button
 				hx-post={ fmt.Sprintf("/admin/member/deactivate/%s", member.ID.String()) }
 				hx-confirm={ fmt.Sprintf("deactivate %s?", member.BCOName) }
@@ -60,7 +60,7 @@ templ MemberRow(member members.Member) {
 templ AddMember() {
 	<div class="w-full mx-auto max-w-md">
 		<h3 class="text-md font-semibold mt-2 mb-4 inline-block bg-[#c9e4c3] p-2">new member</h3>
-		<form hx-post="/admin/member" hx-swap="afterbegin" hx-target="#admin-members" id="new-member" class="w-[85%] py-4 bg-[#acccdb]">
+		<form hx-post="/admin/member" hx-swap="afterbegin" hx-target="#admin-members" id="new-member" class="w-[85%] py-4 bg-[#acccdb] border-y-2 border-[#ffd4a3]">
 			<div class="grid grid-cols-3 gap-4 mt-6">
 				<label for="first" class="col-span-1 text-right">first name</label>
 				<input type="text" required name="first" id="first" placeholder="first" class="col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm"/>
@@ -85,8 +85,8 @@ templ AddMember() {
 
 templ Member(viewedMember members.Member, member *members.Member, path string) {
 	@Admin(member, path) {
-		<div id="admin-member" class="w-full">
-			<h3 class="text-base font-semibold mb-4 mt-2 pl-2">member: <span class="underline">{ viewedMember.BCOName }</span></h3>
+		<div id="admin-member" class="w-full h-full overflow-auto">
+			<h3 class="text-base font-semibold mb-5 mt-2 pl-2">member: <span class="underline">{ viewedMember.BCOName }</span></h3>
 			<div class="text-sm my-2 w-[60%]">
 				<div class="flex flex-row items-center my-2">
 					<h4 class="font-semibold bg-[#c9e4c3] p-2">name:</h4>
@@ -102,14 +102,14 @@ templ Member(viewedMember members.Member, member *members.Member, path string) {
 				</div>
 				<div class="flex flex-row items-center my-2">
 					<h4 class="font-semibold bg-[#c9e4c3] p-2">total contributions:</h4>
-					<span class="ml-auto bg-[#c9e4c3] p-2">{ centsToDollarString(viewedMember.GetTotalDonatedCents()) }</span>
+					<span class="ml-auto bg-[#c9e4c3] p-2">${ centsToDecimalString(viewedMember.GetTotalDonatedCents()) }</span>
 				</div>
 			</div>
 			<hr class="border-[#acccdb]"/>
-			<div class="my-4 w-[80%]">
+			<div class="my-4 w-[80%] overflow-auto">
 				<button
 					id="toggle-donations"
-					class="hover:text-grey-600 hover:bg-[#e4cdc3] font-semibold p-2"
+					class="hover:text-grey-600 hover:bg-[#e4cdc3] font-semibold px-2"
 				>
 					<span class="underline">donations</span><span class="text-lg pl-1">&#8594;</span>
 					<script>
@@ -125,53 +125,63 @@ templ Member(viewedMember members.Member, member *members.Member, path string) {
                         });
             		</script>
 				</button>
-				<div id="donations-list" class="mt-2 pt-2 hidden">
-					@DonationsList(viewedMember.Donations)
-				</div>
+				@DonationsList(viewedMember.Donations)
 			</div>
 		</div>
 	}
 }
 
 templ DonationsList(donations []donations.Donation) {
-	<div class="sm:block">
-		<table class="w-full text-sm text-left border-collapse">
-			<thead>
-				<tr class="font-semibold">
-					<th class="py-2 text-left">created</th>
-					<th class="py-2 text-center">fund</th>
-					<th class="py-2 text-center">last payment</th>
-					<th class="py-2 text-center">total contributed</th>
-					<th class="py-2 text-right">plan</th>
-				</tr>
-			</thead>
-			<tbody>
-				for _, donation := range donations {
-					<tr class="odd:bg-[#acccdb] text-left">
-						<td class="py-2">{ donation.Created.Format("01-02-2006") }</td>
-						<td class="py-2 text-center">{ donation.FundName }</td>
-						@LastPayment(donation.LastPayment())
-						<td class="py-2 text-center">{ centsToDollarString(donation.TotalDonatedCents()) }</td>
-						@DonationPlan(donation.Plan)
+	<div id="donations-list" class="hidden mt-6">
+		<div class="max-h-[300px] overflow-y-auto">
+			<table class="w-full text-sm text-left border-collapse">
+				<thead class="sticky top-0 z-10 bg-white">
+					<tr class="font-semibold">
+						<th class="text-left pb-3 w-1/5">
+							<span class="inline-block bg-peach p-2">date</span>
+						</th>
+						<th class="text-center pb-3 w-1/5">
+							<span class="inline-block bg-peach p-2">fund</span>
+						</th>
+						<th class="text-center pb-3 w-1/5">
+							<span class="inline-block bg-peach p-2">last payment</span>
+						</th>
+						<th class="text-center pb-3 w-1/5">
+							<span class="inline-block bg-peach p-2">total donated</span>
+						</th>
+						<th class="text-center pb-3 w-1/5">
+							<span class="inline-block bg-peach p-2">plan</span>
+						</th>
 					</tr>
-				}
-			</tbody>
-		</table>
+				</thead>
+				<tbody>
+					for _, donation := range donations {
+						<tr class="odd:bg-[#acccdb] text-left">
+							<td class="py-2">{ donation.Created.Format("01-02-2006") }</td>
+							<td class="py-2 text-center">{ donation.FundName }</td>
+							@LastPayment(donation.LastPayment())
+							<td class="py-2 text-center">${ centsToDecimalString(donation.TotalDonatedCents()) }</td>
+							@DonationPlan(donation.Plan)
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
 	</div>
 }
 
 templ DonationPlan(plan *donations.DonationPlan) {
 	if plan != nil {
-		<td class="py-2 text-right" data-label="plan">{ fmt.Sprintf("%s / %s", centsToDollarString(plan.AmountCents), strings.ToLower(string(plan.IntervalUnit))) }</td>
+		<td class="py-2 text-center">{ fmt.Sprintf("$%s / %s", centsToDecimalString(plan.AmountCents), strings.ToLower(string(plan.IntervalUnit))) }</td>
 	} else {
-		<td class="py-2 pr-4 text-right" data-label="plan">-</td>
+		<td class="py-2 text-center">-</td>
 	}
 }
 
 templ LastPayment(payment *donations.DonationPayment) {
 	if payment != nil {
-		<td class="py-2 text-center" data-label="last payment">{ payment.Created.Format("01-02-2006") }</td>
+		<td class="py-2 text-center">{ payment.Created.Format("01-02-2006") }</td>
 	} else {
-		<td class="py-2 pr-4 text-center" data-label="last payment">-</td>
+		<td class="py-2 text-center">-</td>
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"fmt"
+	"strings"
 )
 
 func Admin(member *members.Member, path string) templ.Component {
@@ -47,11 +48,11 @@ func Admin(member *members.Member, path string) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"mt-2 p-4 h-[60%] max-w-screen-lg\" hx-ext=\"response-targets\"><div class=\"mb-2 flex items-center space-x-4\"><h2 class=\"text-lg pl-2 font-semibold\">admin operations</h2><span class=\"text-xs\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"max-h-[100%]\"><div class=\"mt-2 p-4 max-w-screen-lg flex-grow\" hx-ext=\"response-targets\"><div class=\"mb-2 flex items-center space-x-4\"><h2 class=\"text-lg pl-2 font-semibold\">admin operations</h2><span class=\"text-xs\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var3 = []any{"text-gray-800", templ.KV("text-stone-900 font-medium underline disabled", path == "/admin")}
+			var templ_7745c5c3_Var3 = []any{"hover:underline text-gray-800", templ.KV("text-stone-900 font-medium underline disabled", path == "/admin")}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var3...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -73,7 +74,7 @@ func Admin(member *members.Member, path string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var5 = []any{"text-gray-800", templ.KV("text-stone-900 font-medium underline disabled", path == "/admin/funds")}
+			var templ_7745c5c3_Var5 = []any{"hover:underline text-gray-800", templ.KV("text-stone-900 font-medium underline disabled", path == "/admin/funds")}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var5...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -91,7 +92,7 @@ func Admin(member *members.Member, path string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\">funds</a></span></div><hr class=\"border-[#acccdb]\"><div class=\"mt-2 min-h-0\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\">funds</a></span></div><hr class=\"border-[#acccdb]\"><div class=\"flex flex-col mt-2 p-4 max-w-screen-lg max-h-[80vh]\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -99,7 +100,7 @@ func Admin(member *members.Member, path string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -113,8 +114,28 @@ func Admin(member *members.Member, path string) templ.Component {
 	})
 }
 
-func centsToDollarString(cents int32) string {
-	return fmt.Sprintf("$%d.%02d", cents/100, cents%100)
+func centsToDecimalString(cents int32) string {
+	x := float64(cents) / 100
+
+	s := fmt.Sprintf("%.2f", x)
+
+	parts := strings.Split(s, ".")
+	integerPart := parts[0]
+	decimalPart := parts[1]
+
+	n := len(integerPart)
+	if n > 3 {
+		var result strings.Builder
+		for i, digit := range integerPart {
+			if (n-i)%3 == 0 && i != 0 {
+				result.WriteString(",")
+			}
+			result.WriteRune(digit)
+		}
+		integerPart = result.String()
+	}
+
+	return integerPart + "." + decimalPart
 }
 
 var _ = templruntime.GeneratedTemplate

@@ -246,8 +246,16 @@ func (h *FundHandler) donate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fundTotal, err := h.donationService.GetTotalDonatedByFund(ctx, fundID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
+
+		return
+	}
+
 	w.Header().Set("HX-Redirect", r.URL.Path)
-	Fund(*fund, &member, r.URL.Path).Render(ctx, w)
+	Fund(*fund, int32(fundTotal), &member, r.URL.Path).Render(ctx, w)
 }
 
 func (h *FundHandler) ping(w http.ResponseWriter, r *http.Request) {

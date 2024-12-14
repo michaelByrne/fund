@@ -16,6 +16,7 @@ type donationStore interface {
 	InsertDonationWithPayment(ctx context.Context, donation InsertDonation, payment InsertDonationPayment) (*Donation, error)
 	GetFunds(ctx context.Context) ([]Fund, error)
 	GetFundByID(ctx context.Context, uuid uuid.UUID) (*Fund, error)
+	GetTotalDonatedByFundID(ctx context.Context, id uuid.UUID) (int64, error)
 	SetDonationToInactive(ctx context.Context, id uuid.UUID) (*Donation, error)
 	SetFundAndDonationsToInactive(ctx context.Context, id uuid.UUID) ([]Donation, error)
 	SetFundAndDonationsToActive(ctx context.Context, id uuid.UUID) ([]Donation, error)
@@ -43,6 +44,17 @@ func NewDonationService(donationStore donationStore, provider paymentsProvider, 
 		paymentsProvider: provider,
 		logger:           logger,
 	}
+}
+
+func (s DonationService) GetTotalDonatedByFund(ctx context.Context, id uuid.UUID) (int64, error) {
+	total, err := s.donationStore.GetTotalDonatedByFundID(ctx, id)
+	if err != nil {
+		s.logger.Error("failed to get total donated by fund id", slog.String("error", err.Error()))
+
+		return 0, err
+	}
+
+	return total, nil
 }
 
 func (s DonationService) ListActiveFunds(ctx context.Context) ([]Fund, error) {

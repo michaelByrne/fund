@@ -8,8 +8,10 @@ package common
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "boardfund/service/members"
-import "strings"
+import (
+	"boardfund/service/members"
+	"strings"
+)
 
 func Head() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -65,7 +67,7 @@ func Layout(member *members.Member, path string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<body class=\"flex flex-col h-full bg-[#333333] font-bco text-sm\"><div class=\"flex flex-col min-h-[40%]\"><div class=\"flex flex-row justify-between items-center w-[90%] mx-auto my-2\"><h1 class=\"text-xl font-bold text-white text-shadow shadow-[#808080]\"><a href=\"/\">elitism. secrecy. redistribution.</a></h1>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<body class=\"bg-[#333333] font-bco text-sm\"><div class=\"flex flex-col\"><div class=\"flex flex-row justify-between items-center w-[90%] mx-auto my-2\"><h1 class=\"text-xl font-bold text-white text-shadow shadow-[#808080]\"><a href=\"/\">elitism. secrecy. redistribution.</a></h1>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -73,7 +75,7 @@ func Layout(member *members.Member, path string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div><div id=\"donation\" class=\"bg-[#c3dae4] w-[90%] shadow-blue-boxy mx-auto h-full flex-grow\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div><div id=\"donation\" class=\"bg-[#c3dae4] w-[90%] shadow-blue-boxy pb-4 min-h-[0] mx-auto flex-grow\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -114,7 +116,7 @@ func Links(member *members.Member, currentPath string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var4 = []any{"text-gray-200", templ.KV("text-gray-500 disabled", currentPath == "/about")}
+		var templ_7745c5c3_Var4 = []any{"hover:text-gray-500 text-gray-200", templ.KV("text-gray-500 disabled", currentPath == "/about")}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var4...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -142,7 +144,7 @@ func Links(member *members.Member, currentPath string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var6 = []any{"text-gray-200", templ.KV("text-gray-500 disabled", strings.HasPrefix(currentPath, "/admin"))}
+				var templ_7745c5c3_Var6 = []any{"hover:text-gray-500 text-gray-200", templ.KV("text-gray-500 disabled", strings.HasPrefix(currentPath, "/admin"))}
 				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var6...)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -165,7 +167,7 @@ func Links(member *members.Member, currentPath string) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" <span class=\"text-xs text-gray-200 order-3 ml-1\"><a href=\"/logout\">logout</a></span>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" <span class=\"text-xs hover:text-gray-500 text-gray-200 order-3 ml-1\"><a href=\"/logout\">logout</a></span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -218,7 +220,7 @@ func ErrorMessage(member *members.Member, message, link, currentPath string) tem
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(message)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 53, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 55, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {

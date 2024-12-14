@@ -170,3 +170,29 @@ SELECT sum(amount_cents)
 FROM donation
          JOIN donation_payment dp on donation.id = dp.donation_id
 WHERE donor_id = $1;
+
+-- name: GetTotalDonatedByFund :one
+SELECT sum(amount_cents)
+FROM donation
+         JOIN donation_payment dp on donation.id = dp.donation_id
+WHERE fund_id = $1;
+
+-- name: GetMonthlyTotalsByFund :many
+WITH monthly_totals AS (SELECT DATE_TRUNC('month', dp.created) AS month_year,
+                               SUM(dp.amount_cents)            AS total
+                        FROM fund f
+                                 JOIN
+                             donation d ON f.id = d.fund_id
+                                 JOIN
+                             donation_payment dp ON d.id = dp.donation_id
+                        WHERE f.id = $1 -- Replace with the fund's ID
+                          AND dp.created >= GREATEST(
+                                DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '12 months',
+                                DATE_TRUNC('month', f.created)
+                                            )
+                        GROUP BY DATE_TRUNC('month', dp.created)
+                        ORDER BY month_year)
+SELECT TO_CHAR(month_year, 'YYYY-MM') AS month_year,
+       total
+FROM monthly_totals;
+

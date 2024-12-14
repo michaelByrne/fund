@@ -368,6 +368,20 @@ func (q *Queries) GetFunds(ctx context.Context) ([]Fund, error) {
 	return items, nil
 }
 
+const getTotalDonatedByFund = `-- name: GetTotalDonatedByFund :one
+SELECT sum(amount_cents)
+FROM donation
+         JOIN donation_payment dp on donation.id = dp.donation_id
+WHERE fund_id = $1
+`
+
+func (q *Queries) GetTotalDonatedByFund(ctx context.Context, fundID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, getTotalDonatedByFund, fundID)
+	var sum int64
+	err := row.Scan(&sum)
+	return sum, err
+}
+
 const getTotalDonatedByMember = `-- name: GetTotalDonatedByMember :one
 SELECT sum(amount_cents)
 FROM donation

@@ -43,9 +43,31 @@ th {
 
 .blingy {
     background-image: url("/static/blingy.gif");
-    background-color:rgb(0,0,0);
-    background-position:top left;
-    background-repeat:repeat;
-    background-attachment:fixed;
+    background-color: rgb(0, 0, 0);
+    background-position: top left;
+    background-repeat: repeat;
+    background-attachment: fixed;
     z-index: -1;
 }
+/* Ensures the header stays pinned while scrolling */
+thead.sticky {
+    position: sticky;
+    top: 0;
+    background-color: #c3dae4;
+    z-index: 10;
+}
+
+/*!* Forces consistent column widths across the entire table *!*/
+/*th, td {*/
+/*    padding: 8px;*/
+/*    text-align: center;*/
+/*    border-collapse: collapse;*/
+/*}*/
+
+/* Prevents misalignment caused by inconsistent row heights */
+table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+
