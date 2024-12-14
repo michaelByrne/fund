@@ -56,6 +56,8 @@ jobs:
           TF_VAR_fund_pass_url: ${{ secrets.TF_VAR_FUND_PASS_URL }}
           TF_VAR_paypal_email: ${{ secrets.TF_VAR_PAYPAL_EMAIL }}
           TF_VAR_paypal_pass: ${{ secrets.TF_VAR_PAYPAL_PASS }}
+          TF_VAR_domain: ${{ secrets.TF_VAR_DOMAIN }}
+          TF_VAR_mail_bucket: ${{ secrets.TF_VAR_MAIL_BUCKET }}
 
         # On push to "main", build or change infrastructure according to Terraform configuration files
       - name: Terraform Apply
@@ -65,3 +67,5 @@ jobs:
           TF_VAR_fund_pass_url: ${{ secrets.TF_VAR_FUND_PASS_URL }}
           TF_VAR_paypal_email: ${{ secrets.TF_VAR_PAYPAL_EMAIL }}
           TF_VAR_paypal_pass: ${{ secrets.TF_VAR_PAYPAL_PASS }}
+          TF_VAR_domain: ${{ secrets.TF_VAR_DOMAIN }}
+          TF_VAR_mail_bucket: ${{ secrets.TF_VAR_MAIL_BUCKET }}

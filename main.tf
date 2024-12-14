@@ -32,6 +32,14 @@ variable "fund_pass_url" {
   type = string
 }
 
+variable "domain" {
+  type = string
+}
+
+variable "mail_bucket" {
+  type = string
+}
+
 resource "aws_cognito_user_pool" "bco_fund_pool" {
   name = "bco-fund-pool"
 
@@ -41,7 +49,7 @@ resource "aws_cognito_user_pool" "bco_fund_pool" {
     invite_message_template {
       email_message = "Hello {username}!\nYou're invited to test the BCO Mutual Aid app. Your temporary password is {####}.\nYou'll be prompted to change your password at login. Please visit ${var.fund_pass_url} to do that.\nThe app is wired up to a sandbox Paypal account. You can use the following credentials to log in:\nEmail: ${var.paypal_email}\nPassword: ${var.paypal_pass}"
       email_subject = "testing BCO Mutual Aid"
-      sms_message = "Hello {username}! Your temporary password is {####}. You'll be prompted to change your password at login."
+      sms_message   = "Hello {username}! Your temporary password is {####}. You'll be prompted to change your password at login."
     }
   }
 
@@ -161,4 +169,75 @@ data "aws_iam_policy_document" "actions" {
     effect = "Allow"
     resources = ["*"]
   }
+}
+
+// mail stuff
+
+resource "aws_s3_bucket" "mail_bucket" {
+  bucket = var.mail_bucket
+}
+
+resource "aws_ses_domain_identity" "fund_domain" {
+  domain = var.domain
+}
+
+resource "aws_ses_domain_dkim" "fund_domain_dkim" {
+  domain = aws_ses_domain_identity.fund_domain.domain
+}
+
+resource "null_resource" "delay" {
+  provisioner "local-exec" {
+    command = "sleep 10"
+  }
+  triggers = {
+    "after" = aws_s3_bucket.mail_bucket.id
+  }
+}
+
+resource "aws_s3_bucket_policy" "mail_bucket_policy" {
+  bucket = aws_s3_bucket.mail_bucket.id
+
+  policy = <<POLICY
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowSESPuts",
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "ses.amazonaws.com"
+            },
+            "Action": "s3:PutObject",
+            "Resource": "arn:aws:s3:::${aws_s3_bucket.mail_bucket.id}/*",
+        }
+    ]
+}
+POLICY
+  depends_on = [
+    null_resource.delay
+  ]
+}
+
+resource "aws_ses_receipt_rule" "store" {
+  name          = "store"
+  rule_set_name = "default-rule-set"
+  enabled       = true
+  scan_enabled  = true
+
+  add_header_action {
+    header_name  = "Custom-Header"
+    header_value = "Added by SES"
+    position     = 1
+  }
+
+  s3_action {
+    bucket_name = aws_s3_bucket.mail_bucket.id
+    object_key_prefix = "incoming"
+    position    = 2
+  }
+
+  depends_on = [
+    aws_s3_bucket_policy.mail_bucket_policy,
+    aws_ses_receipt_rule.store
+  ]
 }
