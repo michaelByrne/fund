@@ -49,6 +49,7 @@ resource "aws_cognito_user_pool" "bco_fund_pool" {
       EOT
 
       email_subject = "testing BCO Mutual Aid"
+      sms_message = "Hello {username}! Your temporary password is {####}. You'll be prompted to change your password at login."
     }
   }
 
