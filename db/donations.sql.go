@@ -368,6 +368,51 @@ func (q *Queries) GetFunds(ctx context.Context) ([]Fund, error) {
 	return items, nil
 }
 
+const getMonthlyTotalsByFund = `-- name: GetMonthlyTotalsByFund :many
+WITH monthly_totals AS (SELECT DATE_TRUNC('month', dp.created) AS month_year,
+                               SUM(dp.amount_cents)            AS total
+                        FROM fund f
+                                 JOIN
+                             donation d ON f.id = d.fund_id
+                                 JOIN
+                             donation_payment dp ON d.id = dp.donation_id
+                        WHERE f.id = $1 -- Replace with the fund's ID
+                          AND dp.created >= GREATEST(
+                                DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '12 months',
+                                DATE_TRUNC('month', f.created)
+                                            )
+                        GROUP BY DATE_TRUNC('month', dp.created)
+                        ORDER BY month_year)
+SELECT TO_CHAR(month_year, 'YYYY-MM') AS month_year,
+       total
+FROM monthly_totals
+`
+
+type GetMonthlyTotalsByFundRow struct {
+	MonthYear string
+	Total     int64
+}
+
+func (q *Queries) GetMonthlyTotalsByFund(ctx context.Context, id uuid.UUID) ([]GetMonthlyTotalsByFundRow, error) {
+	rows, err := q.db.Query(ctx, getMonthlyTotalsByFund, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetMonthlyTotalsByFundRow
+	for rows.Next() {
+		var i GetMonthlyTotalsByFundRow
+		if err := rows.Scan(&i.MonthYear, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTotalDonatedByFund = `-- name: GetTotalDonatedByFund :one
 SELECT sum(amount_cents)
 FROM donation

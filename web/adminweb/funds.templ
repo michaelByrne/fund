@@ -8,23 +8,27 @@ import (
 
 templ Funds(funds []donations.Fund, member *members.Member, path string) {
 	@Admin(member, path) {
-		<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-			@AddFund()
-			@FundsList(funds)
+		<div class="grid grid-cols-1 md:grid-cols-2 h-[90vh] overflow-hidden">
+			<div>
+				@AddFund()
+			</div>
+			<div class="overflow-auto">
+				@FundsList(funds)
+			</div>
 		</div>
 	}
 }
 
 templ AddFund() {
 	<div class="w-full mx-auto max-w-md">
-		<h3 class="text-md font-semibold mt-2 mb-4 inline-block p-2 bg-[#c9e4c3]">new fund</h3>
-		<form hx-post="/admin/fund" hx-swap="afterbegin" hx-target="#admin-funds" hx-target-error="this" class="w-[85%] py-4 bg-[#acccdb] border-y-2 border-[#ffd4a3]">
+		<h3 class="text-md font-semibold mt-2 mb-4 inline-block bg-[#c9e4c3] p-2">new fund</h3>
+		<form hx-post="/admin/fund" hx-swap="afterbegin" hx-target="#admin-funds" hx-target-error="this" class="w-[90%] p-4 bg-[#acccdb] border-y-2 border-[#ffd4a3]">
 			<div class="grid grid-cols-3 gap-4 mt-6">
-				<label for="name" class="col-span-1 text-right">name</label>
-				<input type="text" placeholder="human fund" required name="name" id="name" class="col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm"/>
-				<label for="description" class="col-span-1 text-right">description</label>
-				<textarea name="description" placeholder="what's it for?" id="description" class="col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm"></textarea>
-				<label for="goal" class="col-span-1 text-right">goal</label>
+				<label for="name" class="col-span-1 text-left">name</label>
+				<input type="text" placeholder="human fund" required name="name" id="name" class="col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm"/>
+				<label for="description" class="col-span-1 text-left">description</label>
+				<textarea name="description" placeholder="what's it for?" id="description" class="col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm"></textarea>
+				<label for="goal" class="col-span-1 text-left">goal</label>
 				<div class="col-span-2 relative">
 					<span class="absolute left-1 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
 					<input
@@ -33,16 +37,16 @@ templ AddFund() {
 						placeholder="optional"
 						id="goal"
 						min="0"
-						class="w-48 pl-6 text-sm border border-slate-300 shadow-sm"
+						class="w-full pl-6 text-sm border border-slate-300 shadow-sm"
 					/>
 				</div>
-				<label for="frequency" class="col-span-1 text-right">frequency</label>
-				<select name="frequency" id="frequency" class="col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm">
+				<label for="frequency" class="col-span-1 text-left">frequency</label>
+				<select name="frequency" id="frequency" class="col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm">
 					<option value="monthly">monthly</option>
 					<option value="once">once</option>
 				</select>
-				<label for="date" class="col-span-1 text-right">end date</label>
-				<input type="date" name="date" id="date" class="col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm"/>
+				<label for="date" class="col-span-1 text-left">end date</label>
+				<input type="date" name="date" id="date" class="col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm"/>
 			</div>
 			<div class="mt-6 flex justify-center">
 				<button
@@ -57,8 +61,8 @@ templ AddFund() {
 }
 
 templ FundsList(funds []donations.Fund) {
-	<div id="funds-list">
-		<h3 class="text-md font-semibold mt-2 mb-5 p-2 inline-block bg-[#c9e4c3]">current funds</h3>
+	<div class="w-full mx-auto max-w-md h-full">
+		<h3 class="text-md font-semibold mt-2 mb-4 inline-block bg-[#c9e4c3] p-2">current funds</h3>
 		<ul id="admin-funds" class="max-w-[90%] max-h-[500px] overflow-y-auto border-[#ffd4a3] border-y-2">
 			for _, fund := range funds {
 				@FundRow(fund)

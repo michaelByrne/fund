@@ -51,16 +51,19 @@ try:
 
     # Insert funds with a created timestamp within the past 12 months
     funds = []
+    fund_created_map = {}  # To map fund_id to its created timestamp
+
     for fund_name in fund_names:
         created_timestamp = random_date_within_last_12_months()
         next_payment_timestamp = add_months(created_timestamp, 1)
         payout_frequency = random.choice(["once", "monthly"])
 
+        fund_id = fake.uuid4()
         funds.append(
             (
-                fake.uuid4(),
+                fund_id,
                 fund_name,
-                fake.bs(),
+                ' '.join(fake.sentences(nb=5)),
                 fake.bs(),
                 "paypal",
                 payout_frequency,
@@ -68,16 +71,11 @@ try:
                 next_payment_timestamp
             )
         )
+        fund_created_map[fund_id] = created_timestamp
 
     execute_values(cursor,
                    "INSERT INTO fund (id, name, description, provider_id, provider_name, payout_frequency, created, next_payment) VALUES %s",
                    funds)
-
-    # Get fund IDs and their payout frequencies
-    cursor.execute("SELECT id, payout_frequency FROM fund")
-    fund_data = cursor.fetchall()
-    fund_ids = [row[0] for row in fund_data]
-    monthly_fund_ids = [row[0] for row in fund_data if row[1] == "monthly"]
 
     # Get member IDs
     cursor.execute("SELECT id FROM member")
@@ -89,9 +87,9 @@ try:
     NUM_PLANS = 10
 
     while len(unique_plans) < NUM_PLANS:
-        amount_cents = random.randint(1000, 10000)  # Random amount between $10 and $100
+        amount_cents = random.randint(10, 100) * 100  # Random amount between $10 and $100
         interval_unit = random.choice(INTERVAL_UNITS)
-        fund_id = random.choice(monthly_fund_ids)
+        fund_id = random.choice(list(fund_created_map.keys()))
 
         if (amount_cents, interval_unit, fund_id) not in unique_plans:
             unique_plans[(amount_cents, interval_unit, fund_id)] = (
@@ -112,34 +110,41 @@ try:
                    "INSERT INTO donation_plan (id, name, paypal_plan_id, amount_cents, interval_unit, interval_count, active, created, updated, fund_id) VALUES %s",
                    donation_plans)
 
-    # Get donation plan IDs and their associated fund IDs
-    cursor.execute("SELECT id, fund_id FROM donation_plan")
-    plan_fund_map = {row[0]: row[1] for row in cursor.fetchall()}
-
     # Insert donations with a created timestamp within the past 12 months
     donations = []
     for _ in range(500):
         has_plan = random.choice([True, False])  # About half of donations will have a plan
         if has_plan:
-            plan_id = random.choice(list(plan_fund_map.keys()))
-            fund_id = plan_fund_map[plan_id]
+            # Select a random plan and get its associated fund_id
+            plan = random.choice(donation_plans)
+            plan_id = plan[0]
+            fund_id = plan[9]
         else:
+            # For donations without a plan, select a random fund
             plan_id = None
-            fund_id = random.choice(fund_ids)
+            fund_id = random.choice(list(fund_created_map.keys()))
 
-        donation_id = fake.uuid4()
+        fund_created_date = fund_created_map[fund_id]
+
+        # Ensure donation `created` is after the fund's `created` date
+        donation_created_date = random_date_within_last_12_months()
+        if donation_created_date < fund_created_date:
+            donation_created_date = fund_created_date + timedelta(seconds=random.randint(1, 3600))
+
+        # Append the donation record
         donations.append(
             (
-                donation_id,
+                fake.uuid4(),
                 random.choice(member_ids),
                 fund_id,
                 "666",
                 True,
-                random_date_within_last_12_months(),
+                donation_created_date,
                 plan_id
             )
         )
 
+    # Insert donations into the database
     execute_values(cursor,
                    "INSERT INTO donation (id, donor_id, fund_id, provider_order_id, active, created, donation_plan_id) VALUES %s",
                    donations)
@@ -158,12 +163,12 @@ try:
                 interval_unit, amount_cents = plan_data
 
                 next_payment_date = created_date
-                generated_dates = set()  # Keep track of already generated payment timestamps
+                generated_dates = set()  # Track already generated payment timestamps
 
                 # Generate payments until we reach or exceed the current date
                 while True:
                     if next_payment_date >= datetime.now():
-                        break  # Stop if the next interval would be in the future
+                        break  # Stop if the next interval is in the future
 
                     if next_payment_date not in generated_dates:
                         donation_payments.append(
@@ -189,7 +194,7 @@ try:
                 (
                     fake.uuid4(),
                     donation_id,
-                    random.randint(1000, 10000),
+                    random.randint(10, 100) * 100,
                     "paypal",
                     created_date
                 )

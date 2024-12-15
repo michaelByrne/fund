@@ -48,7 +48,7 @@ resource "aws_cognito_user_pool" "bco_fund_pool" {
 
     invite_message_template {
       email_message = "Hello {username}!\nYou're invited to test the BCO Mutual Aid app. Your temporary password is {####}.\nYou'll be prompted to change your password at login. Please visit ${var.fund_pass_url} to do that.\nThe app is wired up to a sandbox Paypal account. You can use the following credentials to log in:\nEmail: ${var.paypal_email}\nPassword: ${var.paypal_pass}"
-      email_subject = "testing BCO Mutual Aid"
+      email_subject = "help test bcofund.org"
       sms_message   = "Hello {username}! Your temporary password is {####}. You'll be prompted to change your password at login."
     }
   }

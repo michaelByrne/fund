@@ -47,7 +47,7 @@ func Funds(funds []donations.Fund, member *members.Member, path string) templ.Co
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"grid grid-cols-1 md:grid-cols-2 gap-6\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"grid grid-cols-1 md:grid-cols-2 h-[90vh] overflow-hidden\"><div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -55,11 +55,15 @@ func Funds(funds []donations.Fund, member *members.Member, path string) templ.Co
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div><div class=\"overflow-auto\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			templ_7745c5c3_Err = FundsList(funds).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -94,7 +98,7 @@ func AddFund() templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"w-full mx-auto max-w-md\"><h3 class=\"text-md font-semibold mt-2 mb-4 inline-block p-2 bg-[#c9e4c3]\">new fund</h3><form hx-post=\"/admin/fund\" hx-swap=\"afterbegin\" hx-target=\"#admin-funds\" hx-target-error=\"this\" class=\"w-[85%] py-4 bg-[#acccdb] border-y-2 border-[#ffd4a3]\"><div class=\"grid grid-cols-3 gap-4 mt-6\"><label for=\"name\" class=\"col-span-1 text-right\">name</label> <input type=\"text\" placeholder=\"human fund\" required name=\"name\" id=\"name\" class=\"col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm\"> <label for=\"description\" class=\"col-span-1 text-right\">description</label> <textarea name=\"description\" placeholder=\"what&#39;s it for?\" id=\"description\" class=\"col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm\"></textarea> <label for=\"goal\" class=\"col-span-1 text-right\">goal</label><div class=\"col-span-2 relative\"><span class=\"absolute left-1 top-1/2 transform -translate-y-1/2 text-gray-500\">$</span> <input type=\"number\" name=\"goal\" placeholder=\"optional\" id=\"goal\" min=\"0\" class=\"w-48 pl-6 text-sm border border-slate-300 shadow-sm\"></div><label for=\"frequency\" class=\"col-span-1 text-right\">frequency</label> <select name=\"frequency\" id=\"frequency\" class=\"col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm\"><option value=\"monthly\">monthly</option> <option value=\"once\">once</option></select> <label for=\"date\" class=\"col-span-1 text-right\">end date</label> <input type=\"date\" name=\"date\" id=\"date\" class=\"col-span-2 w-48 pl-1 text-sm border border-slate-300 shadow-sm\"></div><div class=\"mt-6 flex justify-center\"><button type=\"submit\" class=\"px-4 py-2 text-center text-md bg-stone-100 text-black hover:text-black hover:bg-[#e4cdc3] hover:font-medium hover:shadow-md\">submit</button></div></form></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"w-full mx-auto max-w-md\"><h3 class=\"text-md font-semibold mt-2 mb-4 inline-block bg-[#c9e4c3] p-2\">new fund</h3><form hx-post=\"/admin/fund\" hx-swap=\"afterbegin\" hx-target=\"#admin-funds\" hx-target-error=\"this\" class=\"w-[90%] p-4 bg-[#acccdb] border-y-2 border-[#ffd4a3]\"><div class=\"grid grid-cols-3 gap-4 mt-6\"><label for=\"name\" class=\"col-span-1 text-left\">name</label> <input type=\"text\" placeholder=\"human fund\" required name=\"name\" id=\"name\" class=\"col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm\"> <label for=\"description\" class=\"col-span-1 text-left\">description</label> <textarea name=\"description\" placeholder=\"what&#39;s it for?\" id=\"description\" class=\"col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm\"></textarea> <label for=\"goal\" class=\"col-span-1 text-left\">goal</label><div class=\"col-span-2 relative\"><span class=\"absolute left-1 top-1/2 transform -translate-y-1/2 text-gray-500\">$</span> <input type=\"number\" name=\"goal\" placeholder=\"optional\" id=\"goal\" min=\"0\" class=\"w-full pl-6 text-sm border border-slate-300 shadow-sm\"></div><label for=\"frequency\" class=\"col-span-1 text-left\">frequency</label> <select name=\"frequency\" id=\"frequency\" class=\"col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm\"><option value=\"monthly\">monthly</option> <option value=\"once\">once</option></select> <label for=\"date\" class=\"col-span-1 text-left\">end date</label> <input type=\"date\" name=\"date\" id=\"date\" class=\"col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm\"></div><div class=\"mt-6 flex justify-center\"><button type=\"submit\" class=\"px-4 py-2 text-center text-md bg-stone-100 text-black hover:text-black hover:bg-[#e4cdc3] hover:font-medium hover:shadow-md\">submit</button></div></form></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -123,7 +127,7 @@ func FundsList(funds []donations.Fund) templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div id=\"funds-list\"><h3 class=\"text-md font-semibold mt-2 mb-5 p-2 inline-block bg-[#c9e4c3]\">current funds</h3><ul id=\"admin-funds\" class=\"max-w-[90%] max-h-[500px] overflow-y-auto border-[#ffd4a3] border-y-2\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"w-full mx-auto max-w-md h-full\"><h3 class=\"text-md font-semibold mt-2 mb-4 inline-block bg-[#c9e4c3] p-2\">current funds</h3><ul id=\"admin-funds\" class=\"max-w-[90%] max-h-[500px] overflow-y-auto border-[#ffd4a3] border-y-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -169,7 +173,7 @@ func FundRow(fund donations.Fund) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fund.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 76, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 80, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -182,7 +186,7 @@ func FundRow(fund donations.Fund) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(string(fund.PayoutFrequency))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 77, Col: 86}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 81, Col: 86}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -195,7 +199,7 @@ func FundRow(fund donations.Fund) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/admin/fund/deactivate/%s", fund.ID.String()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 80, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 84, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -208,7 +212,7 @@ func FundRow(fund donations.Fund) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("deactivate %s?", fund.Name))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 81, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 85, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {

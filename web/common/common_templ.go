@@ -75,7 +75,7 @@ func Layout(member *members.Member, path string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div><div id=\"donation\" class=\"bg-[#c3dae4] w-[90%] shadow-blue-boxy pb-4 min-h-[0] mx-auto flex-grow\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div><div id=\"donation\" class=\"bg-[#c3dae4] w-[90%] shadow-blue-boxy min-h-[0] mx-auto flex-grow\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

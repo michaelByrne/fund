@@ -12,6 +12,8 @@ import (
 	donationstore "boardfund/service/donations/store"
 	"boardfund/service/members"
 	memberstore "boardfund/service/members/store"
+	"boardfund/service/stats"
+	statsstore "boardfund/service/stats/store"
 	"boardfund/web/adminweb"
 	"boardfund/web/authweb"
 	"boardfund/web/homeweb"
@@ -148,6 +150,7 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 
 	donationStore := donationstore.NewDonationStore(pool)
 	memberStore := memberstore.NewMemberStore(pool)
+	statsStore := statsstore.NewStatsStore(pool)
 	sessionManager := scs.New()
 	sessionManager.Store = pgxstore.New(pool)
 
@@ -177,8 +180,9 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 	donationService := donations.NewDonationService(donationStore, paypalService, logger)
 	memberService := members.NewMemberService(memberStore, donationStore, authorizer, paypalService, logger)
 	authService := auth.NewAuthService(authorizer, memberStore, logger)
+	statsService := stats.NewStatsService(statsStore, logger)
 
-	donationHandler := homeweb.NewFundHandler(donationService, sessionManager, authMiddleware, logger, productID, paypalClientID)
+	donationHandler := homeweb.NewFundHandler(donationService, statsService, sessionManager, authMiddleware, logger, productID, paypalClientID)
 	authHandler := authweb.NewAuthHandler(authService, sessionManager, paypalClientID)
 	adminHandler := adminweb.NewAdminHandler(adminAuthMiddleware, memberService, donationService, sessionManager, paypalClientID)
 

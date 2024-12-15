@@ -3,6 +3,7 @@ package homeweb
 import (
 	"boardfund/service/donations"
 	"boardfund/service/members"
+	"boardfund/service/stats"
 	"boardfund/web/common"
 	"boardfund/web/mux"
 	"encoding/json"
@@ -20,6 +21,7 @@ const internalErrMessage = "internal error"
 
 type FundHandler struct {
 	donationService *donations.DonationService
+	statsService    *stats.StatsService
 	sessionManager  *scs.SessionManager
 	withAuth        func(http.HandlerFunc) http.HandlerFunc
 	logger          *slog.Logger
@@ -29,6 +31,7 @@ type FundHandler struct {
 
 func NewFundHandler(
 	donationService *donations.DonationService,
+	statsService *stats.StatsService,
 	sessionManager *scs.SessionManager,
 	withAuth func(http.HandlerFunc) http.HandlerFunc,
 	logger *slog.Logger,
@@ -36,6 +39,7 @@ func NewFundHandler(
 ) *FundHandler {
 	return &FundHandler{
 		donationService: donationService,
+		statsService:    statsService,
 		sessionManager:  sessionManager,
 		withAuth:        withAuth,
 		logger:          logger,
@@ -46,12 +50,12 @@ func NewFundHandler(
 
 func (h *FundHandler) Register(r *mux.Router) {
 	r.HandleFunc("/fund", h.fund)
-	r.HandleFunc("/donation/plan", h.createDonationPlan)
-	r.HandleFunc("/donation/once", h.createOneTimeDonation)
-	r.HandleFunc("/donation/plan/complete", h.completeRecurringDonation)
-	r.HandleFunc("/donation/once/complete", h.completeOneTimeDonation)
-	r.HandleFunc("/donation/once/initiate", h.initiateOneTimeDonation)
-	r.HandleFunc("/donation/success", h.donationSuccess)
+	r.HandleFunc("/donation/plan", h.withAuth(h.createDonationPlan))
+	r.HandleFunc("/donation/once", h.withAuth(h.createOneTimeDonation))
+	r.HandleFunc("/donation/plan/complete", h.withAuth(h.completeRecurringDonation))
+	r.HandleFunc("/donation/once/complete", h.withAuth(h.completeOneTimeDonation))
+	r.HandleFunc("/donation/once/initiate", h.withAuth(h.initiateOneTimeDonation))
+	r.HandleFunc("/donation/success", h.withAuth(h.donationSuccess))
 	r.HandleFunc("/donate/{fundId}", h.withAuth(h.donate))
 	r.HandleFunc("/error", h.error)
 	r.HandleFunc("/ping", h.ping)
@@ -246,7 +250,7 @@ func (h *FundHandler) donate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fundTotal, err := h.donationService.GetTotalDonatedByFund(ctx, fundID)
+	fundStats, err := h.statsService.GetFundStats(ctx, fundID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -255,7 +259,7 @@ func (h *FundHandler) donate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("HX-Redirect", r.URL.Path)
-	Fund(*fund, int32(fundTotal), &member, r.URL.Path).Render(ctx, w)
+	Fund(*fund, *fundStats, &member, r.URL.Path).Render(ctx, w)
 }
 
 func (h *FundHandler) ping(w http.ResponseWriter, r *http.Request) {

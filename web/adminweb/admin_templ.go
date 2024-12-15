@@ -48,7 +48,7 @@ func Admin(member *members.Member, path string) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"max-h-[100%]\"><div class=\"mt-2 p-4 max-w-screen-lg flex-grow\" hx-ext=\"response-targets\"><div class=\"mb-2 flex items-center space-x-4\"><h2 class=\"text-lg pl-2 font-semibold\">admin operations</h2><span class=\"text-xs\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"h-[130vh] sm:h-[90vh] overflow-auto flex flex-col\"><div class=\"mt-2 p-4 max-w-screen-lg flex-grow\" hx-ext=\"response-targets\"><div class=\"mb-2 flex items-center space-x-4\"><h2 class=\"text-lg pl-2 font-semibold\">admin operations</h2><span class=\"text-xs\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -92,7 +92,7 @@ func Admin(member *members.Member, path string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\">funds</a></span></div><hr class=\"border-[#acccdb]\"><div class=\"flex flex-col mt-2 p-4 max-w-screen-lg max-h-[80vh]\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\">funds</a></span></div><hr class=\"border-[#acccdb]\"><div class=\"flex flex-col flex-grow overflow-hidden\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -3,6 +3,7 @@ package homeweb
 import (
 	"boardfund/service/donations"
 	"boardfund/service/members"
+	"boardfund/service/stats"
 	"boardfund/web/common"
 	"fmt"
 	"time"
@@ -15,7 +16,7 @@ func donationURL(freq donations.PayoutFrequency) string {
 	return "/donation/once"
 }
 
-templ Fund(fund donations.Fund, fundTotalCents int32, member *members.Member, path string) {
+templ Fund(fund donations.Fund, fundStats stats.FundStats, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div id="donation-form" class="p-5 mt-2">
 			@Title(fund.Name)
@@ -23,7 +24,7 @@ templ Fund(fund donations.Fund, fundTotalCents int32, member *members.Member, pa
 			<hr class="border-[#acccdb]"/>
 			@Description(fund.Description)
 			<hr class="border-[#acccdb]"/>
-			@FundStatus(fund, fundTotalCents)
+			@FundStatus(fund, fundStats)
 		</div>
 	}
 }
@@ -78,8 +79,8 @@ templ Frequency(freq donations.PayoutFrequency) {
 }
 
 templ Description(text string) {
-	<div class="w-full my-2">
-		<div class="text-md font-semibold pl-2">about</div>
+	<div class="w-[70%] my-2">
+		<div class="text-md font-semibold pl-2 pb-3">about</div>
 		<div class="font-medium italic p-2 bg-[#acccdb] inline-block">{ text }</div>
 	</div>
 }
@@ -88,13 +89,14 @@ templ Title(text string) {
 	<h2 class="font-semibold text-lg p-2">donate to <span class="underline underline-offset-4 decoration-[#333333]">{ text }</span></h2>
 }
 
-templ FundStatus(fund donations.Fund, fundTotalCents int32) {
+templ FundStatus(fund donations.Fund, fundStats stats.FundStats) {
 	<div class="w-full my-2">
-		<div class="text-md font-semibold pl-2">fund status</div>
+		<div class="text-md font-semibold pl-2 py-4">fund status</div>
 		<ul class="list-none mt-2">
 			@StatusItem(AmountOrInfinity(fund.GoalCents), "goal")
-			@StatusItem(Raised(fundTotalCents), "raised")
-			@StatusItem(Donors(5), "donors")
+			@StatusItem(USD(fundStats.TotalDonated), "raised")
+			@StatusItem(USD(fundStats.AverageDonation), "average donation")
+			@StatusItem(Donors(fundStats.TotalDonors), "donors")
 			@StatusItem(Date(&fund.Created), "start")
 			@StatusItem(EndDate(fund.Expires), "end")
 			@StatusItem(Date(&fund.NextPayment), "next payment")
@@ -102,7 +104,7 @@ templ FundStatus(fund donations.Fund, fundTotalCents int32) {
 	</div>
 }
 
-templ Raised(amountCents int32) {
+templ USD(amountCents int32) {
 	${ centsToDecimalString(amountCents) }
 }
 
