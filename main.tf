@@ -185,6 +185,10 @@ resource "aws_ses_domain_dkim" "fund_domain_dkim" {
   domain = aws_ses_domain_identity.fund_domain.domain
 }
 
+resource "aws_ses_email_identity" "welcome_email" {
+  email = "welcome@${var.domain}"
+}
+
 resource "null_resource" "delay" {
   provisioner "local-exec" {
     command = "sleep 10"
