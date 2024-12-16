@@ -14,7 +14,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"regexp"
 )
 
 const (
@@ -106,16 +105,12 @@ func decodeBase64(encoded string) ([]byte, error) {
 	return decoded, nil
 }
 
-func downloadAndCacheCertPEM(url string) ([]byte, error) {
-	re := regexp.MustCompile(`\W+`)
-	cacheKey := re.ReplaceAllString(url, "-")
-
-	sigBytes, err := os.ReadFile(fmt.Sprintf("/tmp/%s", cacheKey))
+func downloadAndCacheCertPEM(url, hookID string) ([]byte, error) {
+	sigBytes, err := os.ReadFile(fmt.Sprintf("/tmp/%s", hookID))
 	if err == nil {
 		return sigBytes, nil
 	}
 
-	path := fmt.Sprintf("/tmp/%s.pem", url)
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -128,6 +123,7 @@ func downloadAndCacheCertPEM(url string) ([]byte, error) {
 		return nil, err
 	}
 
+	path := fmt.Sprintf("/tmp/%s", hookID)
 	err = os.WriteFile(path, sigBytes, 0644)
 	if err != nil {
 		return nil, err
