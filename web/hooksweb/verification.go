@@ -67,6 +67,8 @@ func verifySignatureWithPEM(signature string, message string, pemBytes []byte) e
 		return fmt.Errorf("failed to parse PEM block containing the public key")
 	}
 
+	fmt.Printf("block: %+v\n", block)
+
 	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
 		return fmt.Errorf("failed to parse public key: %v", err)
