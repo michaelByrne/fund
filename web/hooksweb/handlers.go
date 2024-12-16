@@ -4,6 +4,7 @@ import (
 	"boardfund/service/donations"
 	"boardfund/service/members"
 	"boardfund/web/mux"
+	"fmt"
 	"log/slog"
 	"net/http"
 )
@@ -28,7 +29,7 @@ func (h WebhooksHandlers) Register(r *mux.Router) {
 }
 
 func (h WebhooksHandlers) payment(w http.ResponseWriter, r *http.Request) {
-	//ctx := r.Context()
+	fmt.Printf("%+v\n", r)
 
 	err := verifySignature(r, "payment")
 	if err != nil {
