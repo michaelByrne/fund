@@ -53,7 +53,7 @@ func verifySignature(r *http.Request, webhookID string) error {
 
 	message := fmt.Sprintf("%s|%s|%s|%s", transmissionID, timestamp, webhookID, bodyHash)
 
-	pemBytes, err := downloadAndCacheCertPEM(certURL)
+	pemBytes, err := downloadAndCacheCertPEM(certURL, webhookID)
 	if err != nil {
 		return err
 	}
