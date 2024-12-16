@@ -13,18 +13,21 @@ import (
 )
 
 const getFundStats = `-- name: GetFundStats :one
-SELECT sum(amount_cents)            as total_donated,
-       count(*)                     as total_donations,
-       sum(amount_cents) / count(*) as average_donation,
-       count(distinct donor_id)     as total_donors
+SELECT COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+       COUNT(*)                                AS total_donations,
+       CASE
+           WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+           ELSE 0
+           END                                 AS average_donation,
+       COUNT(DISTINCT donor_id)                AS total_donors
 FROM donation
-         JOIN member m on donation.donor_id = m.id
-         JOIN donation_payment dp on donation.id = dp.donation_id
+         JOIN member m ON donation.donor_id = m.id
+         LEFT JOIN donation_payment dp ON donation.id = dp.donation_id
 WHERE fund_id = $1
 `
 
 type GetFundStatsRow struct {
-	TotalDonated    int64
+	TotalDonated    int32
 	TotalDonations  int64
 	AverageDonation int32
 	TotalDonors     int64
@@ -43,14 +46,14 @@ func (q *Queries) GetFundStats(ctx context.Context, fundID uuid.UUID) (GetFundSt
 }
 
 const getMonthlyDonationTotalsForFund = `-- name: GetMonthlyDonationTotalsForFund :many
-SELECT SUM(amount_cents)               AS total_donated,
-       date_trunc('month', dp.created) AS month
+SELECT sum(amount_cents)               as total_donated,
+       date_trunc('month', dp.created) as month
 FROM donation d
-         JOIN donation_payment dp ON d.id = dp.donation_id
-WHERE d.fund_id = $1
+         JOIN donation_payment dp on d.id = dp.donation_id
+WHERE fund_id = $1
+  AND active = true
   AND d.recurring = true
-GROUP BY date_trunc('month', dp.created)
-ORDER BY month
+group by dp.created
 `
 
 type GetMonthlyDonationTotalsForFundRow struct {

@@ -10,22 +10,22 @@ import (
 	"time"
 )
 
-type AuthHandler struct {
+type AuthHandlers struct {
 	authService    *auth.AuthService
 	sessionManager *scs.SessionManager
 
 	clientID string
 }
 
-func NewAuthHandler(authService *auth.AuthService, sessionManager *scs.SessionManager, clientID string) *AuthHandler {
-	return &AuthHandler{
+func NewAuthHandlers(authService *auth.AuthService, sessionManager *scs.SessionManager, clientID string) *AuthHandlers {
+	return &AuthHandlers{
 		authService:    authService,
 		sessionManager: sessionManager,
 		clientID:       clientID,
 	}
 }
 
-func (h AuthHandler) Register(r *mux.Router) {
+func (h AuthHandlers) Register(r *mux.Router) {
 	r.HandleFunc("GET /login", h.loginPage)
 	r.HandleFunc("POST /login", h.login)
 	r.HandleFunc("/logout", h.logout)
@@ -34,7 +34,7 @@ func (h AuthHandler) Register(r *mux.Router) {
 	r.HandleFunc("GET /auth/error", h.errorPage)
 }
 
-func (h AuthHandler) errorPage(w http.ResponseWriter, r *http.Request) {
+func (h AuthHandlers) errorPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	errStr := r.URL.Query().Get("msg")
@@ -43,13 +43,13 @@ func (h AuthHandler) errorPage(w http.ResponseWriter, r *http.Request) {
 	common.ErrorMessage(nil, errStr, link, r.URL.Path).Render(ctx, w)
 }
 
-func (h AuthHandler) passwordPage(w http.ResponseWriter, r *http.Request) {
+func (h AuthHandlers) passwordPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	Password().Render(ctx, w)
 }
 
-func (h AuthHandler) resetPassword(w http.ResponseWriter, r *http.Request) {
+func (h AuthHandlers) resetPassword(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	username := r.FormValue("username")
@@ -82,13 +82,13 @@ func (h AuthHandler) resetPassword(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
-func (h AuthHandler) logout(w http.ResponseWriter, r *http.Request) {
+func (h AuthHandlers) logout(w http.ResponseWriter, r *http.Request) {
 	setTokenCookie("access-token", "", time.Now(), w)
 
 	http.Redirect(w, r, "/login", http.StatusFound)
 }
 
-func (h AuthHandler) loginPage(w http.ResponseWriter, r *http.Request) {
+func (h AuthHandlers) loginPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if isHx(r) {
@@ -100,7 +100,7 @@ func (h AuthHandler) loginPage(w http.ResponseWriter, r *http.Request) {
 	Login().Render(ctx, w)
 }
 
-func (h AuthHandler) login(w http.ResponseWriter, r *http.Request) {
+func (h AuthHandlers) login(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	username := r.FormValue("username")

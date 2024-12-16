@@ -24,7 +24,17 @@ templ Fund(fund donations.Fund, fundStats stats.FundStats, member *members.Membe
 			<hr class="border-[#acccdb]"/>
 			@Description(fund.Description)
 			<hr class="border-[#acccdb]"/>
-			@FundStatus(fund, fundStats)
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+				@FundStatus(fund, fundStats)
+				if len(fundStats.Monthly) > 0 {
+					<div class="col-span-2 my-2">
+						@common.SectionTitle("month-by-month")
+						<canvas>
+							@MonthlyTotalsChart(fundStats)
+						</canvas>
+					</div>
+				}
+			</div>
 		</div>
 	}
 }
@@ -79,7 +89,7 @@ templ Frequency(freq donations.PayoutFrequency) {
 }
 
 templ Description(text string) {
-	<div class="w-[70%] my-2">
+	<div class="w-full my-2">
 		<div class="text-md font-semibold pl-2 pb-3">about</div>
 		<div class="font-medium italic p-2 bg-[#acccdb] inline-block">{ text }</div>
 	</div>
@@ -90,8 +100,8 @@ templ Title(text string) {
 }
 
 templ FundStatus(fund donations.Fund, fundStats stats.FundStats) {
-	<div class="w-full my-2">
-		<div class="text-md font-semibold pl-2 py-4">fund status</div>
+	<div class="col-span-1 my-2">
+		@common.SectionTitle("fund status")
 		<ul class="list-none mt-2">
 			@StatusItem(AmountOrInfinity(fund.GoalCents), "goal")
 			@StatusItem(USD(fundStats.TotalDonated), "raised")
@@ -99,7 +109,7 @@ templ FundStatus(fund donations.Fund, fundStats stats.FundStats) {
 			@StatusItem(Donors(fundStats.TotalDonors), "donors")
 			@StatusItem(Date(&fund.Created), "start")
 			@StatusItem(EndDate(fund.Expires), "end")
-			@StatusItem(Date(&fund.NextPayment), "next payment")
+			@StatusItem(NextPayment(&fund.NextPayment), "next payment")
 		</ul>
 	</div>
 }
@@ -109,7 +119,7 @@ templ USD(amountCents int32) {
 }
 
 templ StatusItem(content templ.Component, title string) {
-	<li class="p-2 odd:bg-[#acccdb] w-full sm:w-[50%] flex sm:flex-row flex-col">
+	<li class="p-2 odd:bg-[#acccdb] flex sm:flex-row flex-col">
 		<span class="font-semibold text-sm pr-2 text-gray-700">
 			{ title }:
 		</span>
@@ -117,6 +127,16 @@ templ StatusItem(content templ.Component, title string) {
 			@content
 		</span>
 	</li>
+}
+
+templ NextPayment(date *time.Time) {
+	if date == nil {
+		<span>&#8734;</span>
+	} else if date.Before(time.Now()) {
+		<span>paid</span>
+	} else {
+		<span>{ date.Format("01-02-2006") }</span>
+	}
 }
 
 templ Donors(count int32) {

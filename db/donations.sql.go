@@ -16,6 +16,7 @@ const getActiveFunds = `-- name: GetActiveFunds :many
 SELECT id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated
 FROM fund
 WHERE active = true
+AND expires > now() OR expires IS NULL
 ORDER BY created DESC
 `
 
@@ -376,11 +377,13 @@ WITH monthly_totals AS (SELECT DATE_TRUNC('month', dp.created) AS month_year,
                              donation d ON f.id = d.fund_id
                                  JOIN
                              donation_payment dp ON d.id = dp.donation_id
-                        WHERE f.id = $1 -- Replace with the fund's ID
+                        WHERE f.id = $1
+                          AND d.recurring = true
                           AND dp.created >= GREATEST(
                                 DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '12 months',
                                 DATE_TRUNC('month', f.created)
                                             )
+                          AND dp.created < DATE_TRUNC('month', CURRENT_DATE) -- Exclude the current month
                         GROUP BY DATE_TRUNC('month', dp.created)
                         ORDER BY month_year)
 SELECT TO_CHAR(month_year, 'YYYY-MM') AS month_year,

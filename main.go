@@ -17,6 +17,7 @@ import (
 	"boardfund/web/adminweb"
 	"boardfund/web/authweb"
 	"boardfund/web/homeweb"
+	"boardfund/web/hooksweb"
 	"boardfund/web/middlewares"
 	"boardfund/web/mux"
 	"context"
@@ -182,9 +183,10 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 	authService := auth.NewAuthService(authorizer, memberStore, logger)
 	statsService := stats.NewStatsService(statsStore, logger)
 
-	donationHandler := homeweb.NewFundHandler(donationService, statsService, sessionManager, authMiddleware, logger, productID, paypalClientID)
-	authHandler := authweb.NewAuthHandler(authService, sessionManager, paypalClientID)
-	adminHandler := adminweb.NewAdminHandler(adminAuthMiddleware, memberService, donationService, sessionManager, paypalClientID)
+	donationHandlers := homeweb.NewFundHandlers(donationService, statsService, sessionManager, authMiddleware, logger, productID, paypalClientID)
+	authHandlers := authweb.NewAuthHandlers(authService, sessionManager, paypalClientID)
+	adminHandlers := adminweb.NewAdminHandlers(adminAuthMiddleware, memberService, donationService, sessionManager, paypalClientID)
+	webhooksHandlers := hooksweb.NewWebhooksHandlers(donationService, memberService, logger)
 
 	router := mux.NewRouter(http.NewServeMux())
 
@@ -194,9 +196,10 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 		http.StripPrefix("/static/", http.FileServer(http.Dir("public"))).ServeHTTP(w, r)
 	})
 
-	authHandler.Register(router)
-	donationHandler.Register(router)
-	adminHandler.Register(router)
+	authHandlers.Register(router)
+	donationHandlers.Register(router)
+	adminHandlers.Register(router)
+	webhooksHandlers.Register(router)
 
 	server := &http.Server{
 		Addr:    ":8080",

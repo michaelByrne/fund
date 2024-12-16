@@ -5,7 +5,7 @@ tmp_dir = "tmp"
 [build]
 args_bin = []
 bin = "./tmp/main"
-cmd = "tailwindcss -i tailwind.css -o public/styles.css --minify && templ generate && go build -tags dev -o ./tmp/main ."
+cmd = "tailwindcss -i tailwind.css -o public/styles.css --minify && templ fmt && templ generate && go build -tags dev -o ./tmp/main ."
 delay = 1000
 exclude_dir = ["assets", "tmp", "vendor", "testdata"]
 exclude_file = []
@@ -14,7 +14,7 @@ exclude_unchanged = false
 follow_symlink = false
 full_bin = ""
 include_dir = []
-include_ext = ["go", "tpl", "tmpl", "html", "templ"]
+include_ext = ["go", "tpl", "tmpl", "html", "templ", "js"]
 include_file = []
 kill_delay = "0s"
 log = "build-errors.log"

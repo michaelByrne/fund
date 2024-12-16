@@ -5,4 +5,10 @@ type FundStats struct {
 	TotalDonations  int32
 	AverageDonation int32
 	TotalDonors     int32
+	Monthly         []MonthTotal
+}
+
+type MonthTotal struct {
+	MonthYear  string `json:"month"`
+	TotalCents int32  `json:"amount"`
 }

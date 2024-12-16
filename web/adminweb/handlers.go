@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-type AdminHandler struct {
+type AdminHandlers struct {
 	withAdmin       func(next http.HandlerFunc) http.HandlerFunc
 	memberService   *members.MemberService
 	donationService *donations.DonationService
@@ -24,14 +24,14 @@ type AdminHandler struct {
 	clientID        string
 }
 
-func NewAdminHandler(
+func NewAdminHandlers(
 	withAdmin func(next http.HandlerFunc) http.HandlerFunc,
 	memberService *members.MemberService,
 	donationService *donations.DonationService,
 	sessionManager *scs.SessionManager,
 	clientID string,
-) *AdminHandler {
-	return &AdminHandler{
+) *AdminHandlers {
+	return &AdminHandlers{
 		withAdmin:       withAdmin,
 		memberService:   memberService,
 		donationService: donationService,
@@ -40,7 +40,7 @@ func NewAdminHandler(
 	}
 }
 
-func (h *AdminHandler) Register(r *mux.Router) {
+func (h *AdminHandlers) Register(r *mux.Router) {
 	r.HandleFunc("/admin", h.withAdmin(h.admin))
 	r.HandleFunc("GET /admin/funds", h.withAdmin(h.funds))
 	r.HandleFunc("POST /admin/member", h.withAdmin(h.createMember))
@@ -50,7 +50,7 @@ func (h *AdminHandler) Register(r *mux.Router) {
 	r.HandleFunc("GET /admin/member/{id}", h.withAdmin(h.member))
 }
 
-func (h *AdminHandler) member(w http.ResponseWriter, r *http.Request) {
+func (h *AdminHandlers) member(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -86,7 +86,7 @@ func (h *AdminHandler) member(w http.ResponseWriter, r *http.Request) {
 	Member(*memberDetails, &member, r.URL.Path).Render(ctx, w)
 }
 
-func (h *AdminHandler) deactivateFund(w http.ResponseWriter, r *http.Request) {
+func (h *AdminHandlers) deactivateFund(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -124,7 +124,7 @@ func (h *AdminHandler) deactivateFund(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *AdminHandler) createFund(w http.ResponseWriter, r *http.Request) {
+func (h *AdminHandlers) createFund(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -188,7 +188,7 @@ func (h *AdminHandler) createFund(w http.ResponseWriter, r *http.Request) {
 	FundRow(*newFund).Render(ctx, w)
 }
 
-func (h *AdminHandler) funds(w http.ResponseWriter, r *http.Request) {
+func (h *AdminHandlers) funds(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -209,7 +209,7 @@ func (h *AdminHandler) funds(w http.ResponseWriter, r *http.Request) {
 	Funds(funds, &member, r.URL.Path).Render(ctx, w)
 }
 
-func (h *AdminHandler) deactivateMember(w http.ResponseWriter, r *http.Request) {
+func (h *AdminHandlers) deactivateMember(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -244,7 +244,7 @@ func (h *AdminHandler) deactivateMember(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *AdminHandler) createMember(w http.ResponseWriter, r *http.Request) {
+func (h *AdminHandlers) createMember(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -305,7 +305,7 @@ func (h *AdminHandler) createMember(w http.ResponseWriter, r *http.Request) {
 	MemberRow(*newMember).Render(ctx, w)
 }
 
-func (h *AdminHandler) admin(w http.ResponseWriter, r *http.Request) {
+func (h *AdminHandlers) admin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)

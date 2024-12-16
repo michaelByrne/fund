@@ -9,6 +9,9 @@ sql:
         out: "./db"
         sql_package: "pgx/v5"
         overrides:
+          - column: "public.total_donations"
+            go_type:
+              type: "int32"
           - db_type: "public.donations"
             go_type:
               type: "Donation"

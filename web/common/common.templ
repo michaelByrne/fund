@@ -14,6 +14,7 @@ templ Head() {
 		<script type="application/javascript" src="/static/responsetargets.js"></script>
 		<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 		<script type="application/javascript" src="/static/surreal.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 		<script type="application/javascript" src="/static/shared.js"></script>
 	</head>
 }
@@ -47,6 +48,10 @@ templ Links(member *members.Member, currentPath string) {
 			<span class="text-xs hover:text-gray-500 text-gray-200 order-3 ml-1"><a href="/logout">logout</a></span>
 		}
 	</span>
+}
+
+templ SectionTitle(title string) {
+	<div class="text-md font-semibold pl-2 py-4">{ title }</div>
 }
 
 templ ErrorMessage(member *members.Member, message, link, currentPath string) {

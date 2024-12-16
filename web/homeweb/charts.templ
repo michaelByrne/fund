@@ -1,0 +1,8 @@
+package homeweb
+
+import "boardfund/service/stats"
+
+templ MonthlyTotalsChart(fundStats stats.FundStats) {
+	@templ.JSONScript("monthly", fundStats.Monthly)
+	<script type="application/javascript" src="/static/monthly.js"></script>
+}

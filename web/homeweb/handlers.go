@@ -19,7 +19,7 @@ import (
 
 const internalErrMessage = "internal error"
 
-type FundHandler struct {
+type FundHandlers struct {
 	donationService *donations.DonationService
 	statsService    *stats.StatsService
 	sessionManager  *scs.SessionManager
@@ -29,15 +29,15 @@ type FundHandler struct {
 	clientID        string
 }
 
-func NewFundHandler(
+func NewFundHandlers(
 	donationService *donations.DonationService,
 	statsService *stats.StatsService,
 	sessionManager *scs.SessionManager,
 	withAuth func(http.HandlerFunc) http.HandlerFunc,
 	logger *slog.Logger,
 	productID, clientID string,
-) *FundHandler {
-	return &FundHandler{
+) *FundHandlers {
+	return &FundHandlers{
 		donationService: donationService,
 		statsService:    statsService,
 		sessionManager:  sessionManager,
@@ -48,7 +48,7 @@ func NewFundHandler(
 	}
 }
 
-func (h *FundHandler) Register(r *mux.Router) {
+func (h *FundHandlers) Register(r *mux.Router) {
 	r.HandleFunc("/fund", h.fund)
 	r.HandleFunc("/donation/plan", h.withAuth(h.createDonationPlan))
 	r.HandleFunc("/donation/once", h.withAuth(h.createOneTimeDonation))
@@ -63,7 +63,7 @@ func (h *FundHandler) Register(r *mux.Router) {
 	r.HandleFunc("/", h.withAuth(h.home))
 }
 
-func (h *FundHandler) error(w http.ResponseWriter, r *http.Request) {
+func (h *FundHandlers) error(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	err := r.ParseForm()
@@ -79,7 +79,7 @@ func (h *FundHandler) error(w http.ResponseWriter, r *http.Request) {
 	common.ErrorMessage(nil, errorText, "/", r.URL.Path).Render(ctx, w)
 }
 
-func (h *FundHandler) about(w http.ResponseWriter, r *http.Request) {
+func (h *FundHandlers) about(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -92,7 +92,7 @@ func (h *FundHandler) about(w http.ResponseWriter, r *http.Request) {
 	About(&member, r.URL.Path).Render(ctx, w)
 }
 
-func (h *FundHandler) initiateOneTimeDonation(w http.ResponseWriter, r *http.Request) {
+func (h *FundHandlers) initiateOneTimeDonation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -159,7 +159,7 @@ type initDonationResponse struct {
 	ProviderOrderID string `json:"orderId"`
 }
 
-func (h *FundHandler) createOneTimeDonation(w http.ResponseWriter, r *http.Request) {
+func (h *FundHandlers) createOneTimeDonation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -222,7 +222,7 @@ func (h *FundHandler) createOneTimeDonation(w http.ResponseWriter, r *http.Reque
 	Paypal(*fund, amountCents, h.clientID).Render(ctx, w)
 }
 
-func (h *FundHandler) donate(w http.ResponseWriter, r *http.Request) {
+func (h *FundHandlers) donate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -262,12 +262,12 @@ func (h *FundHandler) donate(w http.ResponseWriter, r *http.Request) {
 	Fund(*fund, *fundStats, &member, r.URL.Path).Render(ctx, w)
 }
 
-func (h *FundHandler) ping(w http.ResponseWriter, r *http.Request) {
+func (h *FundHandlers) ping(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("pong"))
 }
 
-func (h *FundHandler) donationSuccess(w http.ResponseWriter, r *http.Request) {
+func (h *FundHandlers) donationSuccess(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -281,7 +281,7 @@ func (h *FundHandler) donationSuccess(w http.ResponseWriter, r *http.Request) {
 	ThankYou(member, r.URL.Path).Render(ctx, w)
 }
 
-func (h *FundHandler) completeOneTimeDonation(w http.ResponseWriter, r *http.Request) {
+func (h *FundHandlers) completeOneTimeDonation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -379,7 +379,7 @@ func (h *FundHandler) completeOneTimeDonation(w http.ResponseWriter, r *http.Req
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *FundHandler) completeRecurringDonation(w http.ResponseWriter, r *http.Request) {
+func (h *FundHandlers) completeRecurringDonation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -493,7 +493,7 @@ func (h *FundHandler) completeRecurringDonation(w http.ResponseWriter, r *http.R
 	ThankYou(member, r.URL.Path).Render(ctx, w)
 }
 
-func (h *FundHandler) createDonationPlan(w http.ResponseWriter, r *http.Request) {
+func (h *FundHandlers) createDonationPlan(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -587,7 +587,7 @@ func (h *FundHandler) createDonationPlan(w http.ResponseWriter, r *http.Request)
 	PaypalSubscription(*newPlan, h.clientID, fund.Name).Render(ctx, w)
 }
 
-func (h *FundHandler) home(w http.ResponseWriter, r *http.Request) {
+func (h *FundHandlers) home(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -609,7 +609,7 @@ func (h *FundHandler) home(w http.ResponseWriter, r *http.Request) {
 	Funds(funds, &member, r.URL.Path).Render(ctx, w)
 }
 
-func (h *FundHandler) fund(w http.ResponseWriter, r *http.Request) {
+func (h *FundHandlers) fund(w http.ResponseWriter, r *http.Request) {
 	body := r.Body
 	bodyBytes, err := io.ReadAll(body)
 	if err != nil {

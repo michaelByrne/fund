@@ -21,13 +21,12 @@ templ Funds(funds []donations.Fund, member *members.Member, path string) {
 				<table class="table-auto w-full border-collapse text-sm hidden sm:table">
 					<thead>
 						<tr>
-							<th class="p-2 text-left font-semibold w-[30%]">Name</th>
-							<th class="p-2 text-left font-semibold w-[12%]">Donors</th>
-							<th class="p-2 text-left font-semibold w-[12%]">Commitment</th>
-							<th class="p-2 text-left font-semibold w-[12%]">Goal</th>
-							<th class="p-2 text-left font-semibold w-[12%]">Frequency</th>
-							<th class="p-2 text-left font-semibold w-[11%]">Expires</th>
-							<th class="p-2 text-left font-semibold w-[11%]">Next Payout</th>
+							<th class="p-2 text-left font-semibold w-[22%]">name</th>
+							<th class="p-2 text-left font-semibold w-[12%]">donors</th>
+							<th class="p-2 text-left font-semibold w-[12%]">commitment</th>
+							<th class="p-2 text-left font-semibold w-[12%]">goal</th>
+							<th class="p-2 text-left font-semibold w-[12%]">frequency</th>
+							<th class="p-2 text-left font-semibold w-[15%]">expires</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -42,7 +41,6 @@ templ Funds(funds []donations.Fund, member *members.Member, path string) {
 								@TableGoal(fund.GoalCents)
 								<td class="p-2">{ string(fund.PayoutFrequency) }</td>
 								@TableExpires(fund.Expires)
-								<td class="p-2">{ fund.NextPayment.Format("01-02-2006") }</td>
 							</tr>
 						}
 					</tbody>
@@ -62,9 +60,8 @@ templ Funds(funds []donations.Fund, member *members.Member, path string) {
 								</p>
 								<p><span class="font-bold">Frequency:</span> { string(fund.PayoutFrequency) }</p>
 								<p>
-									<span class="font-bold">Expires:</span> @TableExpires(fund.Expires)
+									<span class="font-bold">Expires:</span>@TableExpires(fund.Expires)
 								</p>
-								<p><span class="font-bold">Next Payout:</span> { fund.NextPayment.Format("01-02-2006") }</p>
 							</div>
 						</div>
 					}
@@ -74,26 +71,34 @@ templ Funds(funds []donations.Fund, member *members.Member, path string) {
 	}
 }
 
+templ TableNextPayment(nextPayment time.Time) {
+	if nextPayment.Before(time.Now()) {
+		&nbsp;paid
+	} else {
+		&nbsp;{ nextPayment.Format("01-02-2006") }
+	}
+}
+
 templ TableExpires(expires *time.Time) {
 	if expires == nil {
-		<td>&#8734;</td>
+		<td>&nbsp;&#8734;</td>
 	} else {
-		<td>{ expires.Format("01-02-2006") }</td>
+		<td>&nbsp;{ expires.Format("01-02-2006") }</td>
 	}
 }
 
 templ TableGoal(goal int32) {
 	if goal == 0 {
-		<td>&#8734;</td>
+		<td>&nbsp;&#8734;</td>
 	} else {
-		<td>${ centsToDecimalString(goal) }</td>
+		<td>&nbsp;${ centsToDecimalString(goal) }</td>
 	}
 }
 
 templ About(member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div class="mx-auto mt-2 p-4 pb-6">
-			<h2 class="text-md pl-2 font-semibold">about</h2>
+			@common.SectionTitle("about")
 			<p class="mt-2">BCO Mutual Aid is a platform for community support in the form of bucks.</p>
 		</div>
 	}

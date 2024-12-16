@@ -26,3 +26,9 @@ func (s StatsStore) GetFundStats(ctx context.Context, id uuid.UUID) (*stats.Fund
 
 	return pg.FetchOne(ctx, id, query, fromDBFundStatsRow)
 }
+
+func (s StatsStore) GetMonthlyTotalsByFund(ctx context.Context, id uuid.UUID) ([]stats.MonthTotal, error) {
+	query := s.queries.GetMonthlyTotalsByFund
+
+	return pg.FetchMany(ctx, id, query, fromDBMonthlyTotalsRow)
+}
