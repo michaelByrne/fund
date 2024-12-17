@@ -78,20 +78,17 @@ func verifySignatureWithPEM(signature string, message string, pemBytes []byte) e
 		return err
 	}
 
-	hash := crypto.SHA256.New()
-	hash.Write([]byte(message))
-
-	hashBytes := hash.Sum(nil)
+	msgBytes := []byte(message)
 
 	switch key := pubKey.(type) {
 	case *rsa.PublicKey:
-		err = rsa.VerifyPKCS1v15(key, crypto.SHA256, hashBytes[:], sigBytes)
+		err = rsa.VerifyPKCS1v15(key, crypto.SHA256, msgBytes[:], sigBytes)
 	case *ecdsa.PublicKey:
-		if !ecdsa.VerifyASN1(key, hashBytes[:], sigBytes) {
+		if !ecdsa.VerifyASN1(key, msgBytes[:], sigBytes) {
 			err = fmt.Errorf("ECDSA verification failed")
 		}
 	case ed25519.PublicKey:
-		if !ed25519.Verify(key, hashBytes[:], sigBytes) {
+		if !ed25519.Verify(key, msgBytes[:], sigBytes) {
 			err = fmt.Errorf("ed25519 verification failed")
 		}
 	default:
