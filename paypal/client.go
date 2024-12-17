@@ -98,14 +98,12 @@ func (c Client) postWithResponse(ctx context.Context, path string, payload any) 
 		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusCreated {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		var paypalError ErrPaypal
 		err = json.Unmarshal(body, &paypalError)
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshalling error response: %w", err)
 		}
-
-		fmt.Printf("paypalError: %+v\n", string(body))
 
 		return nil, paypalError
 	}

@@ -27,7 +27,7 @@ type donationStore interface {
 type paymentsProvider interface {
 	CreatePlan(ctx context.Context, plan CreatePlan) (string, error)
 	CreateFund(ctx context.Context, name, description string) (string, error)
-	InitiateDonation(ctx context.Context, fund Fund, amountCents int32) (string, error)
+	InitiateDonation(ctx context.Context, fund Fund, amountCents int32) (*CreateOrderResponse, error)
 	CancelSubscriptions(ctx context.Context, ids []string) ([]string, error)
 }
 
@@ -200,14 +200,14 @@ func (s DonationService) InitiateDonation(ctx context.Context, fundID uuid.UUID,
 		return "", err
 	}
 
-	providerOrderID, err := s.paymentsProvider.InitiateDonation(ctx, *fund, amountCents)
+	createdOrderResponse, err := s.paymentsProvider.InitiateDonation(ctx, *fund, amountCents)
 	if err != nil {
 		s.logger.Error("failed to initiate donation with provider", slog.String("error", err.Error()))
 
 		return "", err
 	}
 
-	return providerOrderID, nil
+	return createdOrderResponse.ApprovalURL, nil
 }
 
 func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUID, completion OneTimeCompletion) error {

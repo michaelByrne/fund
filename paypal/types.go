@@ -80,7 +80,7 @@ type PaymentCaptureResponse struct {
 	PaymentSource PaymentSource          `json:"payment_source"`
 	PurchaseUnits []CapturePurchaseUnits `json:"purchase_units"`
 	Payer         Payer                  `json:"payer"`
-	Links         []Links                `json:"links"`
+	Links         []Link                 `json:"links"`
 }
 
 type Name struct {
@@ -136,7 +136,7 @@ type SellerReceivableBreakdown struct {
 	NetAmount   NetAmount   `json:"net_amount"`
 }
 
-type Links struct {
+type Link struct {
 	Href   string `json:"href"`
 	Rel    string `json:"rel"`
 	Method string `json:"method"`
@@ -152,7 +152,7 @@ type Captures struct {
 	SellerReceivableBreakdown SellerReceivableBreakdown `json:"seller_receivable_breakdown"`
 	CreateTime                time.Time                 `json:"create_time"`
 	UpdateTime                time.Time                 `json:"update_time"`
-	Links                     []Links                   `json:"links"`
+	Links                     []Link                    `json:"links"`
 }
 
 type Payments struct {
@@ -174,6 +174,24 @@ type Payer struct {
 type CreateOrderRequest struct {
 	Intent        string               `json:"intent"`
 	PurchaseUnits []OrderPurchaseUnits `json:"purchase_units"`
+	PaymentSource OrderPaymentSource   `json:"payment_source"`
+}
+
+type ExperienceContext struct {
+	PaymentMethodPreference string `json:"payment_method_preference"`
+	BrandName               string `json:"brand_name"`
+	Locale                  string `json:"locale"`
+	LandingPage             string `json:"landing_page"`
+	ShippingPreference      string `json:"shipping_preference"`
+	UserAction              string `json:"user_action"`
+	ReturnURL               string `json:"return_url"`
+	CancelURL               string `json:"cancel_url"`
+}
+type OrderPaypal struct {
+	ExperienceContext ExperienceContext `json:"experience_context"`
+}
+type OrderPaymentSource struct {
+	Paypal OrderPaypal `json:"paypal"`
 }
 
 type OrderPurchaseUnits struct {
@@ -185,7 +203,8 @@ type OrderPurchaseUnits struct {
 }
 
 type CreateOrderResponse struct {
-	ID string `json:"id"`
+	ID    string `json:"id"`
+	Links []Link `json:"links"`
 }
 
 type Updates []struct {

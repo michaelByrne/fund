@@ -193,3 +193,8 @@ type InsertDonationPayment struct {
 	ProviderPaymentID string
 	AmountCents       int32
 }
+
+type CreateOrderResponse struct {
+	OrderID     string `json:"order_id"`
+	ApprovalURL string `json:"approval_url"`
+}
