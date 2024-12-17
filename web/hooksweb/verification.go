@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rsa"
-	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -67,29 +66,32 @@ func verifySignatureWithPEM(signature string, message string, pemBytes []byte) e
 		return fmt.Errorf("failed to parse PEM block containing the public key")
 	}
 
-	fmt.Printf("block: %+v\n", block)
-
-	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+	certKey, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return fmt.Errorf("failed to parse public key: %v", err)
+		return err
 	}
 
-	hash := sha256.Sum256([]byte(message))
+	pubKey := certKey.PublicKey
 
 	sigBytes, err := decodeBase64(signature)
 	if err != nil {
-		return fmt.Errorf("failed to decode signature: %v", err)
+		return err
 	}
+
+	hash := crypto.SHA256.New()
+	hash.Write([]byte(message))
+
+	hashBytes := hash.Sum(nil)
 
 	switch key := pubKey.(type) {
 	case *rsa.PublicKey:
-		err = rsa.VerifyPKCS1v15(key, crypto.SHA256, hash[:], sigBytes)
+		err = rsa.VerifyPKCS1v15(key, crypto.SHA256, hashBytes[:], sigBytes)
 	case *ecdsa.PublicKey:
-		if !ecdsa.VerifyASN1(key, hash[:], sigBytes) {
+		if !ecdsa.VerifyASN1(key, hashBytes[:], sigBytes) {
 			err = fmt.Errorf("ECDSA verification failed")
 		}
 	case ed25519.PublicKey:
-		if !ed25519.Verify(key, hash[:], sigBytes) {
+		if !ed25519.Verify(key, hashBytes[:], sigBytes) {
 			err = fmt.Errorf("ed25519 verification failed")
 		}
 	default:
