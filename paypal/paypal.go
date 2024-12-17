@@ -119,9 +119,8 @@ func (p Paypal) InitiateDonation(ctx context.Context, fund donations.Fund, amoun
 					CurrencyCode: "USD",
 					Value:        centsToDecimalString(amountCents),
 				},
-				Description:    fund.Description,
 				SoftDescriptor: fund.Name,
-				ReferenceID:    "donation",
+				ReferenceID:    fund.ID.String(),
 			},
 		},
 	}
