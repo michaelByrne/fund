@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"log"
 	"net/http"
 	"os"
 )
@@ -80,9 +81,14 @@ func verifySignatureWithPEM(signature string, message string, pemBytes []byte) e
 
 	msgBytes := []byte(message)
 
+	signatureDecoded, err := base64.StdEncoding.DecodeString(signature)
+	if err != nil {
+		log.Fatal(fmt.Errorf("decode signature: %s", err))
+	}
+
 	switch key := pubKey.(type) {
 	case *rsa.PublicKey:
-		err = rsa.VerifyPKCS1v15(key, crypto.SHA256, msgBytes[:], sigBytes)
+		err = rsa.VerifyPKCS1v15(key, crypto.SHA256, msgBytes[:], signatureDecoded)
 	case *ecdsa.PublicKey:
 		if !ecdsa.VerifyASN1(key, msgBytes[:], sigBytes) {
 			err = fmt.Errorf("ECDSA verification failed")
