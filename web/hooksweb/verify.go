@@ -15,9 +15,15 @@ import (
 func downloadAndCache(url, cacheKey string) (string, error) {
 	filePath := filepath.Join("tmp", cacheKey)
 
-	data, err := os.ReadFile(filePath)
-	if err == nil {
-		return string(data), nil
+	var data []byte
+	var err error
+	if _, err = os.Stat(filePath); err == nil {
+		data, err = os.ReadFile(filePath)
+		if err == nil {
+			return string(data), nil
+		}
+	} else if !os.IsNotExist(err) {
+		return "", err
 	}
 
 	resp, err := http.Get(url)
