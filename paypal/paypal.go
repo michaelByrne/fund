@@ -128,8 +128,8 @@ func (p Paypal) InitiateDonation(ctx context.Context, fund donations.Fund, amoun
 				ExperienceContext{
 					BrandName:               fund.Name,
 					Locale:                  "en-US",
-					ReturnURL:               "https://boardfund.com/once/approve",
-					CancelURL:               "https://boardfund.com/once/cancel",
+					ReturnURL:               "https://boardfund.org/once/approve",
+					CancelURL:               "https://boardfund.org/once/cancel",
 					PaymentMethodPreference: "IMMEDIATE_PAYMENT_REQUIRED",
 					UserAction:              "PAY_NOW",
 					ShippingPreference:      "NO_SHIPPING",
