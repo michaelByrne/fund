@@ -1,11 +1,11 @@
 package hooksweb
 
 import (
-	"crypto"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"net/http"
 	"os"
@@ -51,11 +51,11 @@ func downloadAndCache(url, cacheKey string) (string, error) {
 
 func verifySignature(r *http.Request, webhookID string) error {
 	transmissionID := r.Header.Get("paypal-transmission-id")
-	timeStamp := r.Header.Get("paypal-transmission-time")
+	timestamp := r.Header.Get("paypal-transmission-time")
 	certURL := r.Header.Get("paypal-cert-url")
 	sig := r.Header.Get("paypal-transmission-sig")
 
-	if transmissionID == "" || timeStamp == "" {
+	if transmissionID == "" || timestamp == "" {
 		return fmt.Errorf("missing required PayPal headers")
 	}
 
@@ -67,45 +67,33 @@ func verifySignature(r *http.Request, webhookID string) error {
 		return err
 	}
 
-	fmt.Printf("body: %s\n", bodyBytes)
-	fmt.Printf("transmissionID: %s\n", transmissionID)
-	fmt.Printf("timeStamp: %s\n", timeStamp)
-	fmt.Printf("certURL: %s\n", certURL)
-	fmt.Printf("sig: %s\n", sig)
+	crc := crc32.ChecksumIEEE(bodyBytes)
 
-	crc := crc32Checksum(bodyBytes)
+	// Construct the expected signed message
+	message := fmt.Sprintf("%s|%s|%s|%d", transmissionID, timestamp, webhookID, crc)
+	fmt.Printf("message: %s\n", message)
 
-	message := fmt.Sprintf("%s|%s|%s|%d", transmissionID, timeStamp, webhookID, crc)
-
-	certStr, err := downloadAndCache(certURL, "paypal_cert.pem")
+	// Fetch and parse the certificate
+	certPem, err := downloadAndCache(certURL, "")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to fetch certificate: %w", err)
 	}
 
-	block, _ := pem.Decode([]byte(certStr))
+	block, _ := pem.Decode([]byte(certPem))
 	if block == nil {
-		return fmt.Errorf("failed to parse PEM certificate")
+		return fmt.Errorf("failed to parse certificate PEM")
 	}
 
-	cert, err := x509.ParseCertificate(block.Bytes)
+	parsed, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse certificate: %w", err)
 	}
 
-	decodedSig, err := base64.StdEncoding.DecodeString(sig)
+	// Decode the signature from base64
+	sigBytes, err := base64.StdEncoding.DecodeString(sig)
 	if err != nil {
 		return fmt.Errorf("failed to decode signature: %w", err)
 	}
 
-	hasher := crypto.SHA256.New()
-	hasher.Write([]byte(message))
-	return cert.CheckSignature(x509.SHA256WithRSA, hasher.Sum(nil), decodedSig)
-}
-
-func crc32Checksum(data []byte) uint32 {
-	var crc uint32 = 0xFFFFFFFF
-	for _, b := range data {
-		crc = (crc >> 8) ^ (uint32(b) ^ crc) // Example CRC logic
-	}
-	return ^crc
+	return parsed.CheckSignature(x509.SHA256WithRSA, []byte(message)[:], sigBytes)
 }
