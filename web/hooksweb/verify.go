@@ -69,12 +69,9 @@ func verifySignature(r *http.Request, webhookID string) error {
 
 	crc := crc32.ChecksumIEEE(bodyBytes)
 
-	// Construct the expected signed message
 	message := fmt.Sprintf("%s|%s|%s|%d", transmissionID, timestamp, webhookID, crc)
-	fmt.Printf("message: %s\n", message)
 
-	// Fetch and parse the certificate
-	certPem, err := downloadAndCache(certURL, "")
+	certPem, err := downloadAndCache(certURL, "pp-cert.pem")
 	if err != nil {
 		return fmt.Errorf("failed to fetch certificate: %w", err)
 	}
