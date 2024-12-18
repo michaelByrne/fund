@@ -17,6 +17,7 @@ func downloadAndCache(url, cacheKey string) (string, error) {
 
 	var data []byte
 	var err error
+
 	if _, err = os.Stat(filePath); err == nil {
 		data, err = os.ReadFile(filePath)
 		if err == nil {
@@ -26,11 +27,14 @@ func downloadAndCache(url, cacheKey string) (string, error) {
 		return "", err
 	}
 
+	if err = os.MkdirAll("tmp", 0755); err != nil {
+		return "", fmt.Errorf("failed to create tmp directory: %w", err)
+	}
+
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", fmt.Errorf("failed to download from URL: %w", err)
 	}
-
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
