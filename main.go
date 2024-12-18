@@ -70,6 +70,11 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 		return fmt.Errorf("PAYPAL_BASE_URL is required")
 	}
 
+	webhookID := getEnv("SANDBOX_WEBHOOK_ID")
+	if webhookID == "" {
+		return fmt.Errorf("SANDBOX_WEBHOOK_ID is required")
+	}
+
 	isLive := getEnv("LIVE_PAYPAL")
 	if isLive == "true" {
 		baseURL = getEnv("LIVE_PAYPAL_URL")
@@ -85,6 +90,11 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 		clientSecret = getEnv("LIVE_PAYPAL_CLIENT_SECRET")
 		if clientSecret == "" {
 			return fmt.Errorf("LIVE_PAYPAL_CLIENT_SECRET is required")
+		}
+
+		webhookID = getEnv("LIVE_WEBHOOK_ID")
+		if webhookID == "" {
+			return fmt.Errorf("LIVE_WEBHOOK_ID is required")
 		}
 	}
 
@@ -204,7 +214,7 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 	donationHandlers := homeweb.NewFundHandlers(donationService, statsService, sessionManager, authMiddleware, logger, productID, paypalClientID)
 	authHandlers := authweb.NewAuthHandlers(authService, sessionManager, paypalClientID)
 	adminHandlers := adminweb.NewAdminHandlers(adminAuthMiddleware, memberService, donationService, sessionManager, paypalClientID)
-	webhooksHandlers := hooksweb.NewWebhooksHandlers(donationService, memberService, logger)
+	webhooksHandlers := hooksweb.NewWebhooksHandlers(donationService, memberService, logger, webhookID)
 
 	router := mux.NewRouter(http.NewServeMux())
 
