@@ -110,7 +110,7 @@ func (p Paypal) DeactivatePlan(ctx context.Context, planID string) error {
 	return p.client.post(ctx, "/v1/billing/plans/"+planID+"/deactivate", nil)
 }
 
-func (p Paypal) InitiateDonation(ctx context.Context, fund donations.Fund, amountCents int32) (*donations.CreateOrderResponse, error) {
+func (p Paypal) InitiateDonation(ctx context.Context, fund donations.Fund, amountCents int32) (string, error) {
 	orderRequest := CreateOrderRequest{
 		Intent: "CAPTURE",
 		PurchaseUnits: []OrderPurchaseUnits{
@@ -119,46 +119,25 @@ func (p Paypal) InitiateDonation(ctx context.Context, fund donations.Fund, amoun
 					CurrencyCode: "USD",
 					Value:        centsToDecimalString(amountCents),
 				},
+				Description:    "donation",
 				SoftDescriptor: fund.Name,
 				ReferenceID:    fund.ID.String(),
-			},
-		},
-		PaymentSource: OrderPaymentSource{
-			Paypal: OrderPaypal{
-				ExperienceContext{
-					BrandName:               fund.Name,
-					Locale:                  "en-US",
-					ReturnURL:               "https://bcofund.org/donation/once/approve",
-					CancelURL:               "https://bcofund.org/donation/once/cancel",
-					PaymentMethodPreference: "IMMEDIATE_PAYMENT_REQUIRED",
-					UserAction:              "PAY_NOW",
-					ShippingPreference:      "NO_SHIPPING",
-					LandingPage:             "LOGIN",
-				},
 			},
 		},
 	}
 
 	orderResponseBytes, err := p.client.postWithResponse(ctx, "/v2/checkout/orders", orderRequest)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	var orderResponse CreateOrderResponse
 	err = json.Unmarshal(orderResponseBytes, &orderResponse)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	for _, link := range orderResponse.Links {
-		if link.Rel == "approve" || link.Rel == "payer-action" {
-			return &donations.CreateOrderResponse{
-				ApprovalURL: link.Href,
-			}, nil
-		}
-	}
-
-	return nil, fmt.Errorf("approval link not found")
+	return orderResponse.ID, nil
 }
 
 func centsToDecimalString(cents int32) string {

@@ -54,7 +54,6 @@ func (h *FundHandlers) Register(r *mux.Router) {
 	r.HandleFunc("/donation/once", h.withAuth(h.createOneTimeDonation))
 	r.HandleFunc("/donation/plan/complete", h.withAuth(h.completeRecurringDonation))
 	r.HandleFunc("/donation/once/complete", h.withAuth(h.completeOneTimeDonation))
-	r.HandleFunc("/donation/once/approve", h.withAuth(h.oneTimeDonationApproved))
 	r.HandleFunc("/donation/once/initiate", h.withAuth(h.initiateOneTimeDonation))
 	r.HandleFunc("/donation/success", h.withAuth(h.donationSuccess))
 	r.HandleFunc("/donate/{fundId}", h.withAuth(h.donate))
@@ -62,12 +61,6 @@ func (h *FundHandlers) Register(r *mux.Router) {
 	r.HandleFunc("/ping", h.ping)
 	r.HandleFunc("/about", h.about)
 	r.HandleFunc("/", h.withAuth(h.home))
-}
-
-func (h *FundHandlers) oneTimeDonationApproved(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r.URL.String())
-
-	w.WriteHeader(http.StatusOK)
 }
 
 func (h *FundHandlers) error(w http.ResponseWriter, r *http.Request) {
@@ -159,11 +152,11 @@ func (h *FundHandlers) initiateOneTimeDonation(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	sendJSON(w, http.StatusOK, initDonationResponse{ApprovalURL: providerPaymentID})
+	sendJSON(w, http.StatusOK, initDonationResponse{ProviderOrderID: providerPaymentID})
 }
 
 type initDonationResponse struct {
-	ApprovalURL string `json:"approvalUrl"`
+	ProviderOrderID string `json:"orderId"`
 }
 
 func (h *FundHandlers) createOneTimeDonation(w http.ResponseWriter, r *http.Request) {
@@ -218,7 +211,7 @@ func (h *FundHandlers) createOneTimeDonation(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	approvalURL, err := h.donationService.InitiateDonation(ctx, fundUUID, amountCents)
+	fund, err := h.donationService.GetFundByID(ctx, fundUUID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -226,7 +219,7 @@ func (h *FundHandlers) createOneTimeDonation(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	sendJSON(w, http.StatusOK, initDonationResponse{ApprovalURL: approvalURL})
+	Paypal(*fund, amountCents, h.clientID).Render(ctx, w)
 }
 
 func (h *FundHandlers) donate(w http.ResponseWriter, r *http.Request) {

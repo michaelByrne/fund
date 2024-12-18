@@ -174,7 +174,7 @@ type Payer struct {
 type CreateOrderRequest struct {
 	Intent        string               `json:"intent"`
 	PurchaseUnits []OrderPurchaseUnits `json:"purchase_units"`
-	PaymentSource OrderPaymentSource   `json:"payment_source"`
+	//PaymentSource OrderPaymentSource   `json:"payment_source"`
 }
 
 type ExperienceContext struct {

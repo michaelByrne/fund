@@ -40,7 +40,7 @@ templ Fund(fund donations.Fund, fundStats stats.FundStats, member *members.Membe
 }
 
 templ DonationForm(fund donations.Fund) {
-	<form hx-post={ donationURL(fund.PayoutFrequency) } hx-swap="none">
+	<form hx-post={ donationURL(fund.PayoutFrequency) } hx-target="#donation-form">
 		<input type="hidden" name="fund" value={ fund.ID.String() }/>
 		<div class="initials inline-flex bg-[#c9e4c3] sm:flex-row flex-col">
 			<div class="space-x-2 flex items-center relative pl-4 sm:pr-0 pr-4 sm:py-4 py-1">
