@@ -46,6 +46,11 @@ func verifySignature(r *http.Request, webhookID string) error {
 		return err
 	}
 
+	fmt.Printf("body: %s\n", bodyBytes)
+	fmt.Printf("transmissionID: %s\n", transmissionID)
+	fmt.Printf("timestamp: %s\n", timestamp)
+	fmt.Printf("signature: %s\n", signature)
+
 	defer r.Body.Close()
 
 	crc32q := crc32.MakeTable(IEEE)
