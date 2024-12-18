@@ -67,9 +67,15 @@ func verifySignature(r *http.Request, webhookID string) error {
 		return err
 	}
 
+	fmt.Printf("body: %s\n", bodyBytes)
+	fmt.Printf("transmissionID: %s\n", transmissionID)
+	fmt.Printf("timeStamp: %s\n", timeStamp)
+	fmt.Printf("certURL: %s\n", certURL)
+	fmt.Printf("sig: %s\n", sig)
+
 	crc := crc32Checksum(bodyBytes)
 
-	message := fmt.Sprintf("%s|%s|%s|%d", transmissionID, timeStamp, "7SG759247G748343R", crc)
+	message := fmt.Sprintf("%s|%s|%s|%d", transmissionID, timeStamp, webhookID, crc)
 
 	certStr, err := downloadAndCache(certURL, "paypal_cert.pem")
 	if err != nil {
