@@ -31,7 +31,7 @@ func (h WebhooksHandlers) Register(r *mux.Router) {
 func (h WebhooksHandlers) payment(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("%+v\n", r)
 
-	err := verifySignature(r, "1VT58541NE9487622")
+	err := verifySignature(r, "7SG759247G748343R")
 	if err != nil {
 		h.logger.Error("failed to verify signature", slog.String("error", err.Error()))
 
