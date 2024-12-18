@@ -70,6 +70,24 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 		return fmt.Errorf("PAYPAL_BASE_URL is required")
 	}
 
+	isLive := getEnv("LIVE_PAYPAL")
+	if isLive == "true" {
+		baseURL = getEnv("LIVE_PAYPAL_URL")
+		if baseURL == "" {
+			return fmt.Errorf("LIVE_PAYPAL_URL is required")
+		}
+
+		paypalClientID = getEnv("LIVE_PAYPAL_CLIENT_ID")
+		if paypalClientID == "" {
+			return fmt.Errorf("LIVE_PAYPAL_CLIENT_ID is required")
+		}
+
+		clientSecret = getEnv("LIVE_PAYPAL_CLIENT_SECRET")
+		if clientSecret == "" {
+			return fmt.Errorf("LIVE_PAYPAL_CLIENT_SECRET is required")
+		}
+	}
+
 	productID := getEnv("PAYPAL_PRODUCT_ID")
 	if productID == "" {
 		return fmt.Errorf("PAYPAL_PRODUCT_ID is required")
