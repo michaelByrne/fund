@@ -75,6 +75,11 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 		return fmt.Errorf("SANDBOX_WEBHOOK_ID is required")
 	}
 
+	productID := getEnv("PAYPAL_PRODUCT_ID")
+	if productID == "" {
+		return fmt.Errorf("PAYPAL_PRODUCT_ID is required")
+	}
+
 	isLive := getEnv("LIVE_PAYPAL")
 	if isLive == "true" {
 		baseURL = getEnv("LIVE_PAYPAL_URL")
@@ -96,11 +101,11 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 		if webhookID == "" {
 			return fmt.Errorf("LIVE_WEBHOOK_ID is required")
 		}
-	}
 
-	productID := getEnv("PAYPAL_PRODUCT_ID")
-	if productID == "" {
-		return fmt.Errorf("PAYPAL_PRODUCT_ID is required")
+		productID = getEnv("LIVE_PAYPAL_PRODUCT_ID")
+		if productID == "" {
+			return fmt.Errorf("LIVE_PAYPAL_PRODUCT_ID is required")
+		}
 	}
 
 	pgPass := getEnv("PG_PASS")
