@@ -62,7 +62,7 @@ func (p Paypal) CreateFund(ctx context.Context, name, description string) (strin
 func (p Paypal) CreatePlan(ctx context.Context, plan donations.CreatePlan) (string, error) {
 	payload := CreatePlanRequest{
 		Name:      plan.Name,
-		ProductID: p.productID,
+		ProductID: plan.ProviderFundID,
 		BillingCycles: []BillingCycles{
 			{
 				TenureType:  "REGULAR",

@@ -568,7 +568,7 @@ func (h *FundHandlers) createDonationPlan(w http.ResponseWriter, r *http.Request
 		IntervalUnit: donations.IntervalUnit(interval),
 	}
 
-	newPlan, err := h.donationService.CreateDonationPlan(ctx, plan)
+	fund, err := h.donationService.GetFundByID(ctx, fundUUID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -576,7 +576,9 @@ func (h *FundHandlers) createDonationPlan(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	fund, err := h.donationService.GetFundByID(ctx, fundUUID)
+	plan.ProviderFundID = fund.ProviderID
+
+	newPlan, err := h.donationService.CreateDonationPlan(ctx, plan)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
