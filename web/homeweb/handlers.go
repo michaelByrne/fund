@@ -570,6 +570,7 @@ func (h *FundHandlers) createDonationPlan(w http.ResponseWriter, r *http.Request
 
 	newPlan, err := h.donationService.CreateDonationPlan(ctx, plan)
 	if err != nil {
+		fmt.Printf("error creating plan: %s\n", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
@@ -578,6 +579,7 @@ func (h *FundHandlers) createDonationPlan(w http.ResponseWriter, r *http.Request
 
 	fund, err := h.donationService.GetFundByID(ctx, fundUUID)
 	if err != nil {
+		fmt.Printf("error getting fund: %s\n", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
 
