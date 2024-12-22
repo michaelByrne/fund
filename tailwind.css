@@ -2,6 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+    .link-disabled {
+        color: rgb(var(--color-disabled));
+        cursor: default;
+        pointer-events: none;
+    }
+}
+
+@layer base {
+    html[data-theme='cold'] {
+        --color-odd: 172, 204, 219; /* #acccdb */
+        --color-odd-hover: 219, 187, 172; /* #dbbbac */
+        --color-even: 195, 218, 228; /* #c3dae4 */
+        --color-even-hover: 228, 195, 195; /* #e4c3c3 */
+        --color-accent: 255, 212, 163; /* #ffd4a3 */
+        --color-back: 51, 51, 51; /* #333333 */
+        --color-high: 201, 228, 195; /* #c9e4c3 */
+        --color-peak: 255, 239, 197; /* #ffefc5 */
+    }
+
+    html[data-theme='hot'] {
+        --color-odd: 193, 236, 244;
+        --color-even: 206, 240, 246;
+        --color-odd-hover: 255, 232, 159;
+        --color-even-hover: 255, 232, 159;
+        --color-accent: 255, 242, 211;
+        --color-back: 255, 255, 255;
+        --color-high: 255, 242, 211;
+        --color-peak: 255, 242, 211;
+        --color-title: 51, 51, 51;
+        --color-links: 51, 51, 51;
+        --color-disabled: 153, 153, 153;
+        --color-button-hover: 255, 232, 211;
+    }
+}
+
 @media (min-width: 640px) {
     table {
         display: inline-table !important;
@@ -22,10 +58,6 @@ th {
 
 .clickable {
     cursor: pointer;
-}
-
-.disabled {
-    cursor: default;
 }
 
 .deactivate-popup-button {
@@ -49,11 +81,11 @@ th {
     background-attachment: fixed;
     z-index: -1;
 }
+
 /* Ensures the header stays pinned while scrolling */
 thead.sticky {
     position: sticky;
     top: 0;
-    background-color: #c3dae4;
     z-index: 10;
 }
 

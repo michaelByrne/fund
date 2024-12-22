@@ -19,6 +19,7 @@ func Verify(verifyFunc func(tokenStr string) (jwt.Token, error), findTokenFns ..
 			ctx := r.Context()
 			_, err := VerifyRequest(r, verifyFunc, findTokenFns...)
 			if err != nil {
+				w.Header().Set("HX-Redirect", "/login")
 				http.Redirect(w, r, "/login", http.StatusFound)
 
 				return

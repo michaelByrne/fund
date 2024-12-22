@@ -146,8 +146,8 @@ type Donation struct {
 	DonorID                uuid.UUID
 	DonationPlanID         uuid.NullUUID
 	ProviderOrderID        string
-	Created                DBTime
-	Updated                DBTime
+	Created                pgtype.Timestamptz
+	Updated                pgtype.Timestamptz
 	FundID                 uuid.UUID
 	Active                 bool
 	ProviderSubscriptionID pgtype.Text
@@ -158,8 +158,8 @@ type DonationPayment struct {
 	DonationID      uuid.UUID
 	PaypalPaymentID string
 	AmountCents     int32
-	Created         DBTime
-	Updated         DBTime
+	Created         pgtype.Timestamptz
+	Updated         pgtype.Timestamptz
 }
 
 type DonationPlan struct {
@@ -170,8 +170,8 @@ type DonationPlan struct {
 	IntervalUnit  IntervalUnit
 	IntervalCount int32
 	Active        bool
-	Created       DBTime
-	Updated       DBTime
+	Created       pgtype.Timestamptz
+	Updated       pgtype.Timestamptz
 	FundID        uuid.UUID
 }
 
@@ -187,8 +187,8 @@ type Fund struct {
 	Principal       uuid.NullUUID
 	Expires         NullDBTime
 	NextPayment     DBTime
-	Created         DBTime
-	Updated         DBTime
+	Created         pgtype.Timestamptz
+	Updated         pgtype.Timestamptz
 }
 
 type Member struct {
@@ -203,8 +203,8 @@ type Member struct {
 	CognitoID       pgtype.Text
 	PaypalEmail     pgtype.Text
 	PostalCode      pgtype.Text
-	Created         DBTime
-	Updated         DBTime
+	Created         pgtype.Timestamptz
+	Updated         pgtype.Timestamptz
 	ProviderPayerID pgtype.Text
 	Active          bool
 }

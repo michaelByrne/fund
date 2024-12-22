@@ -12,8 +12,6 @@ import (
 	donationstore "boardfund/service/donations/store"
 	"boardfund/service/members"
 	memberstore "boardfund/service/members/store"
-	"boardfund/service/stats"
-	statsstore "boardfund/service/stats/store"
 	"boardfund/web/adminweb"
 	"boardfund/web/authweb"
 	"boardfund/web/homeweb"
@@ -184,7 +182,6 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 
 	donationStore := donationstore.NewDonationStore(pool)
 	memberStore := memberstore.NewMemberStore(pool)
-	statsStore := statsstore.NewStatsStore(pool)
 	sessionManager := scs.New()
 	sessionManager.Store = pgxstore.New(pool)
 
@@ -214,9 +211,8 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 	donationService := donations.NewDonationService(donationStore, paypalService, logger)
 	memberService := members.NewMemberService(memberStore, donationStore, authorizer, paypalService, logger)
 	authService := auth.NewAuthService(authorizer, memberStore, logger)
-	statsService := stats.NewStatsService(statsStore, logger)
 
-	donationHandlers := homeweb.NewFundHandlers(donationService, statsService, sessionManager, authMiddleware, logger, productID, paypalClientID)
+	donationHandlers := homeweb.NewFundHandlers(donationService, sessionManager, authMiddleware, logger, productID, paypalClientID)
 	authHandlers := authweb.NewAuthHandlers(authService, sessionManager, paypalClientID)
 	adminHandlers := adminweb.NewAdminHandlers(adminAuthMiddleware, memberService, donationService, sessionManager, paypalClientID)
 	webhooksHandlers := hooksweb.NewWebhooksHandlers(donationService, memberService, logger, webhookID)

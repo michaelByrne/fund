@@ -9,8 +9,8 @@ CREATE TABLE donation_plan
     interval_unit  interval_unit NOT NULL,
     interval_count int           NOT NULL,
     active         bool          NOT NULL DEFAULT false,
-    created        timestamp     NOT NULL DEFAULT now(),
-    updated        timestamp     NOT NULL DEFAULT now()
+    created        timestamptz   NOT NULL DEFAULT now(),
+    updated        timestamptz   NOT NULL DEFAULT now()
 );
 
 CREATE TABLE donation
@@ -20,8 +20,8 @@ CREATE TABLE donation
     donor_id          uuid         NOT NULL REFERENCES member (id),
     donation_plan_id  uuid REFERENCES donation_plan (id),
     provider_order_id varchar(200) NOT NULL,
-    created           timestamp    NOT NULL DEFAULT now(),
-    updated           timestamp    NOT NULL DEFAULT now()
+    created           timestamptz  NOT NULL DEFAULT now(),
+    updated           timestamptz  NOT NULL DEFAULT now()
 );
 
 CREATE TABLE donation_payment
@@ -30,6 +30,6 @@ CREATE TABLE donation_payment
     donation_id       uuid         NOT NULL REFERENCES donation (id),
     paypal_payment_id varchar(200) NOT NULL,
     amount_cents      int          NOT NULL,
-    created           timestamp    NOT NULL DEFAULT now(),
-    updated           timestamp    NOT NULL DEFAULT now()
+    created           timestamptz  NOT NULL DEFAULT now(),
+    updated           timestamptz  NOT NULL DEFAULT now()
 );

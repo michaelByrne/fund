@@ -19,13 +19,13 @@ document.addEventListener("htmx:confirm", function (e) {
 
     Swal.fire({
         text: e.detail.question,
-        background: '#c3dae4',
-        confirmButtonColor: "#e4cdc3",
+        background: '#FFE8D3',
+        confirmButtonColor: "#D8E0FF",
         confirmButtonText: "<span style='color: #333333'>do it</span>",
         position: 'top',
         showCancelButton: true,
         cancelButtonText: "<span style='color: #333333'>nah</span>",
-        cancelButtonColor: "#e4cdc3",
+        cancelButtonColor: "#D8E0FF",
         customClass: {
             confirmButton: 'deactivate-popup-button',
             cancelButton: 'deactivate-popup-button',

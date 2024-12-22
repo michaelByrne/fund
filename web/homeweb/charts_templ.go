@@ -8,9 +8,11 @@ package homeweb
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "boardfund/service/stats"
+import (
+	"boardfund/service/donations"
+)
 
-func MonthlyTotalsChart(fundStats stats.FundStats) templ.Component {
+func MonthlyTotalsChart(fundStats donations.FundStats) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

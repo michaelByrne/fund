@@ -22,6 +22,7 @@ type donationStore interface {
 	SetFundAndDonationsToActive(ctx context.Context, id uuid.UUID) ([]Donation, error)
 	SetDonationToActiveBySubscriptionID(ctx context.Context, id string) (*Donation, error)
 	GetActiveFunds(ctx context.Context) ([]Fund, error)
+	GetMonthlyDonationTotalsForFund(ctx context.Context, id uuid.UUID) ([]MonthTotal, error)
 }
 
 type paymentsProvider interface {
@@ -63,6 +64,17 @@ func (s DonationService) ListActiveFunds(ctx context.Context) ([]Fund, error) {
 		s.logger.Error("failed to get active funds", slog.String("error", err.Error()))
 
 		return nil, err
+	}
+
+	for _, fund := range funds {
+		monthly, err := s.donationStore.GetMonthlyDonationTotalsForFund(ctx, fund.ID)
+		if err != nil {
+			s.logger.Error("failed to get monthly donation totals for fund", slog.String("error", err.Error()))
+
+			return nil, err
+		}
+
+		fund.Stats.Monthly = monthly
 	}
 
 	return funds, nil
@@ -131,6 +143,15 @@ func (s DonationService) GetFundByID(ctx context.Context, id uuid.UUID) (*Fund, 
 
 		return nil, err
 	}
+
+	monthly, err := s.donationStore.GetMonthlyDonationTotalsForFund(ctx, fund.ID)
+	if err != nil {
+		s.logger.Error("failed to get monthly donation totals for fund", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	fund.Stats.Monthly = monthly
 
 	return fund, nil
 }
@@ -251,6 +272,7 @@ func (s DonationService) CreateFund(ctx context.Context, createFund Fund) (*Fund
 		ProviderID:      providerID,
 		PayoutFrequency: string(createFund.PayoutFrequency),
 		GoalCents:       createFund.GoalCents,
+		Expires:         createFund.Expires,
 		Active:          true,
 		ProviderName:    "paypal",
 	}

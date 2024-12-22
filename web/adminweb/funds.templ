@@ -21,8 +21,8 @@ templ Funds(funds []donations.Fund, member *members.Member, path string) {
 
 templ AddFund() {
 	<div class="w-full mx-auto max-w-md">
-		<h3 class="text-md font-semibold mt-2 mb-4 inline-block bg-[#c9e4c3] p-2">new fund</h3>
-		<form hx-post="/admin/fund" hx-swap="afterbegin" hx-target="#admin-funds" hx-target-error="this" class="w-[90%] p-4 bg-[#acccdb] border-y-2 border-[#ffd4a3]">
+		<h3 class="text-md font-semibold mt-2 mb-4 inline-block bg-high p-2">new fund</h3>
+		<form hx-post="/admin/fund" hx-swap="afterbegin" hx-target="#admin-funds" hx-target-error="this" class="w-[90%] p-4 bg-odd border-y-2 border-accent">
 			<div class="grid grid-cols-3 gap-4 mt-6">
 				<label for="name" class="col-span-1 text-left">name</label>
 				<input type="text" placeholder="human fund" required name="name" id="name" class="col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm"/>
@@ -51,7 +51,7 @@ templ AddFund() {
 			<div class="mt-6 flex justify-center">
 				<button
 					type="submit"
-					class="px-4 py-2 text-center text-md bg-stone-100 text-black hover:text-black hover:bg-[#e4cdc3] hover:font-medium hover:shadow-md"
+					class="px-4 py-2 text-center text-md bg-stone-100 text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md"
 				>
 					submit
 				</button>
@@ -62,8 +62,8 @@ templ AddFund() {
 
 templ FundsList(funds []donations.Fund) {
 	<div class="w-full mx-auto max-w-md h-full">
-		<h3 class="text-md font-semibold mt-2 mb-4 inline-block bg-[#c9e4c3] p-2">current funds</h3>
-		<ul id="admin-funds" class="max-w-[90%] max-h-[500px] overflow-y-auto border-[#ffd4a3] border-y-2">
+		<h3 class="text-md font-semibold mt-2 mb-4 bg-high inline-block p-2">current funds</h3>
+		<ul id="admin-funds" class="max-w-[90%] max-h-[500px] overflow-y-auto border-accent border-y-2">
 			for _, fund := range funds {
 				@FundRow(fund)
 			}
@@ -73,7 +73,7 @@ templ FundsList(funds []donations.Fund) {
 
 templ FundRow(fund donations.Fund) {
 	<li
-		class="clickable fund-row p-2 flex flex-col md:flex-row md:items-center gap-2 odd:bg-[#acccdb] odd:hover:bg-[#dbbbac] even:hover:bg-[#e4cdc3]"
+		class="clickable fund-row p-2 flex flex-col md:flex-row md:items-center gap-2 odd:bg-odd odd:hover:bg-odd-hover even:hover:bg-even-hover"
 		hx-get={ fmt.Sprintf("/donate/%s", fund.ID.String()) }
 	>
 		<div class="flex items-center w-full">

@@ -29,6 +29,7 @@ type Fund struct {
 	NextPayment     time.Time       `json:"next_payment"`
 	Created         time.Time       `json:"created"`
 	Updated         time.Time       `json:"updated"`
+	Stats           FundStats       `json:"stats"`
 }
 
 type InsertFund struct {
@@ -197,4 +198,17 @@ type InsertDonationPayment struct {
 type CreateOrderResponse struct {
 	OrderID     string `json:"order_id"`
 	ApprovalURL string `json:"approval_url"`
+}
+
+type FundStats struct {
+	TotalDonated    int32
+	TotalDonations  int32
+	AverageDonation int32
+	TotalDonors     int32
+	Monthly         []MonthTotal
+}
+
+type MonthTotal struct {
+	MonthYear  string `json:"month"`
+	TotalCents int32  `json:"amount"`
 }

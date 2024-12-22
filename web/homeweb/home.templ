@@ -10,7 +10,7 @@ import (
 )
 
 templ FundsTitle() {
-	<h2 class="font-semibold text-lg p-2 inline-block bg-[#c9e4c3] mt-4 mx-4">current active funds</h2>
+	<h2 class="font-semibold text-lg p-2 inline-block underline underline-offset-4 mt-4 mx-4">current active funds</h2>
 }
 
 templ Funds(funds []donations.Fund, member *members.Member, path string) {
@@ -23,7 +23,7 @@ templ Funds(funds []donations.Fund, member *members.Member, path string) {
 						<tr>
 							<th class="p-2 text-left font-semibold w-[22%]">name</th>
 							<th class="p-2 text-left font-semibold w-[12%]">donors</th>
-							<th class="p-2 text-left font-semibold w-[12%]">commitment</th>
+							<th class="p-2 text-left font-semibold w-[12%]">donated</th>
 							<th class="p-2 text-left font-semibold w-[12%]">goal</th>
 							<th class="p-2 text-left font-semibold w-[12%]">frequency</th>
 							<th class="p-2 text-left font-semibold w-[15%]">expires</th>
@@ -33,11 +33,11 @@ templ Funds(funds []donations.Fund, member *members.Member, path string) {
 						for _, fund := range funds {
 							<tr
 								hx-get={ fmt.Sprintf("/donate/%s", fund.ID.String()) }
-								class="clickable odd:bg-[#acccdb] odd:hover:bg-[#dbbbac] even:bg-[#c3dae4] even:hover:bg-[#e4cdc3]"
+								class="clickable odd:bg-odd odd:hover:bg-odd-hover even:bg-even even:hover:bg-even-hover"
 							>
 								<td class="p-2">{ fund.Name }</td>
-								<td class="p-2">3</td>
-								<td class="p-2">$666</td>
+								<td class="p-2">{ fmt.Sprintf("%d", fund.Stats.TotalDonors) }</td>
+								<td class="p-2">${ centsToDecimalString(fund.Stats.TotalDonated) }</td>
 								@TableGoal(fund.GoalCents)
 								<td class="p-2">{ string(fund.PayoutFrequency) }</td>
 								@TableExpires(fund.Expires)
@@ -49,7 +49,7 @@ templ Funds(funds []donations.Fund, member *members.Member, path string) {
 					for _, fund := range funds {
 						<div
 							hx-get={ fmt.Sprintf("/donate/%s", fund.ID.String()) }
-							class="clickable mb-4 p-4 bg-[#f7f7f7] odd:bg-[#acccdb] even:bg-[#c3dae4] hover:bg-[#dbbbac]"
+							class="clickable mb-4 p-4 odd:bg-odd even:bg-even odd:hover:bg-odd-hover"
 						>
 							<p class="font-semibold text-lg mb-2">{ fund.Name }</p>
 							<div class="text-sm">

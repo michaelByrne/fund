@@ -34,7 +34,7 @@ func Head() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<head><title>BCO Mutual Aid</title><link rel=\"icon\" type=\"image/x-icon\" href=\"/static/favicon.ico\"><link rel=\"stylesheet\" href=\"/static/styles.css\"><script type=\"application/javascript\" src=\"/static/htmx.min.js\"></script><script type=\"application/javascript\" src=\"/static/responsetargets.js\"></script><script src=\"https://cdn.jsdelivr.net/npm/sweetalert2@11\"></script><script type=\"application/javascript\" src=\"/static/surreal.js\"></script><script src=\"https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js\"></script><script type=\"application/javascript\" src=\"/static/shared.js\"></script><script type=\"application/javascript\" src=\"/static/paypalmodal.js\"></script></head>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<head><title>BCO Mutual Aid</title><link rel=\"icon\" type=\"image/x-icon\" href=\"/static/favicon.ico\"><link rel=\"stylesheet\" href=\"/static/styles.css\"><script type=\"application/javascript\" src=\"/static/htmx.min.js\"></script><script type=\"application/javascript\" src=\"/static/responsetargets.js\"></script><script src=\"https://cdn.jsdelivr.net/npm/sweetalert2@11\"></script><script type=\"application/javascript\" src=\"/static/surreal.js\"></script><script src=\"https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js\"></script><script type=\"application/javascript\" src=\"/static/shared.js\"></script></head>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -63,11 +63,15 @@ func Layout(member *members.Member, path string) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<html data-theme=\"hot\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
 		templ_7745c5c3_Err = Head().Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<body class=\"bg-[#333333] font-bco text-sm\"><div class=\"flex flex-col\"><div class=\"flex flex-row justify-between items-center w-[90%] mx-auto my-2\"><h1 class=\"text-xl font-bold text-white text-shadow shadow-[#808080]\"><a href=\"/\">elitism. secrecy. redistribution.</a></h1>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<body class=\"bg-back font-bco text-sm\"><div class=\"flex flex-col min-h-[75%]\"><div class=\"flex flex-row justify-between items-center w-[90%] mx-auto my-2\"><h1 class=\"text-xl font-bold text-title/90 text-shadow shadow-[#788f99]\"><a href=\"/\">elitism. secrecy. redistribution.</a></h1>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -75,7 +79,7 @@ func Layout(member *members.Member, path string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div><div id=\"donation\" class=\"bg-[#c3dae4] w-[90%] shadow-blue-boxy min-h-[0] mx-auto flex-grow\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div><div id=\"donation\" class=\"bg-even w-[90%] shadow-blue-boxy mx-auto flex-grow\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -83,7 +87,7 @@ func Layout(member *members.Member, path string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div></body>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -116,7 +120,7 @@ func Links(member *members.Member, currentPath string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var4 = []any{"hover:text-gray-500 text-gray-200", templ.KV("text-gray-500 disabled", currentPath == "/about")}
+		var templ_7745c5c3_Var4 = []any{"hover:text-gray-500 text-links", templ.KV("link-disabled", currentPath == "/about")}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var4...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -144,7 +148,7 @@ func Links(member *members.Member, currentPath string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var6 = []any{"hover:text-gray-500 text-gray-200", templ.KV("text-gray-500 disabled", strings.HasPrefix(currentPath, "/admin"))}
+				var templ_7745c5c3_Var6 = []any{"hover:text-gray-500 text-links", templ.KV("link-disabled", strings.HasPrefix(currentPath, "/admin"))}
 				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var6...)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -167,7 +171,7 @@ func Links(member *members.Member, currentPath string) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" <span class=\"text-xs hover:text-gray-500 text-gray-200 order-3 ml-1\"><a href=\"/logout\">logout</a></span>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" <span class=\"text-xs hover:text-gray-500 text-links order-3 ml-1\"><a href=\"/logout\">logout</a></span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -208,7 +212,7 @@ func SectionTitle(title string) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 55, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 56, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -255,14 +259,14 @@ func ErrorMessage(member *members.Member, message, link, currentPath string) tem
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"mx-auto bg-[#e4cdc3] p-4 text-md flex\"><span class=\"text-gray-900\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"mx-auto bg-odd-hover p-4 text-md flex\"><span class=\"text-gray-900\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(message)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 61, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 62, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -299,6 +303,16 @@ func ErrorMessage(member *members.Member, message, link, currentPath string) tem
 		}
 		return templ_7745c5c3_Err
 	})
+}
+
+func buildClass(baseClasses string, conditions map[string]bool) string {
+	classes := []string{baseClasses}
+	for className, condition := range conditions {
+		if condition {
+			classes = append(classes, className)
+		}
+	}
+	return strings.Join(classes, " ")
 }
 
 var _ = templruntime.GeneratedTemplate

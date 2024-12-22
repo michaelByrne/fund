@@ -18,7 +18,7 @@ templ Admin(member *members.Member, path string) {
 						<a href="/admin/funds" class={ "hover:underline text-gray-800", templ.KV("text-stone-900 font-medium underline disabled", path == "/admin/funds") }>funds</a>
 					</span>
 				</div>
-				<hr class="border-[#acccdb]"/>
+				<hr class="border-[#acccdb] "/>
 				<div class="flex flex-col flex-grow overflow-hidden">
 					{ children... }
 				</div>

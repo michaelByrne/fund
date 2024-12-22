@@ -13,8 +13,8 @@ CREATE TABLE member
     cognito_id   varchar(100),
     paypal_email varchar(100),
     postal_code  varchar(10),
-    created      timestamp    NOT NULL DEFAULT now(),
-    updated      timestamp    NOT NULL DEFAULT now()
+    created      timestamptz  NOT NULL DEFAULT now(),
+    updated      timestamptz  NOT NULL DEFAULT now()
 );
 
 CREATE OR REPLACE FUNCTION apply_default_if_no_role()

@@ -33,7 +33,13 @@ func (s DonationStore) GetTotalDonatedByMemberID(ctx context.Context, id uuid.UU
 func (s DonationStore) GetActiveFunds(ctx context.Context) ([]donations.Fund, error) {
 	query := s.queries.GetActiveFunds
 
-	return pg.FetchAll(ctx, query, fromDBFund)
+	return pg.FetchAll(ctx, query, fromDBFundRow)
+}
+
+func (s DonationStore) GetMonthlyDonationTotalsForFund(ctx context.Context, id uuid.UUID) ([]donations.MonthTotal, error) {
+	query := s.queries.GetMonthlyTotalsByFund
+
+	return pg.FetchMany(ctx, id, query, fromDBMonthlyDonationTotal)
 }
 
 func (s DonationStore) SetDonationToActiveBySubscriptionID(ctx context.Context, id string) (*donations.Donation, error) {
@@ -145,7 +151,7 @@ func (s DonationStore) GetFunds(ctx context.Context) ([]donations.Fund, error) {
 func (s DonationStore) GetFundByID(ctx context.Context, id uuid.UUID) (*donations.Fund, error) {
 	query := s.queries.GetFundById
 
-	return pg.FetchOne(ctx, id, query, fromDBFund)
+	return pg.FetchOne(ctx, id, query, fromDBFundByID)
 }
 
 func (s DonationStore) UpdateFund(ctx context.Context, fund donations.UpdateFund) (*donations.Fund, error) {

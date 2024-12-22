@@ -150,8 +150,8 @@ type GetMemberWithDonationsRow struct {
 	CognitoID       pgtype.Text
 	PaypalEmail     pgtype.Text
 	PostalCode      pgtype.Text
-	Created         DBTime
-	Updated         DBTime
+	Created         pgtype.Timestamptz
+	Updated         pgtype.Timestamptz
 	ProviderPayerID pgtype.Text
 	Active          bool
 	Donations       interface{}

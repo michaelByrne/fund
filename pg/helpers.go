@@ -1,6 +1,7 @@
 package pg
 
 import (
+	"boardfund/db"
 	"context"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -133,6 +134,10 @@ func GetDBPool(dbURI string) (*pgxpool.Pool, error) {
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		for _, t := range customTypes {
 			conn.TypeMap().RegisterType(t)
+			conn.TypeMap().RegisterDefaultPgType(&db.DBTime{}, "timestamptz")
+			conn.TypeMap().RegisterDefaultPgType(&db.NullDBTime{}, "timestamptz")
+			conn.TypeMap().RegisterDefaultPgType(db.DBTime{}, "timestamptz")
+			conn.TypeMap().RegisterDefaultPgType(db.NullDBTime{}, "timestamptz")
 		}
 		return nil
 	}

@@ -3,7 +3,6 @@ package homeweb
 import (
 	"boardfund/service/donations"
 	"boardfund/service/members"
-	"boardfund/service/stats"
 	"boardfund/web/common"
 	"boardfund/web/mux"
 	"encoding/json"
@@ -21,7 +20,6 @@ const internalErrMessage = "internal error"
 
 type FundHandlers struct {
 	donationService *donations.DonationService
-	statsService    *stats.StatsService
 	sessionManager  *scs.SessionManager
 	withAuth        func(http.HandlerFunc) http.HandlerFunc
 	logger          *slog.Logger
@@ -31,7 +29,6 @@ type FundHandlers struct {
 
 func NewFundHandlers(
 	donationService *donations.DonationService,
-	statsService *stats.StatsService,
 	sessionManager *scs.SessionManager,
 	withAuth func(http.HandlerFunc) http.HandlerFunc,
 	logger *slog.Logger,
@@ -39,7 +36,6 @@ func NewFundHandlers(
 ) *FundHandlers {
 	return &FundHandlers{
 		donationService: donationService,
-		statsService:    statsService,
 		sessionManager:  sessionManager,
 		withAuth:        withAuth,
 		logger:          logger,
@@ -250,16 +246,8 @@ func (h *FundHandlers) donate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fundStats, err := h.statsService.GetFundStats(ctx, fundID)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
-
-		return
-	}
-
 	w.Header().Set("HX-Redirect", r.URL.Path)
-	Fund(*fund, *fundStats, &member, r.URL.Path).Render(ctx, w)
+	Fund(*fund, fund.Stats, &member, r.URL.Path).Render(ctx, w)
 }
 
 func (h *FundHandlers) ping(w http.ResponseWriter, r *http.Request) {

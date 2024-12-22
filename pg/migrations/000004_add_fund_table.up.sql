@@ -11,10 +11,10 @@ CREATE TABLE fund
     payout_frequency payout_frequency NOT NULL,
     active           bool             NOT NULL DEFAULT true,
     principal        uuid REFERENCES member (id),
-    expires          timestamp,
-    next_payment     timestamp        NOT NULL,
-    created          timestamp        NOT NULL DEFAULT now(),
-    updated          timestamp        NOT NULL DEFAULT now()
+    expires          timestamptz,
+    next_payment     timestamptz,
+    created          timestamptz        NOT NULL DEFAULT now(),
+    updated          timestamptz        NOT NULL DEFAULT now()
 );
 
 CREATE OR REPLACE FUNCTION set_expires_default()

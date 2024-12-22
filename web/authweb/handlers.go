@@ -4,7 +4,6 @@ import (
 	"boardfund/service/auth"
 	"boardfund/web/common"
 	"boardfund/web/mux"
-	"github.com/a-h/templ"
 	"github.com/alexedwards/scs/v2"
 	"net/http"
 	"time"
@@ -92,7 +91,8 @@ func (h AuthHandlers) loginPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if isHx(r) {
-		templ.Handler(Login()).Component.Render(ctx, w)
+		w.Header().Set("HX-Redirect", "/login")
+		Login().Render(ctx, w)
 
 		return
 	}

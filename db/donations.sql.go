@@ -13,22 +13,60 @@ import (
 )
 
 const getActiveFunds = `-- name: GetActiveFunds :many
-SELECT id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated
-FROM fund
-WHERE active = true
-AND expires > now() OR expires IS NULL
-ORDER BY created DESC
+WITH FundStats AS (SELECT fund_id,
+                          COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+                          COUNT(*)                                AS total_donations,
+                          CASE
+                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+                              ELSE 0
+                              END                                 AS average_donation,
+                          COUNT(DISTINCT donor_id)                AS total_donors
+                   FROM donation
+                            JOIN member m ON donation.donor_id = m.id
+                            LEFT JOIN donation_payment dp ON donation.id = dp.donation_id
+                   GROUP BY fund_id)
+SELECT f.id, f.name, f.description, f.provider_id, f.provider_name, f.goal_cents, f.payout_frequency, f.active, f.principal, f.expires, f.next_payment, f.created, f.updated,
+       fs.total_donated,
+       fs.total_donations,
+       fs.average_donation,
+       fs.total_donors
+FROM fund f
+         LEFT JOIN FundStats fs ON f.id = fs.fund_id
+WHERE f.active = true
+  AND (f.expires IS NULL OR f.expires > NOW())
+GROUP BY f.id, f.name, f.active, f.expires, f.created, fs.total_donated, fs.total_donations, fs.average_donation,
+         fs.total_donors
 `
 
-func (q *Queries) GetActiveFunds(ctx context.Context) ([]Fund, error) {
+type GetActiveFundsRow struct {
+	ID              uuid.UUID
+	Name            string
+	Description     string
+	ProviderID      string
+	ProviderName    string
+	GoalCents       pgtype.Int4
+	PayoutFrequency PayoutFrequency
+	Active          bool
+	Principal       uuid.NullUUID
+	Expires         NullDBTime
+	NextPayment     DBTime
+	Created         pgtype.Timestamptz
+	Updated         pgtype.Timestamptz
+	TotalDonated    pgtype.Int4
+	TotalDonations  pgtype.Int8
+	AverageDonation pgtype.Int4
+	TotalDonors     pgtype.Int8
+}
+
+func (q *Queries) GetActiveFunds(ctx context.Context) ([]GetActiveFundsRow, error) {
 	rows, err := q.db.Query(ctx, getActiveFunds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Fund
+	var items []GetActiveFundsRow
 	for rows.Next() {
-		var i Fund
+		var i GetActiveFundsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -43,6 +81,10 @@ func (q *Queries) GetActiveFunds(ctx context.Context) ([]Fund, error) {
 			&i.NextPayment,
 			&i.Created,
 			&i.Updated,
+			&i.TotalDonated,
+			&i.TotalDonations,
+			&i.AverageDonation,
+			&i.TotalDonors,
 		); err != nil {
 			return nil, err
 		}
@@ -303,14 +345,51 @@ func (q *Queries) GetDonationsByMemberPaypalEmail(ctx context.Context, paypalEma
 }
 
 const getFundById = `-- name: GetFundById :one
-SELECT id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated
-FROM fund
-WHERE id = $1
+WITH FundStats AS (SELECT fund_id,
+                          COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+                          COUNT(*)                                AS total_donations,
+                          CASE
+                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+                              ELSE 0
+                              END                                 AS average_donation,
+                          COUNT(DISTINCT donor_id)                AS total_donors
+                   FROM donation
+                            JOIN member m ON donation.donor_id = m.id
+                            LEFT JOIN donation_payment dp ON donation.id = dp.donation_id
+                   GROUP BY fund_id)
+SELECT f.id, f.name, f.description, f.provider_id, f.provider_name, f.goal_cents, f.payout_frequency, f.active, f.principal, f.expires, f.next_payment, f.created, f.updated,
+       fs.total_donated,
+       fs.total_donations,
+       fs.average_donation,
+       fs.total_donors
+FROM fund f
+         LEFT JOIN FundStats fs ON f.id = fs.fund_id
+WHERE f.id = $1
 `
 
-func (q *Queries) GetFundById(ctx context.Context, id uuid.UUID) (Fund, error) {
+type GetFundByIdRow struct {
+	ID              uuid.UUID
+	Name            string
+	Description     string
+	ProviderID      string
+	ProviderName    string
+	GoalCents       pgtype.Int4
+	PayoutFrequency PayoutFrequency
+	Active          bool
+	Principal       uuid.NullUUID
+	Expires         NullDBTime
+	NextPayment     DBTime
+	Created         pgtype.Timestamptz
+	Updated         pgtype.Timestamptz
+	TotalDonated    pgtype.Int4
+	TotalDonations  pgtype.Int8
+	AverageDonation pgtype.Int4
+	TotalDonors     pgtype.Int8
+}
+
+func (q *Queries) GetFundById(ctx context.Context, id uuid.UUID) (GetFundByIdRow, error) {
 	row := q.db.QueryRow(ctx, getFundById, id)
-	var i Fund
+	var i GetFundByIdRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -325,6 +404,10 @@ func (q *Queries) GetFundById(ctx context.Context, id uuid.UUID) (Fund, error) {
 		&i.NextPayment,
 		&i.Created,
 		&i.Updated,
+		&i.TotalDonated,
+		&i.TotalDonations,
+		&i.AverageDonation,
+		&i.TotalDonors,
 	)
 	return i, err
 }
@@ -359,6 +442,42 @@ func (q *Queries) GetFunds(ctx context.Context) ([]Fund, error) {
 			&i.Created,
 			&i.Updated,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getMonthlyDonationTotalsForFund = `-- name: GetMonthlyDonationTotalsForFund :many
+SELECT sum(amount_cents)               as total_donated,
+       date_trunc('month', dp.created) as month
+FROM donation d
+         JOIN donation_payment dp on d.id = dp.donation_id
+WHERE fund_id = $1
+  AND active = true
+  AND d.recurring = true
+group by dp.created
+`
+
+type GetMonthlyDonationTotalsForFundRow struct {
+	TotalDonated int64
+	Month        pgtype.Interval
+}
+
+func (q *Queries) GetMonthlyDonationTotalsForFund(ctx context.Context, fundID uuid.UUID) ([]GetMonthlyDonationTotalsForFundRow, error) {
+	rows, err := q.db.Query(ctx, getMonthlyDonationTotalsForFund, fundID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetMonthlyDonationTotalsForFundRow
+	for rows.Next() {
+		var i GetMonthlyDonationTotalsForFundRow
+		if err := rows.Scan(&i.TotalDonated, &i.Month); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -566,7 +685,7 @@ const insertFund = `-- name: InsertFund :one
 INSERT INTO fund (id, name, description, provider_id, provider_name, active, payout_frequency, goal_cents, expires,
                   principal, next_payment)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        (CASE WHEN $7::payout_frequency = 'monthly' THEN (SELECT now() + INTERVAL '1 month') ELSE $9::timestamp END))
+        (CASE WHEN $7::payout_frequency = 'monthly' THEN (SELECT now() + INTERVAL '1 month') ELSE $9::timestamptz END))
 RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated
 `
 

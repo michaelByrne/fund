@@ -16,9 +16,17 @@ sql:
             go_type:
               type: "Donation"
               slice: true
-          - db_type: "pg_catalog.timestamp"
+          - column: "public.fund.expires"
+            nullable: true
+            go_type:
+              type: "NullDBTime"
+          - column: "public.fund.next_payment"
             go_type:
               type: "DBTime"
+          - db_type: "pg_catalog.timestamptz"
+            nullable: true
+            go_type:
+              type: "NullDBTime"
           - db_type: "pg_catalog.timestamp"
             nullable: true
             go_type:

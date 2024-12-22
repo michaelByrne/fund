@@ -6,7 +6,18 @@ module.exports = {
     theme: {
         extend: {
             colors: {
-                'peach': '#ffd4a3',  // Define a custom color
+                'even': 'rgb(var(--color-even), <alpha-value>)',
+                'even-hover': 'rgb(var(--color-even-hover), <alpha-value>)',
+                'odd': 'rgb(var(--color-odd), <alpha-value>)',
+                'odd-hover': 'rgb(var(--color-odd-hover), <alpha-value>)',
+                'high': 'rgb(var(--color-high), <alpha-value>)',
+                'peak': 'rgb(var(--color-peak), <alpha-value>)',
+                'back': 'rgb(var(--color-back), <alpha-value>)',
+                'title': 'rgb(var(--color-title), <alpha-value>)',
+                'links': 'rgb(var(--color-links), <alpha-value>)',
+                'disabled': 'rgb(var(--color-disabled), <alpha-value>)',
+                'accent': 'rgb(var(--color-accent), <alpha-value>)',
+                'button-hover': 'rgb(var(--color-button-hover), <alpha-value>)',
             },
             textShadow: {
                 DEFAULT: '1px 1px 0px var(--tw-shadow-color)',

@@ -101,7 +101,7 @@ RETURNING *;
 INSERT INTO fund (id, name, description, provider_id, provider_name, active, payout_frequency, goal_cents, expires,
                   principal, next_payment)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        (CASE WHEN $7::payout_frequency = 'monthly' THEN (SELECT now() + INTERVAL '1 month') ELSE $9::timestamp END))
+        (CASE WHEN $7::payout_frequency = 'monthly' THEN (SELECT now() + INTERVAL '1 month') ELSE $9::timestamptz END))
 RETURNING *;
 
 -- name: UpdateFund :one
@@ -123,9 +123,27 @@ FROM fund
 ORDER BY created;
 
 -- name: GetFundById :one
-SELECT *
-FROM fund
-WHERE id = $1;
+WITH FundStats AS (SELECT fund_id,
+                          COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+                          COUNT(*)                                AS total_donations,
+                          CASE
+                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+                              ELSE 0
+                              END                                 AS average_donation,
+                          COUNT(DISTINCT donor_id)                AS total_donors
+                   FROM donation
+                            JOIN member m ON donation.donor_id = m.id
+                            LEFT JOIN donation_payment dp ON donation.id = dp.donation_id
+                   GROUP BY fund_id)
+SELECT f.*,
+       fs.total_donated,
+       fs.total_donations,
+       fs.average_donation,
+       fs.total_donors
+FROM fund f
+         LEFT JOIN FundStats fs ON f.id = fs.fund_id
+WHERE f.id = $1;
+
 
 -- name: SetFundToInactive :one
 UPDATE fund
@@ -160,11 +178,40 @@ WHERE provider_subscription_id = $1
 RETURNING *;
 
 -- name: GetActiveFunds :many
-SELECT *
-FROM fund
-WHERE active = true
-AND expires > now() OR expires IS NULL
-ORDER BY created DESC;
+WITH FundStats AS (SELECT fund_id,
+                          COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+                          COUNT(*)                                AS total_donations,
+                          CASE
+                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+                              ELSE 0
+                              END                                 AS average_donation,
+                          COUNT(DISTINCT donor_id)                AS total_donors
+                   FROM donation
+                            JOIN member m ON donation.donor_id = m.id
+                            LEFT JOIN donation_payment dp ON donation.id = dp.donation_id
+                   GROUP BY fund_id)
+SELECT f.*,
+       fs.total_donated,
+       fs.total_donations,
+       fs.average_donation,
+       fs.total_donors
+FROM fund f
+         LEFT JOIN FundStats fs ON f.id = fs.fund_id
+WHERE f.active = true
+  AND (f.expires IS NULL OR f.expires > NOW())
+GROUP BY f.id, f.name, f.active, f.expires, f.created, fs.total_donated, fs.total_donations, fs.average_donation,
+         fs.total_donors;
+
+
+-- name: GetMonthlyDonationTotalsForFund :many
+SELECT sum(amount_cents)               as total_donated,
+       date_trunc('month', dp.created) as month
+FROM donation d
+         JOIN donation_payment dp on d.id = dp.donation_id
+WHERE fund_id = $1
+  AND active = true
+  AND d.recurring = true
+group by dp.created;
 
 -- name: GetTotalDonatedByMember :one
 SELECT sum(amount_cents)

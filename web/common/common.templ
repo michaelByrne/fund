@@ -16,37 +16,38 @@ templ Head() {
 		<script type="application/javascript" src="/static/surreal.js"></script>
 		<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 		<script type="application/javascript" src="/static/shared.js"></script>
-		<script type="application/javascript" src="/static/paypalmodal.js"></script>
 	</head>
 }
 
 templ Layout(member *members.Member, path string) {
-	@Head()
-	<body class="bg-[#333333] font-bco text-sm">
-		<div class="flex flex-col">
-			<div class="flex flex-row justify-between items-center w-[90%] mx-auto my-2">
-				<h1 class="text-xl font-bold text-white text-shadow shadow-[#808080]"><a href="/">elitism. secrecy. redistribution.</a></h1>
-				@Links(member, path)
+	<html data-theme="hot">
+		@Head()
+		<body class="bg-back font-bco text-sm">
+			<div class="flex flex-col min-h-[75%]">
+				<div class="flex flex-row justify-between items-center w-[90%] mx-auto my-2">
+					<h1 class="text-xl font-bold text-title/90 text-shadow shadow-[#788f99]"><a href="/">elitism. secrecy. redistribution.</a></h1>
+					@Links(member, path)
+				</div>
+				<div id="donation" class="bg-even w-[90%] shadow-blue-boxy mx-auto flex-grow">
+					{ children... }
+				</div>
 			</div>
-			<div id="donation" class="bg-[#c3dae4] w-[90%] shadow-blue-boxy min-h-[0] mx-auto flex-grow">
-				{ children... }
-			</div>
-		</div>
-	</body>
+		</body>
+	</html>
 }
 
 templ Links(member *members.Member, currentPath string) {
 	<span class="order-last justify-self">
 		<span class="text-xs order-2 ml-1">
-			<a href="/about" class={ "hover:text-gray-500 text-gray-200", templ.KV("text-gray-500 disabled", currentPath == "/about") }>about</a>
+			<a href="/about" class={ "hover:text-gray-500 text-links", templ.KV("link-disabled", currentPath == "/about") }>about</a>
 		</span>
 		if member != nil {
 			if member.IsAdmin() {
 				<span class="text-xs order-4 ml-1">
-					<a href="/admin" class={ "hover:text-gray-500 text-gray-200", templ.KV("text-gray-500 disabled", strings.HasPrefix(currentPath, "/admin")) }>admin</a>
+					<a href="/admin" class={ "hover:text-gray-500 text-links", templ.KV("link-disabled", strings.HasPrefix(currentPath, "/admin")) }>admin</a>
 				</span>
 			}
-			<span class="text-xs hover:text-gray-500 text-gray-200 order-3 ml-1"><a href="/logout">logout</a></span>
+			<span class="text-xs hover:text-gray-500 text-links order-3 ml-1"><a href="/logout">logout</a></span>
 		}
 	</span>
 }
@@ -57,7 +58,7 @@ templ SectionTitle(title string) {
 
 templ ErrorMessage(member *members.Member, message, link, currentPath string) {
 	@Layout(member, currentPath) {
-		<div class="mx-auto bg-[#e4cdc3] p-4 text-md flex">
+		<div class="mx-auto bg-odd-hover p-4 text-md flex">
 			<span class="text-gray-900">{ message }</span>
 			if link != "" {
 				<a href={ templ.SafeURL(link) } class="text-blue-400 text-sm ml-auto hover:text-blue-800">try again</a>
@@ -65,3 +66,14 @@ templ ErrorMessage(member *members.Member, message, link, currentPath string) {
 		</div>
 	}
 }
+
+func buildClass(baseClasses string, conditions map[string]bool) string {
+    classes := []string{baseClasses}
+    for className, condition := range conditions {
+        if condition {
+            classes = append(classes, className)
+        }
+    }
+    return strings.Join(classes, " ")
+}
+

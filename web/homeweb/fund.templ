@@ -3,7 +3,6 @@ package homeweb
 import (
 	"boardfund/service/donations"
 	"boardfund/service/members"
-	"boardfund/service/stats"
 	"boardfund/web/common"
 	"fmt"
 	"time"
@@ -16,14 +15,14 @@ func donationURL(freq donations.PayoutFrequency) string {
 	return "/donation/once"
 }
 
-templ Fund(fund donations.Fund, fundStats stats.FundStats, member *members.Member, path string) {
+templ Fund(fund donations.Fund, fundStats donations.FundStats, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div id="donation-form" class="p-5 mt-2">
 			@Title(fund.Name)
 			@DonationForm(fund)
-			<hr class="border-[#acccdb]"/>
+			<hr class="border-odd "/>
 			@Description(fund.Description)
-			<hr class="border-[#acccdb]"/>
+			<hr class="border-odd "/>
 			<div class="grid grid-cols-1 md:grid-cols-3 gap-2">
 				@FundStatus(fund, fundStats)
 				if len(fundStats.Monthly) > 0 {
@@ -42,7 +41,7 @@ templ Fund(fund donations.Fund, fundStats stats.FundStats, member *members.Membe
 templ DonationForm(fund donations.Fund) {
 	<form hx-post={ donationURL(fund.PayoutFrequency) } hx-target="#donation-form">
 		<input type="hidden" name="fund" value={ fund.ID.String() }/>
-		<div class="initials inline-flex bg-[#c9e4c3] sm:flex-row flex-col">
+		<div class="initials inline-flex bg-high sm:flex-row flex-col">
 			<div class="space-x-2 flex items-center relative pl-4 sm:pr-0 pr-4 sm:py-4 py-1">
 				<span>I would like to give $</span>
 				<div style="margin-left: 0px">
@@ -56,7 +55,7 @@ templ DonationForm(fund donations.Fund) {
 		<div class="btn mt-6 w-[100%] bg-transparent items-center">
 			<button
 				type="submit"
-				class="px-4 py-2 mx-auto text-center text-md bg-stone-100 text-black hover:text-black hover:bg-[#e4cdc3] hover:font-medium hover:shadow-md"
+				class="px-4 py-2 mx-auto text-center text-md bg-stone-100 text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md"
 			>
 				pay that shit
 			</button>
@@ -91,7 +90,7 @@ templ Frequency(freq donations.PayoutFrequency) {
 templ Description(text string) {
 	<div class="w-full my-2">
 		<div class="text-md font-semibold pl-2 pb-3">about</div>
-		<div class="font-medium italic p-2 bg-[#acccdb] inline-block">{ text }</div>
+		<div class="font-medium italic p-2 bg-odd inline-block">{ text }</div>
 	</div>
 }
 
@@ -99,7 +98,7 @@ templ Title(text string) {
 	<h2 class="font-semibold text-lg p-2">donate to <span class="underline underline-offset-4 decoration-[#333333]">{ text }</span></h2>
 }
 
-templ FundStatus(fund donations.Fund, fundStats stats.FundStats) {
+templ FundStatus(fund donations.Fund, fundStats donations.FundStats) {
 	<div class="col-span-1 my-2">
 		@common.SectionTitle("fund status")
 		<ul class="list-none mt-2">
@@ -119,7 +118,7 @@ templ USD(amountCents int32) {
 }
 
 templ StatusItem(content templ.Component, title string) {
-	<li class="p-2 odd:bg-[#acccdb] flex sm:flex-row flex-col">
+	<li class="p-2 odd:bg-odd flex sm:flex-row flex-col">
 		<span class="font-semibold text-sm pr-2 text-gray-700">
 			{ title }:
 		</span>
