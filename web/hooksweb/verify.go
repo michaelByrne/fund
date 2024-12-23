@@ -60,7 +60,6 @@ func verifySignature(r *http.Request, webhookID string) error {
 	}
 
 	body := r.Body
-	defer body.Close()
 
 	bodyBytes, err := io.ReadAll(body)
 	if err != nil {

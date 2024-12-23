@@ -48,6 +48,8 @@ func (h WebhooksHandlers) webhooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	defer r.Body.Close()
+
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		h.logger.Error("failed to read webhook request body", slog.String("error", err.Error()))
