@@ -60,7 +60,8 @@ func (h WebhooksHandlers) webhooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.publisher.Publish(event.eventType, event.resource)
+	fmt.Printf("Webhook event type: %s\n", event.EventType)
+	err = h.publisher.Publish(event.EventType, event.Resource)
 	if err != nil {
 		h.logger.Error("failed to publish event", slog.String("error", err.Error()))
 	}
@@ -69,6 +70,6 @@ func (h WebhooksHandlers) webhooks(w http.ResponseWriter, r *http.Request) {
 }
 
 type webhookEvent struct {
-	eventType string `json:"event_type"`
-	resource  []byte `json:"resource"`
+	EventType string `json:"event_type"`
+	Resource  []byte `json:"resource"`
 }

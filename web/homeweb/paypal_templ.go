@@ -275,14 +275,14 @@ func DonationConfirmation(amount, interval, fundName string) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if interval == "once" {
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<h4 class=\"mb-2 mx-auto my-2 text-lg bg-odd p-2 font-semibold\">I am giving $")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<h4 class=\"mb-2 mx-auto my-2 text-lg bg-high p-2 font-semibold\">I am giving $")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(amount)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/paypal.templ`, Line: 42, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/paypal.templ`, Line: 42, Col: 87}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -295,7 +295,7 @@ func DonationConfirmation(amount, interval, fundName string) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fundName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/paypal.templ`, Line: 42, Col: 107}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/paypal.templ`, Line: 42, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -306,14 +306,14 @@ func DonationConfirmation(amount, interval, fundName string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<h4 class=\"mb-2 mx-auto my-2 text-lg bg-odd p-2 font-semibold\">I am giving $")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<h4 class=\"mb-2 mx-auto my-2 text-lg bg-high p-2 font-semibold\">I am giving $")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(amount)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/paypal.templ`, Line: 44, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/paypal.templ`, Line: 44, Col: 87}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -326,7 +326,7 @@ func DonationConfirmation(amount, interval, fundName string) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(strings.ToLower(interval))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/paypal.templ`, Line: 44, Col: 122}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/paypal.templ`, Line: 44, Col: 123}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -339,7 +339,7 @@ func DonationConfirmation(amount, interval, fundName string) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fundName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/paypal.templ`, Line: 44, Col: 138}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/paypal.templ`, Line: 44, Col: 139}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
