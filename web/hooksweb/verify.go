@@ -49,21 +49,22 @@ func downloadAndCache(url, cacheKey string) (string, error) {
 	return string(body), nil
 }
 
-func verifySignature(r *http.Request, webhookID string) error {
+func verifySignature(r *http.Request, webhookID string) ([]byte, error) {
 	transmissionID := r.Header.Get("paypal-transmission-id")
 	timestamp := r.Header.Get("paypal-transmission-time")
 	certURL := r.Header.Get("paypal-cert-url")
 	sig := r.Header.Get("paypal-transmission-sig")
 
 	if transmissionID == "" || timestamp == "" {
-		return fmt.Errorf("missing required PayPal headers")
+		return nil, fmt.Errorf("missing required PayPal headers")
 	}
 
 	body := r.Body
+	defer body.Close()
 
 	bodyBytes, err := io.ReadAll(body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	crc := crc32.ChecksumIEEE(bodyBytes)
@@ -72,24 +73,24 @@ func verifySignature(r *http.Request, webhookID string) error {
 
 	certPem, err := downloadAndCache(certURL, "pp-cert.pem")
 	if err != nil {
-		return fmt.Errorf("failed to fetch certificate: %w", err)
+		return nil, fmt.Errorf("failed to fetch certificate: %w", err)
 	}
 
 	block, _ := pem.Decode([]byte(certPem))
 	if block == nil {
-		return fmt.Errorf("failed to parse certificate PEM")
+		return nil, fmt.Errorf("failed to parse certificate PEM")
 	}
 
 	parsed, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return fmt.Errorf("failed to parse certificate: %w", err)
+		return nil, fmt.Errorf("failed to parse certificate: %w", err)
 	}
 
 	// Decode the signature from base64
 	sigBytes, err := base64.StdEncoding.DecodeString(sig)
 	if err != nil {
-		return fmt.Errorf("failed to decode signature: %w", err)
+		return nil, fmt.Errorf("failed to decode signature: %w", err)
 	}
 
-	return parsed.CheckSignature(x509.SHA256WithRSA, []byte(message)[:], sigBytes)
+	return bodyBytes, parsed.CheckSignature(x509.SHA256WithRSA, []byte(message)[:], sigBytes)
 }

@@ -6,7 +6,6 @@ import (
 	"boardfund/web/mux"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 )
@@ -40,20 +39,9 @@ func (h WebhooksHandlers) Register(r *mux.Router) {
 }
 
 func (h WebhooksHandlers) webhooks(w http.ResponseWriter, r *http.Request) {
-	err := verifySignature(r, h.webhookID)
+	bodyBytes, err := verifySignature(r, h.webhookID)
 	if err != nil {
 		h.logger.Error("failed to verify signature", slog.String("error", err.Error()))
-
-		w.WriteHeader(http.StatusOK)
-
-		return
-	}
-
-	defer r.Body.Close()
-
-	bodyBytes, err := io.ReadAll(r.Body)
-	if err != nil {
-		h.logger.Error("failed to read webhook request body", slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusOK)
 
