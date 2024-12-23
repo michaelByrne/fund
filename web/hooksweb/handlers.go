@@ -5,6 +5,7 @@ import (
 	"boardfund/service/members"
 	"boardfund/web/mux"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -58,6 +59,8 @@ func (h WebhooksHandlers) webhooks(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	fmt.Printf("Webhook event: %s\n", bodyBytes)
 
 	var event webhookEvent
 	err = json.Unmarshal(bodyBytes, &event)
