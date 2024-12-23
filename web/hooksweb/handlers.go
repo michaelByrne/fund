@@ -70,6 +70,6 @@ func (h WebhooksHandlers) webhooks(w http.ResponseWriter, r *http.Request) {
 }
 
 type webhookEvent struct {
-	EventType string `json:"event_type"`
-	Resource  string `json:"resource"`
+	EventType string          `json:"event_type"`
+	Resource  json.RawMessage `json:"resource"`
 }
