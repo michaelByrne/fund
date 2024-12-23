@@ -61,7 +61,7 @@ func (h WebhooksHandlers) webhooks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Printf("Webhook event type: %s\n", event.EventType)
-	err = h.publisher.Publish(event.EventType, event.Resource)
+	err = h.publisher.Publish(event.EventType, []byte(event.Resource))
 	if err != nil {
 		h.logger.Error("failed to publish event", slog.String("error", err.Error()))
 	}
