@@ -14,7 +14,7 @@ templ PaypalSubscription(plan donations.DonationPlan, clientID, fundName string)
 		@templ.JSONScript("provider-plan-id", plan.ProviderPlanID)
 		@templ.JSONScript("plan-id", plan.ID.String())
 		@templ.JSONScript("fund-id", plan.FundID.String())
-		<h4 class="mb-2 mx-auto mt-2 text-lg bg-[#c9e4c3] p-2 font-semibold inline-block">I am giving ${ centsToDecimalString(plan.AmountCents) } every { strings.ToLower(string(plan.IntervalUnit)) } to { fundName }.</h4>
+		<h4 class="mb-2 mx-auto mt-2 text-lg bg-odd p-2 font-semibold inline-block">I am giving ${ centsToDecimalString(plan.AmountCents) } every { strings.ToLower(string(plan.IntervalUnit)) } to { fundName }.</h4>
 		<div id="paypal-button-container"></div>
 		<script type="text/javascript" src="/static/paypalsub.js"></script>
 	</div>
@@ -25,7 +25,7 @@ templ Paypal(fund donations.Fund, amountCents int32, clientID string) {
 	<div class="payment-container w-[70%]">
 		@templ.JSONScript("fund-id", fund.ID.String())
 		@templ.JSONScript("amount", amountCents)
-		<h4 class="mb-2 mx-auto mt-2 text-lg bg-[#c9e4c3] p-2 font-semibold inline-block">I am giving ${ centsToDecimalString(amountCents) } to { fund.Name }.</h4>
+		<h4 class="mb-2 mx-auto mt-2 text-lg bg-odd p-2 font-semibold inline-block">I am giving ${ centsToDecimalString(amountCents) } to { fund.Name }.</h4>
 		<div id="paypal-button-container"></div>
 		<script type="text/javascript" src="/static/paypalonce.js"></script>
 	</div>
@@ -34,13 +34,5 @@ templ Paypal(fund donations.Fund, amountCents int32, clientID string) {
 templ ThankYou(member members.Member, path string) {
 	@common.Layout(&member, path) {
 		<h4 class="font-semibold p-8 blingy text-white inline-block m-4 text-6xl font-papyrus">Thank you { member.FirstName }!!!</h4>
-	}
-}
-
-templ DonationConfirmation(amount, interval, fundName string) {
-	if interval == "once" {
-		<h4 class="mb-2 mx-auto my-2 text-lg bg-high p-2 font-semibold">I am giving ${ amount } once to { fundName }.</h4>
-	} else {
-		<h4 class="mb-2 mx-auto my-2 text-lg bg-high p-2 font-semibold">I am giving ${ amount } every { strings.ToLower(interval) } to { fundName }.</h4>
 	}
 }
