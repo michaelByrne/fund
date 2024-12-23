@@ -4,6 +4,7 @@ import (
 	"boardfund/service/donations"
 	"boardfund/service/members"
 	"fmt"
+	"time"
 )
 
 templ Funds(funds []donations.Fund, member *members.Member, path string) {
@@ -51,7 +52,7 @@ templ AddFund() {
 			<div class="mt-6 flex justify-center">
 				<button
 					type="submit"
-					class="px-4 py-2 text-center text-md bg-stone-100 text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md"
+					class="px-4 py-2 text-center text-md bg-button text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md"
 				>
 					submit
 				</button>
@@ -61,7 +62,7 @@ templ AddFund() {
 }
 
 templ FundsList(funds []donations.Fund) {
-	<div class="w-full mx-auto max-w-md h-full">
+	<div id="funds-list" class="w-full mx-auto max-w-md h-full">
 		<h3 class="text-md font-semibold mt-2 mb-4 bg-high inline-block p-2">current funds</h3>
 		<ul id="admin-funds" class="max-w-[90%] max-h-[500px] overflow-y-auto border-accent border-y-2">
 			for _, fund := range funds {
@@ -81,15 +82,25 @@ templ FundRow(fund donations.Fund) {
 				<span class="font-medium">{ fund.Name }</span>
 				<span class="text-sm text-gray-600 md:ml-auto">{ string(fund.PayoutFrequency) }</span>
 			</div>
-			<button
+			<span
+				title="audit"
+				class="ml-4 text-2xl text-strong hover:text-links"
+				hx-trigger="click consume"
+				hx-target="#funds-list"
+				hx-swap="outerHTML"
+				hx-get={ fmt.Sprintf("/admin/fund/audit/%s", fund.ID.String()) }
+			>
+				&#x2699;
+			</span>
+			<div
 				hx-post={ fmt.Sprintf("/admin/fund/deactivate/%s", fund.ID.String()) }
 				hx-confirm={ fmt.Sprintf("deactivate %s?", fund.Name) }
 				hx-trigger="click consume"
 				hx-swap="outerHTML"
-				class="text-gray-400 hover:text-red-500 font-bold ml-4"
+				class="text-title/90 hover:text-red-500 text-lg font-bold ml-4"
 			>
-				✖️
-			</button>
+				&#215;
+			</div>
 		</div>
 		<script type="application/javascript">
     		me().on("htmx:fundDeactivated", (ev) => {
@@ -97,4 +108,78 @@ templ FundRow(fund donations.Fund) {
     		});
     	</script>
 	</li>
+}
+
+templ FundAudit(fund donations.Fund) {
+	<div id="funds-list" class="w-full mx-auto max-w-md h-full">
+		<h3 class="text-md font-semibold mt-2 mb-4 bg-high inline-block p-2">fund audit</h3>
+		<form id="audit-form" hx-post={ fmt.Sprintf("/admin/fund/audit/%s", fund.ID.String()) } hx-swap="outerHTML" class="w-full max-w-md">
+			<div class="flex flex-wrap items-center gap-2 mt-6">
+				<button
+					type="submit"
+					class="px-4 py-2 text-center text-sm sm:text-md bg-button text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md"
+				>
+					generate audit
+				</button>
+				if fund.PayoutFrequency == "monthly" {
+					<span class="text-sm">for period ending</span>
+					<input type="text" name="frequency" hidden value="monthly"/>
+					<select
+						name="period"
+						id="period"
+						class="flex-grow sm:flex-none w-full sm:w-auto pl-1 text-sm border border-slate-300 shadow-sm"
+					>
+						for _, period := range fund.Stats.Monthly {
+							<option value={ convertToLastDayOfMonth(period.MonthYear) }>
+								{ convertToLastDayOfMonth(period.MonthYear) }
+							</option>
+						}
+					</select>
+				} else {
+					<input type="text" name="frequency" hidden value="once"/>
+				}
+			</div>
+		</form>
+	</div>
+}
+
+templ FundAuditResult(dateStr string) {
+	<div class="w-[90%]">
+		<h3 class="text-base font-semibold mb-5 mt-2 pl-2">audit results for period ending: <div class="underline">{ dateStr }</div></h3>
+		<div class="text-sm my-2 w-[60%]">
+			<div class="flex flex-row items-center my-2">
+				<h4 class="font-semibold p-2">fund:</h4>
+				<span class="ml-auto p-2">the human fund</span>
+			</div>
+			<div class="flex flex-row items-center my-2">
+				<h4 class="font-semibold p-2">db payments:</h4>
+				<span class="ml-auto p-2">$666</span>
+			</div>
+			<div class="flex flex-row items-center my-2">
+				<h4 class="font-semibold p-2">provider payments:</h4>
+				<span class="ml-auto p-2">$666</span>
+			</div>
+			<div class="flex flex-row items-center my-2">
+				<h4 class="font-semibold p-2">paypal fees:</h4>
+				<span class="ml-auto p-2">$50</span>
+			</div>
+			<div class="flex flex-row items-center my-2">
+				<h4 class="font-semibold p-2">expected payouts:</h4>
+				<span class="ml-auto p-2">$616</span>
+			</div>
+		</div>
+	</div>
+}
+
+func convertToLastDayOfMonth(dateString string) string {
+	parsedTime, err := time.Parse("2006-01", dateString)
+	if err != nil {
+		return "date error"
+	}
+
+	lastDay := parsedTime.AddDate(0, 1, 0).AddDate(0, 0, -1)
+
+	formattedDate := lastDay.Format("01-02-2006")
+
+	return formattedDate
 }

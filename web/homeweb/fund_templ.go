@@ -85,7 +85,7 @@ func Fund(fund donations.Fund, fundStats donations.FundStats, member *members.Me
 				return templ_7745c5c3_Err
 			}
 			if len(fundStats.Monthly) > 0 {
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"col-span-2 my-2\">")
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"col-span-2 pl-4 my-2\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -175,7 +175,7 @@ func DonationForm(fund donations.Fund) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div><div class=\"btn mt-6 w-[100%] bg-transparent items-center\"><button type=\"submit\" class=\"px-4 py-2 mx-auto text-center text-md bg-stone-100 text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md\">pay that shit</button></div></form>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div><div class=\"btn mt-6 w-[100%] bg-transparent items-center\"><button type=\"submit\" class=\"px-4 py-2 mx-auto text-center text-md bg-button text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md\">pay that shit</button></div></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

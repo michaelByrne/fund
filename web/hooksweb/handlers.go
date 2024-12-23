@@ -4,23 +4,31 @@ import (
 	"boardfund/service/donations"
 	"boardfund/service/members"
 	"boardfund/web/mux"
+	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 )
 
+type publisher interface {
+	Publish(event string, data []byte) error
+}
+
 type WebhooksHandlers struct {
 	donationService *donations.DonationService
 	memberService   *members.MemberService
+	publisher       publisher
 
 	logger *slog.Logger
 
 	webhookID string
 }
 
-func NewWebhooksHandlers(donationService *donations.DonationService, memberService *members.MemberService, logger *slog.Logger, webhoodID string) *WebhooksHandlers {
+func NewWebhooksHandlers(donationService *donations.DonationService, memberService *members.MemberService, publisher publisher, logger *slog.Logger, webhoodID string) *WebhooksHandlers {
 	return &WebhooksHandlers{
 		donationService: donationService,
 		memberService:   memberService,
+		publisher:       publisher,
 		logger:          logger,
 		webhookID:       webhoodID,
 	}
@@ -40,5 +48,34 @@ func (h WebhooksHandlers) webhooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		h.logger.Error("failed to read webhook request body", slog.String("error", err.Error()))
+
+		w.WriteHeader(http.StatusOK)
+
+		return
+	}
+
+	var event webhookEvent
+	err = json.Unmarshal(bodyBytes, &event)
+	if err != nil {
+		h.logger.Error("failed to unmarshal webhook event", slog.String("error", err.Error()))
+
+		w.WriteHeader(http.StatusOK)
+
+		return
+	}
+
+	err = h.publisher.Publish(event.eventType, event.resource)
+	if err != nil {
+		h.logger.Error("failed to publish event", slog.String("error", err.Error()))
+	}
+
 	w.WriteHeader(http.StatusOK)
+}
+
+type webhookEvent struct {
+	eventType string `json:"event_type"`
+	resource  []byte `json:"resource"`
 }

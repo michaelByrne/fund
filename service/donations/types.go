@@ -209,6 +209,7 @@ type FundStats struct {
 }
 
 type MonthTotal struct {
-	MonthYear  string `json:"month"`
-	TotalCents int32  `json:"amount"`
+	MonthYear    string `json:"month"`
+	TotalCents   int32  `json:"amount"`
+	UniqueDonors int32  `json:"unique_donors"`
 }

@@ -18,6 +18,8 @@ module.exports = {
                 'disabled': 'rgb(var(--color-disabled), <alpha-value>)',
                 'accent': 'rgb(var(--color-accent), <alpha-value>)',
                 'button-hover': 'rgb(var(--color-button-hover), <alpha-value>)',
+                'button': 'rgb(var(--color-button), <alpha-value>)',
+                'strong': 'rgb(var(--color-strong), <alpha-value>)',
             },
             textShadow: {
                 DEFAULT: '1px 1px 0px var(--tw-shadow-color)',

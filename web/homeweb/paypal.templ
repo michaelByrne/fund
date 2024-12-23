@@ -39,8 +39,8 @@ templ ThankYou(member members.Member, path string) {
 
 templ DonationConfirmation(amount, interval, fundName string) {
 	if interval == "once" {
-		<h4 class="mb-2 mx-auto mt-2 text-lg bg-[#c9e4c3] p-2 font-semibold">I am giving ${ amount } once to { fundName }.</h4>
+		<h4 class="mb-2 mx-auto my-2 text-lg bg-odd p-2 font-semibold">I am giving ${ amount } once to { fundName }.</h4>
 	} else {
-		<h4 class="mb-2 mx-auto mt-2 text-lg bg-[#c9e4c3] p-2 font-semibold">I am giving ${ amount } every { strings.ToLower(interval) } to { fundName }.</h4>
+		<h4 class="mb-2 mx-auto my-2 text-lg bg-odd p-2 font-semibold">I am giving ${ amount } every { strings.ToLower(interval) } to { fundName }.</h4>
 	}
 }

@@ -43,15 +43,15 @@ templ MemberRow(member members.Member) {
 				<span class="font-medium">{ member.BCOName }</span>
 				<span class="text-sm text-gray-600 md:ml-auto">{ member.Email }</span>
 			</div>
-			<button
+			<div
 				hx-post={ fmt.Sprintf("/admin/member/deactivate/%s", member.ID.String()) }
 				hx-confirm={ fmt.Sprintf("deactivate %s?", member.BCOName) }
 				hx-trigger="click consume"
 				hx-swap="outerHTML"
-				class="text-gray-400 hover:text-red-500 font-bold ml-4"
+				class="text-title/90 hover:text-red-500 text-lg font-bold ml-4"
 			>
-				✖️
-			</button>
+				&#215;
+			</div>
 		</div>
 		<script type="application/javascript">
     		me().on("memberDeactivated", (ev) => {
@@ -78,7 +78,7 @@ templ AddMember() {
 			<div class="mt-6 flex justify-center">
 				<button
 					type="submit"
-					class="px-4 py-2 text-center text-md bg-stone-100 text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md"
+					class="px-4 py-2 text-center text-md bg-button text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md"
 				>
 					submit
 				</button>
@@ -91,26 +91,26 @@ templ Member(viewedMember members.Member, member *members.Member, path string) {
 	@Admin(member, path) {
 		<div id="admin-member" class="w-full h-full mt-4 overflow-auto">
 			<h3 class="text-base font-semibold mb-5 mt-2 pl-2">member: <span class="underline">{ viewedMember.BCOName }</span></h3>
-			<div class="text-sm my-2 w-[60%]">
+			<div class="text-sm my-2 md:w-[55%] w-[90%]">
 				<div class="flex flex-row items-center my-2">
 					<h4 class="font-semibold bg-high p-2">name:</h4>
-					<span class="ml-auto p-2 bg-high">{ viewedMember.FirstName } { viewedMember.LastName }</span>
+					<span class="ml-auto p-2">{ viewedMember.FirstName } { viewedMember.LastName }</span>
 				</div>
 				<div class="flex flex-row items-center my-2">
 					<h4 class="font-semibold bg-high p-2">member since:</h4>
-					<span class="ml-auto p-2 bg-high">{ viewedMember.Created.Format("01-02-2006") }</span>
+					<span class="ml-auto p-2">{ viewedMember.Created.Format("01-02-2006") }</span>
 				</div>
 				<div class="flex flex-row items-center my-2">
 					<h4 class="font-semibold bg-high p-2">email:</h4>
-					<span class="ml-auto p-2 bg-high">{ viewedMember.Email }</span>
+					<span class="ml-auto p-2">{ viewedMember.Email }</span>
 				</div>
 				<div class="flex flex-row items-center my-2">
 					<h4 class="font-semibold bg-high p-2">total contributions:</h4>
-					<span class="ml-auto bg-high p-2">${ centsToDecimalString(viewedMember.GetTotalDonatedCents()) }</span>
+					<span class="ml-auto p-2">${ centsToDecimalString(viewedMember.GetTotalDonatedCents()) }</span>
 				</div>
 			</div>
 			<hr class="border-[#acccdb] "/>
-			<div class="my-4 w-[80%] overflow-auto">
+			<div class="my-4 w-[95%] overflow-auto">
 				<h4 class="font-semibold underline p-2">donations</h4>
 				@DonationsList(viewedMember.Donations)
 			</div>
@@ -120,8 +120,8 @@ templ Member(viewedMember members.Member, member *members.Member, path string) {
 
 templ DonationsList(donations []donations.Donation) {
 	<div id="donations-list" class="mt-6">
-		<div class="max-h-[300px] overflow-y-auto">
-			<table class="w-full text-sm text-left border-collapse">
+		<div class="hidden md:block max-h-[300px] overflow-y-auto">
+			<table class="w-full text-sm text-left border-collapse leading-relaxed">
 				<thead class="sticky top-0 z-10">
 					<tr class="font-semibold">
 						<th class="text-left pb-3 w-1/5">
@@ -153,6 +153,32 @@ templ DonationsList(donations []donations.Donation) {
 					}
 				</tbody>
 			</table>
+		</div>
+		<div class="block md:hidden space-y-4">
+			for _, donation := range donations {
+				<div class="p-4 border rounded-lg shadow-sm odd:bg-odd">
+					<div class="flex justify-between mb-2">
+						<span class="font-bold">date:</span>
+						<span>{ donation.Created.Format("01-02-2006") }</span>
+					</div>
+					<div class="flex justify-between mb-2">
+						<span class="font-bold">fund:</span>
+						<span>{ donation.FundName }</span>
+					</div>
+					<div class="flex justify-between mb-2">
+						<span class="font-bold">last payment:</span>
+						@LastPayment(donation.LastPayment())
+					</div>
+					<div class="flex justify-between mb-2">
+						<span class="font-bold">total donated:</span>
+						<span>${ centsToDecimalString(donation.TotalDonatedCents()) }</span>
+					</div>
+					<div class="flex justify-between">
+						<span class="font-bold">plan:</span>
+						@DonationPlan(donation.Plan)
+					</div>
+				</div>
+			}
 		</div>
 	</div>
 }

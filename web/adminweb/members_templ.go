@@ -177,7 +177,7 @@ func MemberRow(member members.Member) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><button hx-post=\"")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div hx-post=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -203,7 +203,7 @@ func MemberRow(member members.Member) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" hx-trigger=\"click consume\" hx-swap=\"outerHTML\" class=\"text-gray-400 hover:text-red-500 font-bold ml-4\">✖️</button></div><script type=\"application/javascript\">\n    \t\tme().on(\"memberDeactivated\", (ev) => {\n    \t\t\tme(\".member-row\").fadeOut(null, 400);\n    \t\t});\n    \t</script></li>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" hx-trigger=\"click consume\" hx-swap=\"outerHTML\" class=\"text-title/90 hover:text-red-500 text-lg font-bold ml-4\">&#215;</div></div><script type=\"application/javascript\">\n    \t\tme().on(\"memberDeactivated\", (ev) => {\n    \t\t\tme(\".member-row\").fadeOut(null, 400);\n    \t\t});\n    \t</script></li>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -232,7 +232,7 @@ func AddMember() templ.Component {
 			templ_7745c5c3_Var10 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"w-full mx-auto max-w-md\"><h3 class=\"text-md font-semibold mt-2 mb-4 inline-block bg-high p-2\">new member</h3><form hx-post=\"/admin/member\" hx-swap=\"afterbegin\" hx-target=\"#admin-members\" id=\"new-member\" class=\"w-[90%] p-4 bg-odd border-y-2 border-accent\"><div class=\"grid grid-cols-1 gap-4 sm:grid-cols-3 mt-6\"><label for=\"first\" class=\"col-span-1 text-left\">first name</label> <input type=\"text\" required name=\"first\" id=\"first\" placeholder=\"first\" class=\"col-span-2 w-full pl-2 text-sm border border-slate-300 shadow-sm\"> <label for=\"last\" class=\"col-span-1 text-left\">last name</label> <input type=\"text\" required name=\"last\" id=\"last\" placeholder=\"last\" class=\"col-span-2 w-full pl-2 text-sm border border-slate-300 shadow-sm\"> <label for=\"email\" class=\"col-span-1 text-left\">email</label> <input type=\"email\" required name=\"email\" id=\"email\" placeholder=\"email\" class=\"col-span-2 w-full pl-2 text-sm border border-slate-300 shadow-sm\"> <label for=\"username\" class=\"col-span-1 text-left\">username</label> <input type=\"text\" required name=\"username\" id=\"username\" placeholder=\"hotdoghorny\" class=\"col-span-2 w-full pl-2 text-sm border border-slate-300 shadow-sm\"></div><div class=\"mt-6 flex justify-center\"><button type=\"submit\" class=\"px-4 py-2 text-center text-md bg-stone-100 text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md\">submit</button></div></form></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"w-full mx-auto max-w-md\"><h3 class=\"text-md font-semibold mt-2 mb-4 inline-block bg-high p-2\">new member</h3><form hx-post=\"/admin/member\" hx-swap=\"afterbegin\" hx-target=\"#admin-members\" id=\"new-member\" class=\"w-[90%] p-4 bg-odd border-y-2 border-accent\"><div class=\"grid grid-cols-1 gap-4 sm:grid-cols-3 mt-6\"><label for=\"first\" class=\"col-span-1 text-left\">first name</label> <input type=\"text\" required name=\"first\" id=\"first\" placeholder=\"first\" class=\"col-span-2 w-full pl-2 text-sm border border-slate-300 shadow-sm\"> <label for=\"last\" class=\"col-span-1 text-left\">last name</label> <input type=\"text\" required name=\"last\" id=\"last\" placeholder=\"last\" class=\"col-span-2 w-full pl-2 text-sm border border-slate-300 shadow-sm\"> <label for=\"email\" class=\"col-span-1 text-left\">email</label> <input type=\"email\" required name=\"email\" id=\"email\" placeholder=\"email\" class=\"col-span-2 w-full pl-2 text-sm border border-slate-300 shadow-sm\"> <label for=\"username\" class=\"col-span-1 text-left\">username</label> <input type=\"text\" required name=\"username\" id=\"username\" placeholder=\"hotdoghorny\" class=\"col-span-2 w-full pl-2 text-sm border border-slate-300 shadow-sm\"></div><div class=\"mt-6 flex justify-center\"><button type=\"submit\" class=\"px-4 py-2 text-center text-md bg-button text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md\">submit</button></div></form></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -286,14 +286,14 @@ func Member(viewedMember members.Member, member *members.Member, path string) te
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></h3><div class=\"text-sm my-2 w-[60%]\"><div class=\"flex flex-row items-center my-2\"><h4 class=\"font-semibold bg-high p-2\">name:</h4><span class=\"ml-auto p-2 bg-high\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></h3><div class=\"text-sm my-2 md:w-[55%] w-[90%]\"><div class=\"flex flex-row items-center my-2\"><h4 class=\"font-semibold bg-high p-2\">name:</h4><span class=\"ml-auto p-2\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(viewedMember.FirstName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 97, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 97, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -306,52 +306,52 @@ func Member(viewedMember members.Member, member *members.Member, path string) te
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(viewedMember.LastName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 97, Col: 89}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 97, Col: 81}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div class=\"flex flex-row items-center my-2\"><h4 class=\"font-semibold bg-high p-2\">member since:</h4><span class=\"ml-auto p-2 bg-high\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div class=\"flex flex-row items-center my-2\"><h4 class=\"font-semibold bg-high p-2\">member since:</h4><span class=\"ml-auto p-2\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(viewedMember.Created.Format("01-02-2006"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 101, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 101, Col: 74}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div class=\"flex flex-row items-center my-2\"><h4 class=\"font-semibold bg-high p-2\">email:</h4><span class=\"ml-auto p-2 bg-high\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div class=\"flex flex-row items-center my-2\"><h4 class=\"font-semibold bg-high p-2\">email:</h4><span class=\"ml-auto p-2\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(viewedMember.Email)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 105, Col: 59}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 105, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div class=\"flex flex-row items-center my-2\"><h4 class=\"font-semibold bg-high p-2\">total contributions:</h4><span class=\"ml-auto bg-high p-2\">$")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div class=\"flex flex-row items-center my-2\"><h4 class=\"font-semibold bg-high p-2\">total contributions:</h4><span class=\"ml-auto p-2\">$")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDecimalString(viewedMember.GetTotalDonatedCents()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 109, Col: 99}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 109, Col: 91}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div></div><hr class=\"border-[#acccdb] \"><div class=\"my-4 w-[80%] overflow-auto\"><h4 class=\"font-semibold underline p-2\">donations</h4>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div></div><hr class=\"border-[#acccdb] \"><div class=\"my-4 w-[95%] overflow-auto\"><h4 class=\"font-semibold underline p-2\">donations</h4>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -394,7 +394,7 @@ func DonationsList(donations []donations.Donation) templ.Component {
 			templ_7745c5c3_Var19 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div id=\"donations-list\" class=\"mt-6\"><div class=\"max-h-[300px] overflow-y-auto\"><table class=\"w-full text-sm text-left border-collapse\"><thead class=\"sticky top-0 z-10\"><tr class=\"font-semibold\"><th class=\"text-left pb-3 w-1/5\"><span class=\"inline-block bg-peak p-2\">date</span></th><th class=\"text-center pb-3 w-1/5\"><span class=\"inline-block bg-peak p-2\">fund</span></th><th class=\"text-center pb-3 w-1/5\"><span class=\"inline-block bg-peak p-2\">last payment</span></th><th class=\"text-center pb-3 w-1/5\"><span class=\"inline-block bg-peak p-2\">total donated</span></th><th class=\"text-center pb-3 w-1/5\"><span class=\"inline-block bg-peak p-2\">plan</span></th></tr></thead> <tbody>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div id=\"donations-list\" class=\"mt-6\"><div class=\"hidden md:block max-h-[300px] overflow-y-auto\"><table class=\"w-full text-sm text-left border-collapse leading-relaxed\"><thead class=\"sticky top-0 z-10\"><tr class=\"font-semibold\"><th class=\"text-left pb-3 w-1/5\"><span class=\"inline-block bg-peak p-2\">date</span></th><th class=\"text-center pb-3 w-1/5\"><span class=\"inline-block bg-peak p-2\">fund</span></th><th class=\"text-center pb-3 w-1/5\"><span class=\"inline-block bg-peak p-2\">last payment</span></th><th class=\"text-center pb-3 w-1/5\"><span class=\"inline-block bg-peak p-2\">total donated</span></th><th class=\"text-center pb-3 w-1/5\"><span class=\"inline-block bg-peak p-2\">plan</span></th></tr></thead> <tbody>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -459,7 +459,72 @@ func DonationsList(donations []donations.Donation) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</tbody></table></div></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</tbody></table></div><div class=\"block md:hidden space-y-4\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		for _, donation := range donations {
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"p-4 border rounded-lg shadow-sm odd:bg-odd\"><div class=\"flex justify-between mb-2\"><span class=\"font-bold\">date:</span> <span>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var23 string
+			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(donation.Created.Format("01-02-2006"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 162, Col: 51}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div class=\"flex justify-between mb-2\"><span class=\"font-bold\">fund:</span> <span>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var24 string
+			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(donation.FundName)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 166, Col: 31}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div class=\"flex justify-between mb-2\"><span class=\"font-bold\">last payment:</span>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = LastPayment(donation.LastPayment()).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div><div class=\"flex justify-between mb-2\"><span class=\"font-bold\">total donated:</span> <span>$")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var25 string
+			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDecimalString(donation.TotalDonatedCents()))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 174, Col: 65}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div class=\"flex justify-between\"><span class=\"font-bold\">plan:</span>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = DonationPlan(donation.Plan).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -483,9 +548,9 @@ func DonationPlan(plan *donations.DonationPlan) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var23 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var23 == nil {
-			templ_7745c5c3_Var23 = templ.NopComponent
+		templ_7745c5c3_Var26 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var26 == nil {
+			templ_7745c5c3_Var26 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		if plan != nil {
@@ -493,12 +558,12 @@ func DonationPlan(plan *donations.DonationPlan) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var24 string
-			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("$%s / %s", centsToDecimalString(plan.AmountCents), strings.ToLower(string(plan.IntervalUnit))))
+			var templ_7745c5c3_Var27 string
+			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("$%s / %s", centsToDecimalString(plan.AmountCents), strings.ToLower(string(plan.IntervalUnit))))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 162, Col: 140}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 188, Col: 140}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -532,9 +597,9 @@ func LastPayment(payment *donations.DonationPayment) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var25 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var25 == nil {
-			templ_7745c5c3_Var25 = templ.NopComponent
+		templ_7745c5c3_Var28 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var28 == nil {
+			templ_7745c5c3_Var28 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		if payment != nil {
@@ -542,12 +607,12 @@ func LastPayment(payment *donations.DonationPayment) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var26 string
-			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(payment.Created.Format("01-02-2006"))
+			var templ_7745c5c3_Var29 string
+			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(payment.Created.Format("01-02-2006"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 170, Col: 69}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 196, Col: 69}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

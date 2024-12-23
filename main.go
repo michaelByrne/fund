@@ -2,6 +2,7 @@ package main
 
 import (
 	"boardfund/aws"
+	"boardfund/events"
 	"boardfund/jwtauth"
 	"boardfund/jwtauth/keyset"
 	"boardfund/paypal"
@@ -30,6 +31,9 @@ import (
 	pgxmigrate "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
+
 	"io"
 	"log"
 	"log/slog"
@@ -146,6 +150,19 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 		return fmt.Errorf("COGNITO_USER_POOL_ID is required")
 	}
 
+	var enableNATSLogging bool
+	enableNATSLoggingStr := getEnv("ENABLE_NATS_LOGGING")
+	if enableNATSLoggingStr == "true" {
+		enableNATSLogging = true
+	}
+
+	nc, ns, err := runNATS(enableNATSLogging)
+	if err != nil {
+		return err
+	}
+
+	defer nc.Close()
+
 	dbURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", pgUser, pgPass, pgHost, pgPort, pgDB)
 
 	tokenClient := token.NewClient(paypalClientID, clientSecret, baseURL)
@@ -203,6 +220,8 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 
 	verifier := jwtauth.NewToken(kset)
 
+	messageBroker := events.NewNATSMessageBroker(nc)
+
 	authMiddleware := middlewares.Verify(verifier.Verify, middlewares.TokenFromCookie, middlewares.TokenFromHeader)
 	adminAuthMiddleware := middlewares.Verify(verifier.VerifyAdmin, middlewares.TokenFromCookie, middlewares.TokenFromHeader)
 
@@ -215,7 +234,14 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 	donationHandlers := homeweb.NewFundHandlers(donationService, sessionManager, authMiddleware, logger, productID, paypalClientID)
 	authHandlers := authweb.NewAuthHandlers(authService, sessionManager, paypalClientID)
 	adminHandlers := adminweb.NewAdminHandlers(adminAuthMiddleware, memberService, donationService, sessionManager, paypalClientID)
-	webhooksHandlers := hooksweb.NewWebhooksHandlers(donationService, memberService, logger, webhookID)
+	webhooksHandlers := hooksweb.NewWebhooksHandlers(donationService, memberService, &messageBroker, logger, webhookID)
+
+	donationsEventHandlers := donations.NewHandlers(donationStore, logger)
+
+	err = donationsEventHandlers.Subscribe(&messageBroker)
+	if err != nil {
+		return err
+	}
 
 	router := mux.NewRouter(http.NewServeMux())
 
@@ -250,12 +276,17 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 			if errors.Is(shutdownCtx.Err(), context.DeadlineExceeded) {
 				log.Fatal("graceful shutdown timed out.. forcing exit.")
 			}
+
+			ns.Shutdown()
 		}()
 
-		err := server.Shutdown(shutdownCtx)
+		err = server.Shutdown(shutdownCtx)
 		if err != nil {
 			log.Fatal(err)
 		}
+
+		ns.WaitForShutdown()
+
 		serverStopCtx()
 	}()
 
@@ -268,4 +299,31 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 	<-serverCtx.Done()
 
 	return nil
+}
+
+func runNATS(enableLogging bool) (*nats.Conn, *server.Server, error) {
+	opts := server.Options{DontListen: true}
+
+	ns, err := server.NewServer(&opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if enableLogging {
+		ns.ConfigureLogger()
+	}
+
+	go ns.Start()
+
+	if !ns.ReadyForConnections(time.Second * 5) {
+		return nil, nil, errors.New("nats server not ready")
+	}
+
+	clientOpts := []nats.Option{nats.InProcessServer(ns)}
+	nc, err := nats.Connect(nats.DefaultURL, clientOpts...)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return nc, ns, nil
 }

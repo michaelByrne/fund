@@ -227,12 +227,11 @@ WHERE fund_id = $1;
 
 -- name: GetMonthlyTotalsByFund :many
 WITH monthly_totals AS (SELECT DATE_TRUNC('month', dp.created) AS month_year,
-                               SUM(dp.amount_cents)            AS total
+                               SUM(dp.amount_cents)            AS total,
+                               COUNT(DISTINCT d.donor_id)      AS unique_donors
                         FROM fund f
-                                 JOIN
-                             donation d ON f.id = d.fund_id
-                                 JOIN
-                             donation_payment dp ON d.id = dp.donation_id
+                                 JOIN donation d ON f.id = d.fund_id
+                                 JOIN donation_payment dp ON d.id = dp.donation_id
                         WHERE f.id = $1
                           AND d.recurring = true
                           AND dp.created >= GREATEST(
@@ -243,7 +242,9 @@ WITH monthly_totals AS (SELECT DATE_TRUNC('month', dp.created) AS month_year,
                         GROUP BY DATE_TRUNC('month', dp.created)
                         ORDER BY month_year)
 SELECT TO_CHAR(month_year, 'YYYY-MM') AS month_year,
-       total
+       total,
+       unique_donors
 FROM monthly_totals;
+
 
 

@@ -35,6 +35,8 @@
         --color-links: 51, 51, 51;
         --color-disabled: 153, 153, 153;
         --color-button-hover: 255, 232, 211;
+        --color-button: 208, 217, 255;
+        --color-strong: 250, 167, 88;
     }
 }
 

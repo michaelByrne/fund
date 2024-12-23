@@ -48,6 +48,90 @@ func (h *AdminHandlers) Register(r *mux.Router) {
 	r.HandleFunc("POST /admin/fund/deactivate/{id}", h.withAdmin(h.deactivateFund))
 	r.HandleFunc("POST /admin/member/deactivate/{id}", h.withAdmin(h.deactivateMember))
 	r.HandleFunc("GET /admin/member/{id}", h.withAdmin(h.member))
+	r.HandleFunc("GET /admin/fund/audit/{id}", h.withAdmin(h.fundAuditForm))
+	r.HandleFunc("POST /admin/fund/audit/{id}", h.withAdmin(h.fundAudit))
+}
+
+func (h *AdminHandlers) fundAudit(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		http.Redirect(w, r, "/", http.StatusFound)
+
+		return
+	}
+
+	err := r.ParseForm()
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	frequency := r.FormValue("frequency")
+	if frequency == "" {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	var dateStr string
+	if frequency == "monthly" {
+		dateStr = r.FormValue("period")
+	} else {
+		dateStr = time.Now().Format("01-02-2006")
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	_, err = uuid.Parse(id)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	FundAuditResult(dateStr).Render(ctx, w)
+}
+
+func (h *AdminHandlers) fundAuditForm(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		http.Redirect(w, r, "/", http.StatusFound)
+
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	idUUID, err := uuid.Parse(id)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	fund, err := h.donationService.GetFundByID(ctx, idUUID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	FundAudit(*fund).Render(ctx, w)
 }
 
 func (h *AdminHandlers) member(w http.ResponseWriter, r *http.Request) {

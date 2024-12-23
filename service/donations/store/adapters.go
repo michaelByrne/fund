@@ -89,8 +89,9 @@ func fromDBFund(fund db.Fund) donations.Fund {
 
 func fromDBMonthlyDonationTotal(total db.GetMonthlyTotalsByFundRow) donations.MonthTotal {
 	return donations.MonthTotal{
-		MonthYear:  total.MonthYear,
-		TotalCents: int32(total.Total),
+		MonthYear:    total.MonthYear,
+		TotalCents:   int32(total.Total),
+		UniqueDonors: int32(total.UniqueDonors),
 	}
 }
 

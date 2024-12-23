@@ -26,7 +26,7 @@ templ Fund(fund donations.Fund, fundStats donations.FundStats, member *members.M
 			<div class="grid grid-cols-1 md:grid-cols-3 gap-2">
 				@FundStatus(fund, fundStats)
 				if len(fundStats.Monthly) > 0 {
-					<div class="col-span-2 my-2">
+					<div class="col-span-2 pl-4 my-2">
 						@common.SectionTitle("month-by-month")
 						<canvas>
 							@MonthlyTotalsChart(fundStats)
@@ -55,7 +55,7 @@ templ DonationForm(fund donations.Fund) {
 		<div class="btn mt-6 w-[100%] bg-transparent items-center">
 			<button
 				type="submit"
-				class="px-4 py-2 mx-auto text-center text-md bg-stone-100 text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md"
+				class="px-4 py-2 mx-auto text-center text-md bg-button text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md"
 			>
 				pay that shit
 			</button>
