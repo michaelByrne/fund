@@ -1,0 +1,1 @@
+ALTER TABLE donation ADD COLUMN inactive_reason varchar(100);

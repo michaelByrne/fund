@@ -187,10 +187,11 @@ func fromDBDonation(donation db.Donation) donations.Donation {
 		DonationPlanID:         donation.DonationPlanID,
 		FundID:                 donation.FundID,
 		Recurring:              donation.Recurring,
+		Active:                 donation.Active,
 		Created:                donation.Created.Time,
 		Updated:                donation.Updated.Time,
 		ProviderOrderID:        donation.ProviderOrderID,
-		ProviderSubscriptionID: donation.ProviderSubscriptionID,
+		ProviderSubscriptionID: donation.ProviderSubscriptionID.String,
 	}
 
 	return donationOut
@@ -207,9 +208,14 @@ func toDBDonationInsertParams(donation donations.InsertDonation) db.InsertDonati
 	}
 
 	if donation.ProviderSubscriptionID == "" {
-		insertDonation.ProviderSubscriptionID = donation.ID.String()
+		insertDonation.ProviderSubscriptionID = pgtype.Text{
+			Valid: false,
+		}
 	} else {
-		insertDonation.ProviderSubscriptionID = donation.ProviderSubscriptionID
+		insertDonation.ProviderSubscriptionID = pgtype.Text{
+			String: donation.ProviderSubscriptionID,
+			Valid:  true,
+		}
 	}
 
 	return insertDonation
@@ -232,5 +238,28 @@ func toDBDonationPaymentInsertParams(payment donations.InsertDonationPayment) db
 		DonationID:      payment.DonationID,
 		PaypalPaymentID: payment.ProviderPaymentID,
 		AmountCents:     payment.AmountCents,
+	}
+}
+
+func toDBSetDonationToInactiveBySubscriptionIDParams(arg donations.DeactivateDonationBySubscription) db.SetDonationToInactiveBySubscriptionIdParams {
+	return db.SetDonationToInactiveBySubscriptionIdParams{
+		ProviderSubscriptionID: pgtype.Text{
+			String: arg.SubscriptionID,
+			Valid:  true,
+		},
+		InactiveReason: pgtype.Text{
+			String: arg.Reason,
+			Valid:  true,
+		},
+	}
+}
+
+func toDBSetDonationToInactive(arg donations.DeactivateDonation) db.SetDonationToInactiveParams {
+	return db.SetDonationToInactiveParams{
+		ID: arg.ID,
+		InactiveReason: pgtype.Text{
+			String: arg.Reason,
+			Valid:  true,
+		},
 	}
 }

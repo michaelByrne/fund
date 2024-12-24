@@ -57,7 +57,7 @@ RETURNING *;
 
 -- name: SetDonationToInactive :one
 UPDATE donation
-SET active = false
+SET active = false, inactive_reason = $2
 WHERE id = $1
 RETURNING *;
 
@@ -68,10 +68,16 @@ WHERE donor_id = $1
   AND active = true
 RETURNING *;
 
+-- name: SetDonationToInactiveBySubscriptionId :one
+UPDATE donation
+SET active = false, inactive_reason = $2
+WHERE provider_subscription_id = $1
+RETURNING *;
+
 -- name: SetDonationsToActive :many
 UPDATE donation
 SET active = true
-WHERE id IN ($1::uuid[])
+WHERE id = ANY(sqlc.arg(ids)::uuid[])
 RETURNING *;
 
 

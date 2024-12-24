@@ -6,6 +6,7 @@ import (
 	"boardfund/service/donations"
 	"context"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -44,7 +45,12 @@ func (s DonationStore) GetMonthlyDonationTotalsForFund(ctx context.Context, id u
 func (s DonationStore) SetDonationToActiveBySubscriptionID(ctx context.Context, id string) (*donations.Donation, error) {
 	query := s.queries.SetDonationsToActiveBySubscriptionId
 
-	argIdentity := func(id string) string { return id }
+	argIdentity := func(id string) pgtype.Text {
+		return pgtype.Text{
+			String: id,
+			Valid:  true,
+		}
+	}
 
 	return pg.UpdateOne(ctx, id, query, argIdentity, fromDBDonation)
 }
@@ -133,12 +139,16 @@ func (s DonationStore) SetDonationsToActive(ctx context.Context, ids []uuid.UUID
 	return pg.UpdateMany(ctx, ids, query, argListIdentity, fromDBDonation)
 }
 
-func (s DonationStore) SetDonationToInactive(ctx context.Context, id uuid.UUID) (*donations.Donation, error) {
+func (s DonationStore) SetDonationToInactive(ctx context.Context, arg donations.DeactivateDonation) (*donations.Donation, error) {
 	query := s.queries.SetDonationToInactive
 
-	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
+	return pg.UpdateOne(ctx, arg, query, toDBSetDonationToInactive, fromDBDonation)
+}
 
-	return pg.UpdateOne(ctx, id, query, argIdentity, fromDBDonation)
+func (s DonationStore) SetDonationToInactiveBySubscriptionID(ctx context.Context, arg donations.DeactivateDonationBySubscription) (*donations.Donation, error) {
+	query := s.queries.SetDonationToInactiveBySubscriptionId
+
+	return pg.UpdateOne(ctx, arg, query, toDBSetDonationToInactiveBySubscriptionIDParams, fromDBDonation)
 }
 
 func (s DonationStore) GetFunds(ctx context.Context) ([]donations.Fund, error) {
@@ -150,7 +160,9 @@ func (s DonationStore) GetFunds(ctx context.Context) ([]donations.Fund, error) {
 func (s DonationStore) GetFundByID(ctx context.Context, id uuid.UUID) (*donations.Fund, error) {
 	query := s.queries.GetFundById
 
-	return pg.FetchOne(ctx, id, query, fromDBFundByID)
+	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
+
+	return pg.FetchOne(ctx, id, query, argIdentity, fromDBFundByID)
 }
 
 func (s DonationStore) UpdateFund(ctx context.Context, fund donations.UpdateFund) (*donations.Fund, error) {
@@ -204,13 +216,17 @@ func (s DonationStore) InsertDonationWithPayment(ctx context.Context, donation d
 func (s DonationStore) GetDonationPlanByID(ctx context.Context, id uuid.UUID) (*donations.DonationPlan, error) {
 	query := s.queries.GetDonationPlanById
 
-	return pg.FetchOne(ctx, id, query, fromDBDonationPlan)
+	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
+
+	return pg.FetchOne(ctx, id, query, argIdentity, fromDBDonationPlan)
 }
 
 func (s DonationStore) GetDonationByID(ctx context.Context, id uuid.UUID) (*donations.Donation, error) {
 	query := s.queries.GetDonationById
 
-	return pg.FetchOne(ctx, id, query, fromDBDonation)
+	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
+
+	return pg.FetchOne(ctx, id, query, argIdentity, fromDBDonation)
 }
 
 func (s DonationStore) GetTotalDonatedByFundID(ctx context.Context, id uuid.UUID) (int64, error) {
@@ -242,7 +258,9 @@ func (s DonationStore) InsertDonationPayment(ctx context.Context, payment donati
 func (s DonationStore) GetDonationPaymentByID(ctx context.Context, id uuid.UUID) (*donations.DonationPayment, error) {
 	query := s.queries.GetDonationPaymentById
 
-	return pg.FetchOne(ctx, id, query, fromDBDonationPayment)
+	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
+
+	return pg.FetchOne(ctx, id, query, argIdentity, fromDBDonationPayment)
 }
 
 func (s DonationStore) GetDonationPaymentsByDonationID(ctx context.Context, donationID uuid.UUID) ([]donations.DonationPayment, error) {
@@ -254,5 +272,12 @@ func (s DonationStore) GetDonationPaymentsByDonationID(ctx context.Context, dona
 func (s DonationStore) GetDonationByProviderSubscriptionID(ctx context.Context, id string) (*donations.Donation, error) {
 	query := s.queries.GetDonationByProviderSubscriptionId
 
-	return pg.FetchOne(ctx, id, query, fromDBDonation)
+	argTransform := func(id string) pgtype.Text {
+		return pgtype.Text{
+			String: id,
+			Valid:  true,
+		}
+	}
+
+	return pg.FetchOne(ctx, id, query, argTransform, fromDBDonation)
 }

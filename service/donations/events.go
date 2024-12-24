@@ -25,13 +25,49 @@ func NewHandlers(donationStore donationStore, logger *slog.Logger) *Handlers {
 	}
 }
 
-func (h *Handlers) Subscribe(subscribe subscriber) error {
+func (h *Handlers) Subscribe(subscriber subscriber) error {
 	var errResult error
-	if err := subscribe.Subscribe(events.SubscriptionPaymentCompleted, h.paymentSaleCompleted); err != nil {
+
+	if err := subscriber.Subscribe(events.SubscriptionPaymentCompleted, h.paymentSaleCompleted); err != nil {
 		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", events.SubscriptionPaymentCompleted, err))
 	}
 
+	if err := subscriber.Subscribe(events.SubscriptionExpired, h.subscriptionEnded); err != nil {
+		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", events.SubscriptionExpired, err))
+	}
+
+	if err := subscriber.Subscribe(events.SubscriptionCancelled, h.subscriptionEnded); err != nil {
+		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", events.SubscriptionCancelled, err))
+	}
+
+	if err := subscriber.Subscribe(events.SubscriptionSuspended, h.subscriptionEnded); err != nil {
+		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", events.SubscriptionSuspended, err))
+	}
+
+	if err := subscriber.Subscribe(events.SubscriptionPaymentFailed, h.subscriptionEnded); err != nil {
+		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", events.SubscriptionPaymentFailed, err))
+	}
+
 	return errResult
+}
+
+func (h *Handlers) subscriptionEnded(data []byte) {
+	var subscriptionEnded SubscriptionEvent
+	if err := json.Unmarshal(data, &subscriptionEnded); err != nil {
+		h.logger.Error("failed to unmarshal subscription ended event", slog.String("error", err.Error()))
+
+		return
+	}
+
+	deactivateSub := DeactivateDonationBySubscription{
+		SubscriptionID: subscriptionEnded.ID,
+		Reason:         subscriptionEnded.Status,
+	}
+
+	_, err := h.donationStore.SetDonationToInactiveBySubscriptionID(context.Background(), deactivateSub)
+	if err != nil {
+		h.logger.Error("failed to deactivate donation by subscription id", slog.String("error", err.Error()))
+	}
 }
 
 func (h *Handlers) paymentSaleCompleted(data []byte) {

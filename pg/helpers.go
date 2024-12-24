@@ -59,13 +59,15 @@ func UpsertOne[DBArg any, StoreArg, Realm any, DB any](ctx context.Context, arg 
 	return &result, nil
 }
 
-func FetchOne[Realm any, DB any, Arg any](ctx context.Context, arg Arg, get getOne[Arg, DB], transform transform[DB, Realm]) (*Realm, error) {
-	dbRes, err := get(ctx, arg)
+func FetchOne[Realm any, DB any, StoreArg any, Arg any](ctx context.Context, arg StoreArg, get getOne[Arg, DB], transformIn transform[StoreArg, Arg], transformOut transform[DB, Realm]) (*Realm, error) {
+	dbArg := transformIn(arg)
+
+	dbRes, err := get(ctx, dbArg)
 	if err != nil {
 		return nil, err
 	}
 
-	result := transform(dbRes)
+	result := transformOut(dbRes)
 
 	return &result, nil
 }

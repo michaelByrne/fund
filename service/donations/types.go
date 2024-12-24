@@ -63,6 +63,7 @@ type Donation struct {
 	FundID                 uuid.UUID
 	FundName               string
 	Recurring              bool
+	Active                 bool
 	ProviderID             string
 	ProviderOrderID        string
 	ProviderSubscriptionID string
@@ -214,6 +215,16 @@ type MonthTotal struct {
 	UniqueDonors int32  `json:"unique_donors"`
 }
 
+type DeactivateDonation struct {
+	ID     uuid.UUID
+	Reason string
+}
+
+type DeactivateDonationBySubscription struct {
+	SubscriptionID string
+	Reason         string
+}
+
 // Webhook events
 
 type PaymentSaleEvent struct {
@@ -246,4 +257,72 @@ type Links struct {
 	Method string `json:"method"`
 	Rel    string `json:"rel"`
 	Href   string `json:"href"`
+}
+
+type SubscriptionEvent struct {
+	Quantity         string         `json:"quantity"`
+	Subscriber       Subscriber     `json:"subscriber"`
+	CreateTime       time.Time      `json:"create_time"`
+	ShippingAmount   ShippingAmount `json:"shipping_amount"`
+	StartTime        time.Time      `json:"start_time"`
+	UpdateTime       time.Time      `json:"update_time"`
+	BillingInfo      BillingInfo    `json:"billing_info"`
+	Links            []Links        `json:"links"`
+	ID               string         `json:"id"`
+	PlanID           string         `json:"plan_id"`
+	AutoRenewal      bool           `json:"auto_renewal"`
+	Status           string         `json:"status"`
+	StatusUpdateTime time.Time      `json:"status_update_time"`
+}
+type Name struct {
+	GivenName string `json:"given_name"`
+	Surname   string `json:"surname"`
+}
+type FullName struct {
+	FullName string `json:"full_name"`
+}
+type Address struct {
+	AddressLine1 string `json:"address_line_1"`
+	AddressLine2 string `json:"address_line_2"`
+	AdminArea2   string `json:"admin_area_2"`
+	AdminArea1   string `json:"admin_area_1"`
+	PostalCode   string `json:"postal_code"`
+	CountryCode  string `json:"country_code"`
+}
+type ShippingAddress struct {
+	Name    FullName `json:"name"`
+	Address Address  `json:"address"`
+}
+type Subscriber struct {
+	Name            Name            `json:"name"`
+	EmailAddress    string          `json:"email_address"`
+	ShippingAddress ShippingAddress `json:"shipping_address"`
+}
+type ShippingAmount struct {
+	CurrencyCode string `json:"currency_code"`
+	Value        string `json:"value"`
+}
+type OutstandingBalance struct {
+	CurrencyCode string `json:"currency_code"`
+	Value        string `json:"value"`
+}
+type CycleExecutions struct {
+	TenureType                  string `json:"tenure_type"`
+	Sequence                    int    `json:"sequence"`
+	CyclesCompleted             int    `json:"cycles_completed"`
+	CyclesRemaining             int    `json:"cycles_remaining"`
+	CurrentPricingSchemeVersion int    `json:"current_pricing_scheme_version"`
+}
+
+type LastPayment struct {
+	Amount Amount    `json:"amount"`
+	Time   time.Time `json:"time"`
+}
+type BillingInfo struct {
+	OutstandingBalance  OutstandingBalance `json:"outstanding_balance"`
+	CycleExecutions     []CycleExecutions  `json:"cycle_executions"`
+	LastPayment         LastPayment        `json:"last_payment"`
+	NextBillingTime     time.Time          `json:"next_billing_time"`
+	FinalPaymentTime    time.Time          `json:"final_payment_time"`
+	FailedPaymentsCount int                `json:"failed_payments_count"`
 }

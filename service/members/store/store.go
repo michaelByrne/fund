@@ -50,7 +50,9 @@ func (s MemberStore) GetMembers(ctx context.Context) ([]members.Member, error) {
 func (s MemberStore) GetMemberByID(ctx context.Context, id uuid.UUID) (*members.Member, error) {
 	query := s.queries.GetMemberById
 
-	return pg.FetchOne(ctx, id, query, fromDBMember)
+	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
+
+	return pg.FetchOne(ctx, id, query, argIdentity, fromDBMember)
 }
 
 func (s MemberStore) UpsertMember(ctx context.Context, member members.UpsertMember) (*members.Member, error) {

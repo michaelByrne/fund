@@ -25,7 +25,8 @@ type donationStore interface {
 	SetDonationsToActive(ctx context.Context, ids []uuid.UUID) ([]donations.Donation, error)
 }
 
-type authProvider interface {
+//go:generate moq -pkg mocks -out ../mocks/auth_moq.go . AuthProvider
+type AuthProvider interface {
 	CreateUser(ctx context.Context, username, email string, memberID uuid.UUID) (string, error)
 	DeleteUser(ctx context.Context, username string) error
 }
@@ -37,13 +38,13 @@ type paymentsProvider interface {
 type MemberService struct {
 	memberStore      memberStore
 	donationStore    donationStore
-	authProvider     authProvider
+	authProvider     AuthProvider
 	paymentsProvider paymentsProvider
 
 	logger *slog.Logger
 }
 
-func NewMemberService(memberStore memberStore, donationStore donationStore, authProvider authProvider, paymentsProvider paymentsProvider, logger *slog.Logger) *MemberService {
+func NewMemberService(memberStore memberStore, donationStore donationStore, authProvider AuthProvider, paymentsProvider paymentsProvider, logger *slog.Logger) *MemberService {
 	gob.Register(Member{})
 
 	return &MemberService{

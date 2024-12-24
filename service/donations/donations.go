@@ -9,12 +9,12 @@ import (
 
 type DonationService struct {
 	donationStore    donationStore
-	paymentsProvider paymentsProvider
+	paymentsProvider PaymentsProvider
 
 	logger *slog.Logger
 }
 
-func NewDonationService(donationStore donationStore, provider paymentsProvider, logger *slog.Logger) *DonationService {
+func NewDonationService(donationStore donationStore, provider PaymentsProvider, logger *slog.Logger) *DonationService {
 	return &DonationService{
 		donationStore:    donationStore,
 		paymentsProvider: provider,
@@ -89,8 +89,11 @@ func (s DonationService) DeactivateFund(ctx context.Context, id uuid.UUID) error
 	return nil
 }
 
-func (s DonationService) DeactivateDonation(ctx context.Context, id uuid.UUID) (*Donation, error) {
-	donation, err := s.donationStore.SetDonationToInactive(ctx, id)
+func (s DonationService) DeactivateDonation(ctx context.Context, id uuid.UUID, reason string) (*Donation, error) {
+	donation, err := s.donationStore.SetDonationToInactive(ctx, DeactivateDonation{
+		ID:     id,
+		Reason: reason,
+	})
 	if err != nil {
 		s.logger.Error("failed to set donation to inactive", slog.String("error", err.Error()))
 
