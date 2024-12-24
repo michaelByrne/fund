@@ -120,6 +120,30 @@ func (q *Queries) GetDonationById(ctx context.Context, id uuid.UUID) (Donation, 
 	return i, err
 }
 
+const getDonationByProviderSubscriptionId = `-- name: GetDonationByProviderSubscriptionId :one
+SELECT id, recurring, donor_id, donation_plan_id, provider_order_id, created, updated, fund_id, active, provider_subscription_id
+FROM donation
+WHERE provider_subscription_id = $1
+`
+
+func (q *Queries) GetDonationByProviderSubscriptionId(ctx context.Context, providerSubscriptionID string) (Donation, error) {
+	row := q.db.QueryRow(ctx, getDonationByProviderSubscriptionId, providerSubscriptionID)
+	var i Donation
+	err := row.Scan(
+		&i.ID,
+		&i.Recurring,
+		&i.DonorID,
+		&i.DonationPlanID,
+		&i.ProviderOrderID,
+		&i.Created,
+		&i.Updated,
+		&i.FundID,
+		&i.Active,
+		&i.ProviderSubscriptionID,
+	)
+	return i, err
+}
+
 const getDonationPaymentById = `-- name: GetDonationPaymentById :one
 SELECT id, donation_id, paypal_payment_id, amount_cents, created, updated
 FROM donation_payment
@@ -577,7 +601,7 @@ type InsertDonationParams struct {
 	Recurring              bool
 	DonationPlanID         uuid.NullUUID
 	ProviderOrderID        string
-	ProviderSubscriptionID pgtype.Text
+	ProviderSubscriptionID string
 }
 
 func (q *Queries) InsertDonation(ctx context.Context, arg InsertDonationParams) (Donation, error) {
@@ -844,7 +868,7 @@ WHERE provider_subscription_id = $1
 RETURNING id, recurring, donor_id, donation_plan_id, provider_order_id, created, updated, fund_id, active, provider_subscription_id
 `
 
-func (q *Queries) SetDonationsToActiveBySubscriptionId(ctx context.Context, providerSubscriptionID pgtype.Text) (Donation, error) {
+func (q *Queries) SetDonationsToActiveBySubscriptionId(ctx context.Context, providerSubscriptionID string) (Donation, error) {
 	row := q.db.QueryRow(ctx, setDonationsToActiveBySubscriptionId, providerSubscriptionID)
 	var i Donation
 	err := row.Scan(

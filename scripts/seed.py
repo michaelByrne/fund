@@ -20,7 +20,7 @@ DB_CONFIG = {
 
 # Constants
 BATCH_SIZE = 1000
-NUM_DONATIONS = 500
+NUM_DONATIONS = 100
 NUM_MEMBERS = 20
 NUM_PLANS = 10
 PAYMENT_CUTOFF_DATE = datetime.now()
@@ -51,10 +51,21 @@ def batch_insert(cursor, table_name, columns, data, batch_size=BATCH_SIZE):
 
 
 def generate_members(num_members):
-    return [
-        (fake.uuid4(), fake.name(), fake.email(), fake.name(), fake.name(), random_date_within_range())
-        for _ in range(num_members)
-    ]
+    members = []
+    while len(members) < num_members:
+        member_id = fake.uuid4()
+        member_data = (
+            member_id,  # ID should be unique
+            fake.name(),
+            fake.email(),
+            fake.name(),
+            fake.name(),
+            random_date_within_range()
+        )
+        members.append(member_data)  # Add the tuple to the list
+    return members
+
+
 
 
 def generate_donation_plans(fund_ids, fund_created_map):
@@ -146,10 +157,7 @@ def get_fund_date_range(fund_created_date, fund_expires=None):
 
 
 def generate_donations(member_ids, fund_created_map, donation_plans, num_donations):
-    """Generate donations distributed across fund lifetimes"""
     donations = []
-
-    # First, separate funds by type
     monthly_funds = {
         fund_id: (created, freq)
         for fund_id, (created, freq) in fund_created_map.items()
@@ -161,66 +169,78 @@ def generate_donations(member_ids, fund_created_map, donation_plans, num_donatio
         if freq == "once"
     }
 
-    print(f"Found {len(monthly_funds)} monthly funds and {len(once_funds)} one-time funds")
+    all_funds = list(monthly_funds.keys()) + list(once_funds.keys())
+    total_funds = len(all_funds)
 
-    # Calculate donations per fund type
-    total_funds = len(monthly_funds) + len(once_funds)
-    if total_funds == 0:
-        raise ValueError("No valid funds found")
-
+    # Ensure at least one donation per fund
     donations_per_fund = num_donations // total_funds
+    leftover_donations = num_donations % total_funds
 
-    # Process monthly funds (recurring donations only)
-    for fund_id, (fund_created, _) in monthly_funds.items():
-        print(f"\nProcessing monthly fund {fund_id}")
-        start_date, end_date = get_fund_date_range(fund_created)
-
-        # Get valid plans for this fund
-        fund_plans = [p for p in donation_plans if p[9] == fund_id]
-        if not fund_plans:
-            print(f"Warning: No plans found for monthly fund {fund_id}")
-            continue
-
-        # Generate recurring donations spread across the fund's lifetime
-        recurring_dates = distribute_dates_in_range(start_date, end_date, donations_per_fund)
+    # Distribute donations across funds
+    for fund_id in monthly_funds:
+        recurring_dates = [random_date_within_range() for _ in range(donations_per_fund)]
         for created_date in recurring_dates:
-            plan = random.choice(fund_plans)
+            plan = random.choice(donation_plans)
+            provider_subscription_id = fake.uuid4() if plan[0] else None
             donations.append((
                 fake.uuid4(),
                 random.choice(member_ids),
                 fund_id,
-                "666",
+                fake.uuid4(),
                 True,
                 created_date,
-                plan[0],  # plan_id
-                True     # recurring
+                plan[0],                   # plan_id
+                True,                      # recurring
+                provider_subscription_id   # provider_subscription_id
             ))
-        print(f"Generated {len(recurring_dates)} recurring donations for monthly fund {fund_id}")
 
-    # Process one-time funds (one-time donations only)
-    for fund_id, (fund_created, _) in once_funds.items():
-        print(f"\nProcessing one-time fund {fund_id}")
-        start_date, end_date = get_fund_date_range(fund_created)
-
-        # Generate one-time donations spread across the fund's lifetime
-        one_time_dates = distribute_dates_in_range(start_date, end_date, donations_per_fund)
+    for fund_id in once_funds:
+        one_time_dates = [random_date_within_range() for _ in range(donations_per_fund)]
         for created_date in one_time_dates:
             donations.append((
                 fake.uuid4(),
                 random.choice(member_ids),
                 fund_id,
-                "666",
+                fake.uuid4(),
                 True,
                 created_date,
-                None,    # no plan_id
-                False   # not recurring
+                None,   # no plan_id
+                False,  # not recurring
+                None    # no subscription
             ))
-        print(f"Generated {len(one_time_dates)} one-time donations for fund {fund_id}")
 
-    # Sort all donations by creation date
+    # Distribute leftover donations
+    for i in range(leftover_donations):
+        fund_id = random.choice(all_funds)
+        created_date = random_date_within_range()
+        if fund_id in monthly_funds:
+            plan = random.choice(donation_plans)
+            provider_subscription_id = fake.uuid4() if plan[0] else None
+            donations.append((
+                fake.uuid4(),
+                random.choice(member_ids),
+                fund_id,
+                fake.uuid4(),
+                True,
+                created_date,
+                plan[0],                   # plan_id
+                True,                      # recurring
+                provider_subscription_id   # provider_subscription_id
+            ))
+        else:
+            donations.append((
+                fake.uuid4(),
+                random.choice(member_ids),
+                fund_id,
+                fake.uuid4(),
+                True,
+                created_date,
+                None,   # no plan_id
+                False,  # not recurring
+                None    # no subscription
+            ))
+
     donations = sorted(donations, key=lambda x: x[5])
-    print(f"\nTotal donations generated: {len(donations)}")
-
     return donations
 
 
@@ -366,11 +386,20 @@ def main():
                 # Insert donations
                 print("\nGenerating donations...")
                 donations = generate_donations(member_ids, fund_created_map, donation_plans, NUM_DONATIONS)
+                for fund_id in fund_created_map:
+                    fund_donations = [d for d in donations if d[2] == fund_id]
+                    if fund_donations:
+                        earliest_donation_date = min(d[5] for d in fund_donations)
+                        fund_created_map[fund_id] = (earliest_donation_date, fund_created_map[fund_id][1])
+                        cursor.execute(
+                            "UPDATE fund SET created = %s WHERE id = %s",
+                            (earliest_donation_date, fund_id)
+                        )
                 batch_insert(
                     cursor,
                     'donation',
                     ['id', 'donor_id', 'fund_id', 'provider_order_id', 'active',
-                     'created', 'donation_plan_id', 'recurring'],
+                     'created', 'donation_plan_id', 'recurring', 'provider_subscription_id'],
                     donations
                 )
 

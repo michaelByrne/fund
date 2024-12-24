@@ -6,7 +6,6 @@ import (
 	"boardfund/service/donations"
 	"context"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -45,7 +44,7 @@ func (s DonationStore) GetMonthlyDonationTotalsForFund(ctx context.Context, id u
 func (s DonationStore) SetDonationToActiveBySubscriptionID(ctx context.Context, id string) (*donations.Donation, error) {
 	query := s.queries.SetDonationsToActiveBySubscriptionId
 
-	argIdentity := func(id string) pgtype.Text { return pgtype.Text{String: id, Valid: true} }
+	argIdentity := func(id string) string { return id }
 
 	return pg.UpdateOne(ctx, id, query, argIdentity, fromDBDonation)
 }
@@ -250,4 +249,10 @@ func (s DonationStore) GetDonationPaymentsByDonationID(ctx context.Context, dona
 	query := s.queries.GetDonationPaymentsByDonationId
 
 	return pg.FetchMany(ctx, donationID, query, fromDBDonationPayment)
+}
+
+func (s DonationStore) GetDonationByProviderSubscriptionID(ctx context.Context, id string) (*donations.Donation, error) {
+	query := s.queries.GetDonationByProviderSubscriptionId
+
+	return pg.FetchOne(ctx, id, query, fromDBDonation)
 }

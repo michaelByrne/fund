@@ -246,5 +246,10 @@ SELECT TO_CHAR(month_year, 'YYYY-MM') AS month_year,
        unique_donors
 FROM monthly_totals;
 
+-- name: GetDonationByProviderSubscriptionId :one
+SELECT *
+FROM donation
+WHERE provider_subscription_id = $1;
+
 
 

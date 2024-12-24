@@ -213,3 +213,37 @@ type MonthTotal struct {
 	TotalCents   int32  `json:"amount"`
 	UniqueDonors int32  `json:"unique_donors"`
 }
+
+// Webhook events
+
+type PaymentSaleEvent struct {
+	BillingAgreementID        string         `json:"billing_agreement_id"`
+	Amount                    Amount         `json:"amount"`
+	PaymentMode               string         `json:"payment_mode"`
+	UpdateTime                time.Time      `json:"update_time"`
+	CreateTime                time.Time      `json:"create_time"`
+	ProtectionEligibilityType string         `json:"protection_eligibility_type"`
+	TransactionFee            TransactionFee `json:"transaction_fee"`
+	ProtectionEligibility     string         `json:"protection_eligibility"`
+	Links                     []Links        `json:"links"`
+	ID                        string         `json:"id"`
+	State                     string         `json:"state"`
+	InvoiceNumber             string         `json:"invoice_number"`
+}
+type Details struct {
+	Subtotal string `json:"subtotal"`
+}
+type Amount struct {
+	Total    string  `json:"total"`
+	Currency string  `json:"currency"`
+	Details  Details `json:"details"`
+}
+type TransactionFee struct {
+	Currency string `json:"currency"`
+	Value    string `json:"value"`
+}
+type Links struct {
+	Method string `json:"method"`
+	Rel    string `json:"rel"`
+	Href   string `json:"href"`
+}

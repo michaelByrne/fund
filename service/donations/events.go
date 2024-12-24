@@ -2,6 +2,7 @@ package donations
 
 import (
 	"boardfund/events"
+	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"log/slog"
@@ -30,5 +31,12 @@ func (h *Handlers) Subscribe(subscribe subscriber) error {
 }
 
 func (h *Handlers) paymentSaleCompleted(data []byte) {
-	fmt.Printf("Payment sale completed: %s\n", data)
+	var paymentSale PaymentSaleEvent
+	if err := json.Unmarshal(data, &paymentSale); err != nil {
+		h.logger.Error("failed to unmarshal payment sale event", slog.String("error", err.Error()))
+
+		return
+	}
+
+	fmt.Printf("Payment sale completed: %+v\n", paymentSale)
 }

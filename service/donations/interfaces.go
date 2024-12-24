@@ -21,6 +21,7 @@ type donationStore interface {
 	SetDonationToActiveBySubscriptionID(ctx context.Context, id string) (*Donation, error)
 	GetActiveFunds(ctx context.Context) ([]Fund, error)
 	GetMonthlyDonationTotalsForFund(ctx context.Context, id uuid.UUID) ([]MonthTotal, error)
+	GetDonationByProviderSubscriptionID(ctx context.Context, id string) (*Donation, error)
 }
 
 type paymentsProvider interface {

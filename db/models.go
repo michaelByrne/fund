@@ -150,7 +150,7 @@ type Donation struct {
 	Updated                pgtype.Timestamptz
 	FundID                 uuid.UUID
 	Active                 bool
-	ProviderSubscriptionID pgtype.Text
+	ProviderSubscriptionID string
 }
 
 type DonationPayment struct {

@@ -182,18 +182,15 @@ func toDBDonationPlanUpsertParams(plan donations.UpsertDonationPlan) db.UpsertDo
 
 func fromDBDonation(donation db.Donation) donations.Donation {
 	donationOut := donations.Donation{
-		ID:              donation.ID,
-		DonorID:         donation.DonorID,
-		DonationPlanID:  donation.DonationPlanID,
-		FundID:          donation.FundID,
-		Recurring:       donation.Recurring,
-		Created:         donation.Created.Time,
-		Updated:         donation.Updated.Time,
-		ProviderOrderID: donation.ProviderOrderID,
-	}
-
-	if donation.ProviderSubscriptionID.Valid {
-		donationOut.ProviderSubscriptionID = donation.ProviderSubscriptionID.String
+		ID:                     donation.ID,
+		DonorID:                donation.DonorID,
+		DonationPlanID:         donation.DonationPlanID,
+		FundID:                 donation.FundID,
+		Recurring:              donation.Recurring,
+		Created:                donation.Created.Time,
+		Updated:                donation.Updated.Time,
+		ProviderOrderID:        donation.ProviderOrderID,
+		ProviderSubscriptionID: donation.ProviderSubscriptionID,
 	}
 
 	return donationOut
@@ -209,11 +206,8 @@ func toDBDonationInsertParams(donation donations.InsertDonation) db.InsertDonati
 		DonationPlanID:  donation.PlanID,
 	}
 
-	if donation.ProviderSubscriptionID != "" {
-		insertDonation.ProviderSubscriptionID = pgtype.Text{
-			String: donation.ProviderSubscriptionID,
-			Valid:  true,
-		}
+	if donation.ProviderSubscriptionID == "" {
+		insertDonation.ProviderSubscriptionID = donation.ID.String()
 	}
 
 	return insertDonation
