@@ -208,6 +208,8 @@ func toDBDonationInsertParams(donation donations.InsertDonation) db.InsertDonati
 
 	if donation.ProviderSubscriptionID == "" {
 		insertDonation.ProviderSubscriptionID = donation.ID.String()
+	} else {
+		insertDonation.ProviderSubscriptionID = donation.ProviderSubscriptionID
 	}
 
 	return insertDonation

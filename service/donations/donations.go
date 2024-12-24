@@ -161,7 +161,6 @@ func (s DonationService) CreateDonationPlan(ctx context.Context, plan CreatePlan
 }
 
 func (s DonationService) CompleteRecurringDonation(ctx context.Context, memberID uuid.UUID, completion RecurringCompletion) error {
-	fmt.Printf("completion: %+v\n", completion)
 	insertDonation := InsertDonation{
 		ID:                     uuid.New(),
 		DonorID:                memberID,
@@ -172,16 +171,9 @@ func (s DonationService) CompleteRecurringDonation(ctx context.Context, memberID
 		Recurring:              true,
 	}
 
-	insertPayment := InsertDonationPayment{
-		ID:                uuid.New(),
-		DonationID:        insertDonation.ID,
-		AmountCents:       completion.AmountCents,
-		ProviderPaymentID: "initial",
-	}
-
-	_, err := s.donationStore.InsertDonationWithPayment(ctx, insertDonation, insertPayment)
+	_, err := s.donationStore.InsertDonation(ctx, insertDonation)
 	if err != nil {
-		s.logger.Error("failed to create donation with payment", slog.String("error", err.Error()))
+		s.logger.Error("failed to insert donation", slog.String("error", err.Error()))
 
 		return err
 	}
