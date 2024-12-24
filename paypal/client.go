@@ -57,6 +57,8 @@ func (c Client) post(ctx context.Context, path string, payload any) error {
 			return fmt.Errorf("error decoding paypal error: %w", err)
 		}
 
+		fmt.Printf("paypalErr: %+v %s\n", paypalErr.Details, paypalErr.Message)
+
 		return paypalErr
 	}
 
