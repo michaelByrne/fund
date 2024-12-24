@@ -54,9 +54,8 @@ resource "aws_cognito_user_pool" "bco_fund_pool" {
   }
 
   email_configuration {
-    email_sending_account = "DEVELOPER"
+    email_sending_account = "COGNITO_DEFAULT"
     source_arn = aws_ses_email_identity.welcome_email.arn
-    from_email_address = "welcome@${var.domain}"
   }
 
   schema {
