@@ -263,3 +263,10 @@ func toDBSetDonationToInactive(arg donations.DeactivateDonation) db.SetDonationT
 		},
 	}
 }
+
+func toDBGetRecurringDonationsForFundParams(arg donations.GetRecurringDonationsForFundRequest) db.GetRecurringDonationsForFundParams {
+	return db.GetRecurringDonationsForFundParams{
+		ID:     arg.FundID,
+		Active: arg.Active,
+	}
+}

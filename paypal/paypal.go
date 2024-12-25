@@ -140,6 +140,21 @@ func (p Paypal) InitiateDonation(ctx context.Context, fund donations.Fund, amoun
 	return orderResponse.ID, nil
 }
 
+func (p Paypal) ProviderDonationSubscriptionIsActive(ctx context.Context, providerSubscriptionID string) (bool, error) {
+	subscriptionBytes, err := p.client.get(ctx, "/v1/billing/subscriptions/"+providerSubscriptionID)
+	if err != nil {
+		return false, err
+	}
+
+	var subscription Subscription
+	err = json.Unmarshal(subscriptionBytes, &subscription)
+	if err != nil {
+		return false, err
+	}
+
+	return subscription.Status == "ACTIVE", nil
+}
+
 func centsToDecimalString(cents int32) string {
 	x := float64(cents)
 	x = x / 100

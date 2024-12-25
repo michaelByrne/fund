@@ -40,14 +40,6 @@ func (h *Handlers) Subscribe(subscriber subscriber) error {
 		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", events.SubscriptionCancelled, err))
 	}
 
-	if err := subscriber.Subscribe(events.SubscriptionSuspended, h.subscriptionEnded); err != nil {
-		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", events.SubscriptionSuspended, err))
-	}
-
-	if err := subscriber.Subscribe(events.SubscriptionPaymentFailed, h.subscriptionEnded); err != nil {
-		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", events.SubscriptionPaymentFailed, err))
-	}
-
 	return errResult
 }
 

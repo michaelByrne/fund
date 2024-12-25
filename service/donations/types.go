@@ -225,6 +225,11 @@ type DeactivateDonationBySubscription struct {
 	Reason         string
 }
 
+type GetRecurringDonationsForFundRequest struct {
+	FundID uuid.UUID
+	Active bool
+}
+
 // Webhook events
 
 type PaymentSaleEvent struct {

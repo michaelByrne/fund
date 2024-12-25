@@ -22,6 +22,8 @@ func NewDonationStore(conn *pgxpool.Pool) DonationStore {
 	}
 }
 
+func uuidIdentity(id uuid.UUID) uuid.UUID { return id }
+
 func (s DonationStore) GetTotalDonatedByMemberID(ctx context.Context, id uuid.UUID) (int64, error) {
 	query := s.queries.GetTotalDonatedByMember
 
@@ -39,7 +41,7 @@ func (s DonationStore) GetActiveFunds(ctx context.Context) ([]donations.Fund, er
 func (s DonationStore) GetMonthlyDonationTotalsForFund(ctx context.Context, id uuid.UUID) ([]donations.MonthTotal, error) {
 	query := s.queries.GetMonthlyTotalsByFund
 
-	return pg.FetchMany(ctx, id, query, fromDBMonthlyDonationTotal)
+	return pg.FetchMany(ctx, id, query, uuidIdentity, fromDBMonthlyDonationTotal)
 }
 
 func (s DonationStore) SetDonationToActiveBySubscriptionID(ctx context.Context, id string) (*donations.Donation, error) {
@@ -126,9 +128,7 @@ func (s DonationStore) SetFundAndDonationsToActive(ctx context.Context, id uuid.
 func (s DonationStore) SetDonationsToInactiveByDonorID(ctx context.Context, donorID uuid.UUID) ([]donations.Donation, error) {
 	query := s.queries.SetDonationsToInactiveByDonorId
 
-	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
-
-	return pg.UpdateMany(ctx, donorID, query, argIdentity, fromDBDonation)
+	return pg.UpdateMany(ctx, donorID, query, uuidIdentity, fromDBDonation)
 }
 
 func (s DonationStore) SetDonationsToActive(ctx context.Context, ids []uuid.UUID) ([]donations.Donation, error) {
@@ -160,9 +160,7 @@ func (s DonationStore) GetFunds(ctx context.Context) ([]donations.Fund, error) {
 func (s DonationStore) GetFundByID(ctx context.Context, id uuid.UUID) (*donations.Fund, error) {
 	query := s.queries.GetFundById
 
-	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
-
-	return pg.FetchOne(ctx, id, query, argIdentity, fromDBFundByID)
+	return pg.FetchOne(ctx, id, query, uuidIdentity, fromDBFundByID)
 }
 
 func (s DonationStore) UpdateFund(ctx context.Context, fund donations.UpdateFund) (*donations.Fund, error) {
@@ -216,9 +214,7 @@ func (s DonationStore) InsertDonationWithPayment(ctx context.Context, donation d
 func (s DonationStore) GetDonationPlanByID(ctx context.Context, id uuid.UUID) (*donations.DonationPlan, error) {
 	query := s.queries.GetDonationPlanById
 
-	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
-
-	return pg.FetchOne(ctx, id, query, argIdentity, fromDBDonationPlan)
+	return pg.FetchOne(ctx, id, query, uuidIdentity, fromDBDonationPlan)
 }
 
 func (s DonationStore) GetDonationByID(ctx context.Context, id uuid.UUID) (*donations.Donation, error) {
@@ -246,7 +242,7 @@ func (s DonationStore) InsertDonation(ctx context.Context, donation donations.In
 func (s DonationStore) GetDonationsByDonorID(ctx context.Context, donorID uuid.UUID) ([]donations.Donation, error) {
 	query := s.queries.GetDonationsByDonorId
 
-	return pg.FetchMany(ctx, donorID, query, fromDBDonation)
+	return pg.FetchMany(ctx, donorID, query, uuidIdentity, fromDBDonation)
 }
 
 func (s DonationStore) InsertDonationPayment(ctx context.Context, payment donations.InsertDonationPayment) (*donations.DonationPayment, error) {
@@ -258,15 +254,13 @@ func (s DonationStore) InsertDonationPayment(ctx context.Context, payment donati
 func (s DonationStore) GetDonationPaymentByID(ctx context.Context, id uuid.UUID) (*donations.DonationPayment, error) {
 	query := s.queries.GetDonationPaymentById
 
-	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
-
-	return pg.FetchOne(ctx, id, query, argIdentity, fromDBDonationPayment)
+	return pg.FetchOne(ctx, id, query, uuidIdentity, fromDBDonationPayment)
 }
 
 func (s DonationStore) GetDonationPaymentsByDonationID(ctx context.Context, donationID uuid.UUID) ([]donations.DonationPayment, error) {
 	query := s.queries.GetDonationPaymentsByDonationId
 
-	return pg.FetchMany(ctx, donationID, query, fromDBDonationPayment)
+	return pg.FetchMany(ctx, donationID, query, uuidIdentity, fromDBDonationPayment)
 }
 
 func (s DonationStore) GetDonationByProviderSubscriptionID(ctx context.Context, id string) (*donations.Donation, error) {
@@ -280,4 +274,16 @@ func (s DonationStore) GetDonationByProviderSubscriptionID(ctx context.Context, 
 	}
 
 	return pg.FetchOne(ctx, id, query, argTransform, fromDBDonation)
+}
+
+func (s DonationStore) GetRecurringDonationsForFund(ctx context.Context, arg donations.GetRecurringDonationsForFundRequest) ([]donations.Donation, error) {
+	query := s.queries.GetRecurringDonationsForFund
+
+	return pg.FetchMany(ctx, arg, query, toDBGetRecurringDonationsForFundParams, fromDBDonation)
+}
+
+func (s DonationStore) GetPaymentsForDonation(ctx context.Context, donationID uuid.UUID) ([]donations.DonationPayment, error) {
+	query := s.queries.GetPaymentsForDonation
+
+	return pg.FetchMany(ctx, donationID, query, uuidIdentity, fromDBDonationPayment)
 }

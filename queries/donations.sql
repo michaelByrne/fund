@@ -57,7 +57,8 @@ RETURNING *;
 
 -- name: SetDonationToInactive :one
 UPDATE donation
-SET active = false, inactive_reason = $2
+SET active          = false,
+    inactive_reason = $2
 WHERE id = $1
 RETURNING *;
 
@@ -70,14 +71,15 @@ RETURNING *;
 
 -- name: SetDonationToInactiveBySubscriptionId :one
 UPDATE donation
-SET active = false, inactive_reason = $2
+SET active          = false,
+    inactive_reason = $2
 WHERE provider_subscription_id = $1
 RETURNING *;
 
 -- name: SetDonationsToActive :many
 UPDATE donation
 SET active = true
-WHERE id = ANY(sqlc.arg(ids)::uuid[])
+WHERE id = ANY (sqlc.arg(ids)::uuid[])
 RETURNING *;
 
 
@@ -256,6 +258,19 @@ FROM monthly_totals;
 SELECT *
 FROM donation
 WHERE provider_subscription_id = $1;
+
+-- name: GetRecurringDonationsForFund :many
+SELECT d.*
+FROM donation d
+         JOIN fund f ON d.fund_id = f.id
+WHERE d.active = $1
+  AND d.recurring = true
+  AND f.id = $2;
+
+-- name: GetPaymentsForDonation :many
+SELECT dp.*
+FROM donation_payment dp
+WHERE dp.donation_id = $1;
 
 
 

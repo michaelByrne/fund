@@ -84,15 +84,17 @@ func FetchScalar[Arg any, Realm any, DB any](ctx context.Context, arg Arg, get g
 	return result, nil
 }
 
-func FetchMany[Realm any, DB any, Arg any](ctx context.Context, arg Arg, get getMany[Arg, DB], transform transform[DB, Realm]) ([]Realm, error) {
-	dbRes, err := get(ctx, arg)
+func FetchMany[Realm any, StoreArg any, DB any, Arg any](ctx context.Context, arg StoreArg, get getMany[Arg, DB], transformIn transform[StoreArg, Arg], transformOut transform[DB, Realm]) ([]Realm, error) {
+	dbArg := transformIn(arg)
+
+	dbRes, err := get(ctx, dbArg)
 	if err != nil {
 		return nil, err
 	}
 
 	result := make([]Realm, len(dbRes))
 	for i, r := range dbRes {
-		result[i] = transform(r)
+		result[i] = transformOut(r)
 	}
 
 	return result, nil

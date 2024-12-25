@@ -2,6 +2,9 @@ package main
 
 import (
 	"boardfund/aws"
+	"boardfund/cmd/root"
+	"boardfund/cmd/root/audit"
+	donationsaudit "boardfund/cmd/root/audit/donations"
 	"boardfund/events"
 	"boardfund/jwtauth"
 	"boardfund/jwtauth/keyset"
@@ -11,6 +14,7 @@ import (
 	"boardfund/service/auth"
 	"boardfund/service/donations"
 	donationstore "boardfund/service/donations/store"
+	"boardfund/service/finance"
 	"boardfund/service/members"
 	memberstore "boardfund/service/members/store"
 	"boardfund/web/adminweb"
@@ -20,7 +24,6 @@ import (
 	"boardfund/web/middlewares"
 	"boardfund/web/mux"
 	"context"
-	"embed"
 	"errors"
 	"fmt"
 	"github.com/alexedwards/scs/pgxstore"
@@ -33,80 +36,77 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"log"
 
 	"io"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 )
 
-//go:embed pg/migrations/*.sql
-var fs embed.FS
-
 func main() {
 	ctx := context.Background()
+	getEnv := os.Getenv
+	stdout := os.Stdout
 
-	err := run(ctx, os.Getenv, os.Stdout)
+	err := run(ctx, getEnv, stdout)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
 func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) error {
-	paypalClientID := getEnv("PAYPAL_CLIENT_ID")
+	paypalClientID := getEnv("DEV_PAYPAL_CLIENT_ID")
 	if paypalClientID == "" {
-		return fmt.Errorf("PAYPAL_CLIENT_ID is required")
+		return fmt.Errorf("DEV_PAYPAL_CLIENT_ID is required")
 	}
 
-	clientSecret := getEnv("PAYPAL_CLIENT_SECRET")
+	clientSecret := getEnv("DEV_PAYPAL_CLIENT_SECRET")
 	if clientSecret == "" {
-		return fmt.Errorf("PAYPAL_CLIENT_SECRET is required")
+		return fmt.Errorf("DEV_PAYPAL_CLIENT_SECRET is required")
 	}
 
-	baseURL := getEnv("PAYPAL_BASE_URL")
+	baseURL := getEnv("DEV_PAYPAL_BASE_URL")
 	if baseURL == "" {
-		return fmt.Errorf("PAYPAL_BASE_URL is required")
+		return fmt.Errorf("DEV_PAYPAL_BASE_URL is required")
 	}
 
-	webhookID := getEnv("SANDBOX_WEBHOOK_ID")
+	webhookID := getEnv("DEV_PAYPAL_WEBHOOK_ID")
 	if webhookID == "" {
-		return fmt.Errorf("SANDBOX_WEBHOOK_ID is required")
+		return fmt.Errorf("DEV_PAYPAL_WEBHOOK_ID is required")
 	}
 
-	productID := getEnv("PAYPAL_PRODUCT_ID")
+	productID := getEnv("DEV_PAYPAL_PRODUCT_ID")
 	if productID == "" {
-		return fmt.Errorf("PAYPAL_PRODUCT_ID is required")
+		return fmt.Errorf("DEV_PAYPAL_PRODUCT_ID is required")
 	}
 
-	isLive := getEnv("LIVE_PAYPAL")
+	isLive := getEnv("IS_PROD")
 	if isLive == "true" {
-		baseURL = getEnv("LIVE_PAYPAL_URL")
+		baseURL = getEnv("PROD_PAYPAL_URL")
 		if baseURL == "" {
-			return fmt.Errorf("LIVE_PAYPAL_URL is required")
+			return fmt.Errorf("PROD_PAYPAL_URL is required")
 		}
 
-		paypalClientID = getEnv("LIVE_PAYPAL_CLIENT_ID")
+		paypalClientID = getEnv("PROD_PAYPAL_CLIENT_ID")
 		if paypalClientID == "" {
-			return fmt.Errorf("LIVE_PAYPAL_CLIENT_ID is required")
+			return fmt.Errorf("PROD_PAYPAL_CLIENT_ID is required")
 		}
 
-		clientSecret = getEnv("LIVE_PAYPAL_CLIENT_SECRET")
+		clientSecret = getEnv("PROD_PAYPAL_CLIENT_SECRET")
 		if clientSecret == "" {
-			return fmt.Errorf("LIVE_PAYPAL_CLIENT_SECRET is required")
+			return fmt.Errorf("PROD_PAYPAL_CLIENT_SECRET is required")
 		}
 
-		webhookID = getEnv("LIVE_WEBHOOK_ID")
+		webhookID = getEnv("PROD_PAYPAL_WEBHOOK_ID")
 		if webhookID == "" {
-			return fmt.Errorf("LIVE_WEBHOOK_ID is required")
+			return fmt.Errorf("PROD_PAYPAL_WEBHOOK_ID is required")
 		}
 
-		productID = getEnv("LIVE_PAYPAL_PRODUCT_ID")
+		productID = getEnv("PROD_PAYPAL_PRODUCT_ID")
 		if productID == "" {
-			return fmt.Errorf("LIVE_PAYPAL_PRODUCT_ID is required")
+			return fmt.Errorf("PROD_PAYPAL_PRODUCT_ID is required")
 		}
 	}
 
@@ -177,7 +177,9 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 
 	db := stdlib.OpenDBFromPool(pool)
 
-	d, err := iofs.New(fs, "pg/migrations")
+	fs := os.DirFS("pg/migrations")
+
+	d, err := iofs.New(fs, ".")
 	if err != nil {
 		return err
 	}
@@ -230,6 +232,7 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 	donationService := donations.NewDonationService(donationStore, paypalService, logger)
 	memberService := members.NewMemberService(memberStore, donationStore, authorizer, paypalService, logger)
 	authService := auth.NewAuthService(authorizer, memberStore, logger)
+	financeService := finance.NewFinanceService(donationStore, logger)
 
 	donationHandlers := homeweb.NewFundHandlers(donationService, sessionManager, authMiddleware, logger, productID, paypalClientID)
 	authHandlers := authweb.NewAuthHandlers(authService, sessionManager, paypalClientID)
@@ -261,44 +264,13 @@ func run(ctx context.Context, getEnv func(string) string, stdout io.Writer) erro
 		Handler: router,
 	}
 
-	serverCtx, serverStopCtx := context.WithCancel(ctx)
+	rootCmd := root.RootCmd(ctx, server, ns)
+	auditCmd := audit.AuditCmd()
+	donationsAuditCmd := donationsaudit.DonationsAuditCmd(financeService)
+	auditCmd.AddCommand(donationsAuditCmd)
+	rootCmd.AddCommand(auditCmd)
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-
-	go func() {
-		<-sig
-
-		shutdownCtx, _ := context.WithTimeout(serverCtx, 30*time.Second)
-
-		go func() {
-			<-shutdownCtx.Done()
-			if errors.Is(shutdownCtx.Err(), context.DeadlineExceeded) {
-				log.Fatal("graceful shutdown timed out.. forcing exit.")
-			}
-
-			ns.Shutdown()
-		}()
-
-		err = server.Shutdown(shutdownCtx)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		ns.WaitForShutdown()
-
-		serverStopCtx()
-	}()
-
-	log.Println("** starting bco fund on port 8080 **")
-	err = server.ListenAndServe()
-	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return fmt.Errorf("server failed with error: %w", err)
-	}
-
-	<-serverCtx.Done()
-
-	return nil
+	return rootCmd.Execute()
 }
 
 func runNATS(enableLogging bool) (*nats.Conn, *server.Server, error) {

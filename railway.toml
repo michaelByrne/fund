@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "go build -o fund"
+buildCommand = "go build -o fund ./cmd"
 
 [deploy]
 startCommand = "./fund"

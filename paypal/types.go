@@ -216,3 +216,60 @@ type Updates []struct {
 type CancelSubscriptionRequest struct {
 	Reason string `json:"reason"`
 }
+
+type Subscription struct {
+	ID               string         `json:"id"`
+	PlanID           string         `json:"plan_id"`
+	StartTime        time.Time      `json:"start_time"`
+	Quantity         string         `json:"quantity"`
+	ShippingAmount   ShippingAmount `json:"shipping_amount"`
+	Subscriber       Subscriber     `json:"subscriber"`
+	BillingInfo      BillingInfo    `json:"billing_info"`
+	CreateTime       time.Time      `json:"create_time"`
+	UpdateTime       time.Time      `json:"update_time"`
+	Links            []Links        `json:"links"`
+	Status           string         `json:"status"`
+	StatusUpdateTime time.Time      `json:"status_update_time"`
+}
+type ShippingAmount struct {
+	CurrencyCode string `json:"currency_code"`
+	Value        string `json:"value"`
+}
+type ShippingAddress struct {
+	Address Address `json:"address"`
+}
+
+type Subscriber struct {
+	ShippingAddress ShippingAddress `json:"shipping_address"`
+	Name            Name            `json:"name"`
+	EmailAddress    string          `json:"email_address"`
+	PayerID         string          `json:"payer_id"`
+}
+type OutstandingBalance struct {
+	CurrencyCode string `json:"currency_code"`
+	Value        string `json:"value"`
+}
+type CycleExecutions struct {
+	TenureType      string `json:"tenure_type"`
+	Sequence        int    `json:"sequence"`
+	CyclesCompleted int    `json:"cycles_completed"`
+	CyclesRemaining int    `json:"cycles_remaining"`
+	TotalCycles     int    `json:"total_cycles"`
+}
+
+type LastPayment struct {
+	Amount Amount    `json:"amount"`
+	Time   time.Time `json:"time"`
+}
+type BillingInfo struct {
+	OutstandingBalance  OutstandingBalance `json:"outstanding_balance"`
+	CycleExecutions     []CycleExecutions  `json:"cycle_executions"`
+	LastPayment         LastPayment        `json:"last_payment"`
+	NextBillingTime     time.Time          `json:"next_billing_time"`
+	FailedPaymentsCount int                `json:"failed_payments_count"`
+}
+type Links struct {
+	Href   string `json:"href"`
+	Rel    string `json:"rel"`
+	Method string `json:"method"`
+}
