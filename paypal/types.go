@@ -273,3 +273,121 @@ type Links struct {
 	Rel    string `json:"rel"`
 	Method string `json:"method"`
 }
+
+type SubscriptionTransactions struct {
+	Transactions []Transactions `json:"transactions"`
+	Links        []Links        `json:"links"`
+}
+type PayerName struct {
+	GivenName string `json:"given_name"`
+	Surname   string `json:"surname"`
+}
+
+type FeeAmount struct {
+	CurrencyCode string `json:"currency_code"`
+	Value        string `json:"value"`
+}
+
+type AmountWithBreakdown struct {
+	GrossAmount GrossAmount `json:"gross_amount"`
+	FeeAmount   FeeAmount   `json:"fee_amount"`
+	NetAmount   NetAmount   `json:"net_amount"`
+}
+type Transactions struct {
+	ID                  string              `json:"id"`
+	Status              string              `json:"status"`
+	PayerEmail          string              `json:"payer_email"`
+	PayerName           PayerName           `json:"payer_name"`
+	AmountWithBreakdown AmountWithBreakdown `json:"amount_with_breakdown"`
+	Time                time.Time           `json:"time"`
+}
+
+type Transaction struct {
+	TransactionDetails    []TransactionDetails `json:"transaction_details"`
+	AccountNumber         string               `json:"account_number"`
+	LastRefreshedDatetime string               `json:"last_refreshed_datetime"`
+	Page                  int                  `json:"page"`
+	TotalItems            int                  `json:"total_items"`
+	TotalPages            int                  `json:"total_pages"`
+	Links                 []Links              `json:"links"`
+}
+type TransactionAmount struct {
+	CurrencyCode string `json:"currency_code"`
+	Value        string `json:"value"`
+}
+
+type TransactionInfo struct {
+	PaypalAccountID           string            `json:"paypal_account_id"`
+	TransactionID             string            `json:"transaction_id"`
+	TransactionEventCode      string            `json:"transaction_event_code"`
+	TransactionInitiationDate string            `json:"transaction_initiation_date"`
+	TransactionUpdatedDate    string            `json:"transaction_updated_date"`
+	TransactionAmount         TransactionAmount `json:"transaction_amount"`
+	FeeAmount                 FeeAmount         `json:"fee_amount"`
+	TransactionStatus         string            `json:"transaction_status"`
+	ProtectionEligibility     string            `json:"protection_eligibility"`
+}
+
+type PayerInfo struct {
+	AccountID     string    `json:"account_id"`
+	EmailAddress  string    `json:"email_address"`
+	AddressStatus string    `json:"address_status"`
+	PayerStatus   string    `json:"payer_status"`
+	PayerName     PayerName `json:"payer_name"`
+	CountryCode   string    `json:"country_code"`
+}
+
+type ShippingInfo struct {
+	Name    string  `json:"name"`
+	Method  string  `json:"method"`
+	Address Address `json:"address"`
+}
+type ItemUnitPrice struct {
+	CurrencyCode string `json:"currency_code"`
+	Value        string `json:"value"`
+}
+type ItemAmount struct {
+	CurrencyCode string `json:"currency_code"`
+	Value        string `json:"value"`
+}
+type TaxAmount struct {
+	CurrencyCode string `json:"currency_code"`
+	Value        string `json:"value"`
+}
+type TaxAmounts struct {
+	TaxAmount TaxAmount `json:"tax_amount"`
+}
+type BasicShippingAmount struct {
+	CurrencyCode string `json:"currency_code"`
+	Value        string `json:"value"`
+}
+type TotalItemAmount struct {
+	CurrencyCode string `json:"currency_code"`
+	Value        string `json:"value"`
+}
+type ItemDetails struct {
+	ItemCode            string              `json:"item_code"`
+	ItemName            string              `json:"item_name"`
+	ItemQuantity        string              `json:"item_quantity"`
+	ItemUnitPrice       ItemUnitPrice       `json:"item_unit_price"`
+	ItemAmount          ItemAmount          `json:"item_amount"`
+	TaxAmounts          []TaxAmounts        `json:"tax_amounts"`
+	BasicShippingAmount BasicShippingAmount `json:"basic_shipping_amount"`
+	TotalItemAmount     TotalItemAmount     `json:"total_item_amount"`
+}
+type CartInfo struct {
+	ItemDetails []ItemDetails `json:"item_details"`
+}
+type StoreInfo struct {
+}
+type AuctionInfo struct {
+	AuctionSite        string `json:"auction_site"`
+	AuctionItemSite    string `json:"auction_item_site"`
+	AuctionBuyerID     string `json:"auction_buyer_id"`
+	AuctionClosingDate string `json:"auction_closing_date"`
+}
+type IncentiveInfo struct {
+}
+type TransactionDetails struct {
+	TransactionInfo TransactionInfo `json:"transaction_info"`
+}

@@ -7,19 +7,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 )
 
 type Client struct {
 	paypalAuth *token.Store
 	httpClient *http.Client
+	logger     *slog.Logger
 	baseURL    string
 }
 
-func NewClient(paypalAuth *token.Store, baseURL string) *Client {
+func NewClient(paypalAuth *token.Store, logger *slog.Logger, baseURL string) *Client {
 	return &Client{
 		paypalAuth: paypalAuth,
 		httpClient: http.DefaultClient,
+		logger:     logger,
 		baseURL:    baseURL,
 	}
 }
@@ -57,7 +60,7 @@ func (c Client) post(ctx context.Context, path string, payload any) error {
 			return fmt.Errorf("error decoding paypal error: %w", err)
 		}
 
-		fmt.Printf("paypalErr: %+v %s\n", paypalErr.Details, paypalErr.Message)
+		c.logger.Error("error from paypal", slog.Any("details", paypalErr.Details), slog.String("message", paypalErr.Message))
 
 		return paypalErr
 	}
@@ -101,13 +104,15 @@ func (c Client) postWithResponse(ctx context.Context, path string, payload any) 
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		var paypalError ErrPaypal
-		err = json.Unmarshal(body, &paypalError)
+		var paypalErr ErrPaypal
+		err = json.Unmarshal(body, &paypalErr)
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshalling error response: %w", err)
 		}
 
-		return nil, paypalError
+		c.logger.Error("error from paypal", slog.Any("details", paypalErr.Details), slog.String("message", paypalErr.Message))
+
+		return nil, paypalErr
 	}
 
 	return body, nil
@@ -138,14 +143,16 @@ func (c Client) get(ctx context.Context, path string) ([]byte, error) {
 		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusCreated {
-		var paypalError ErrPaypal
-		err = json.Unmarshal(body, &paypalError)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		var paypalErr ErrPaypal
+		err = json.Unmarshal(body, &paypalErr)
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshalling error response: %w", err)
 		}
 
-		return nil, paypalError
+		c.logger.Error("error from paypal", slog.Any("details", paypalErr.Details), slog.String("message", paypalErr.Message))
+
+		return nil, paypalErr
 	}
 
 	return body, nil
@@ -187,15 +194,15 @@ func (c Client) patch(ctx context.Context, path string, payload any) error {
 	}
 
 	if resp.StatusCode != http.StatusNoContent {
-		var paypalError ErrPaypal
-		err = json.Unmarshal(body, &paypalError)
+		var paypalErr ErrPaypal
+		err = json.Unmarshal(body, &paypalErr)
 		if err != nil {
 			return fmt.Errorf("error unmarshalling error response: %w", err)
 		}
 
-		fmt.Printf("paypalError: %+v\n", string(body))
+		c.logger.Error("error from paypal", slog.Any("details", paypalErr.Details), slog.String("message", paypalErr.Message))
 
-		return paypalError
+		return paypalErr
 	}
 
 	return nil
@@ -227,13 +234,15 @@ func (c Client) delete(ctx context.Context, path string) error {
 			return err
 		}
 
-		var paypalError ErrPaypal
-		err = json.Unmarshal(body, &paypalError)
+		var paypalErr ErrPaypal
+		err = json.Unmarshal(body, &paypalErr)
 		if err != nil {
 			return fmt.Errorf("error unmarshalling error response: %w", err)
 		}
 
-		return paypalError
+		c.logger.Error("error from paypal", slog.Any("details", paypalErr.Details), slog.String("message", paypalErr.Message))
+
+		return paypalErr
 	}
 
 	return nil

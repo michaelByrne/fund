@@ -40,6 +40,10 @@ variable "mail_bucket" {
   type = string
 }
 
+variable "donations_reports_bucket" {
+  type = string
+}
+
 resource "aws_cognito_user_pool" "bco_fund_pool" {
   name = "bco-fund-pool"
 
@@ -247,4 +251,8 @@ resource "aws_ses_receipt_rule" "store" {
     aws_s3_bucket_policy.mail_bucket_policy,
     aws_ses_receipt_rule.store
   ]
+}
+
+resource "aws_s3_bucket" "donations_reports" {
+   bucket = var.donations_reports_bucket
 }
