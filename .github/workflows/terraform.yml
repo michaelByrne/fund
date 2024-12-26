@@ -70,3 +70,4 @@ jobs:
           TF_VAR_paypal_pass: ${{ secrets.TF_VAR_PAYPAL_PASS }}
           TF_VAR_domain: ${{ secrets.TF_VAR_DOMAIN }}
           TF_VAR_mail_bucket: ${{ secrets.TF_VAR_MAIL_BUCKET }}
+          TF_VAR_donations_reports_bucket: ${{ secrets.TF_VAR_DONATIONS_REPORTS_BUCKET }}
