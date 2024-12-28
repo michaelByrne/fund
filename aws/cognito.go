@@ -141,12 +141,11 @@ func (c CognitoAuth) DeleteUser(ctx context.Context, username string) error {
 }
 
 func handleCognitoError(err, base error) error {
+	fmt.Printf("err: %v\n", err)
 	var target smithy.APIError
 	if !errors.As(err, &target) {
 		return base
 	}
-
-	fmt.Printf("%+v\n", target)
 
 	switch target.ErrorCode() {
 	case "UserNotFoundException":
