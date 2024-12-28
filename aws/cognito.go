@@ -146,6 +146,8 @@ func handleCognitoError(err, base error) error {
 		return base
 	}
 
+	fmt.Printf("%+v\n", target)
+
 	switch target.ErrorCode() {
 	case "UserNotFoundException":
 		return auth.ErrUserNotFound
