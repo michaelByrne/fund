@@ -27,6 +27,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/aws/aws-sdk-go-v2/config"
 	cognito "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/golang-migrate/migrate/v4"
 	pgxmigrate "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -65,7 +66,8 @@ type RunConfig struct {
 	CognitoClientID   string
 	CognitoUserPoolID string
 
-	EnableNATSLogging bool
+	EnableNATSLogging                bool
+	DonationsPaymentsReportsS3Bucket string
 }
 
 type ChildDeps struct {
@@ -145,6 +147,9 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		return err
 	}
 	cognitoClient := cognito.NewFromConfig(defaultConfig)
+	s3Client := s3.NewFromConfig(defaultConfig)
+
+	documentStorage := aws.NewAWSS3(s3Client, logger, "")
 
 	ksetCache := keyset.NewKeySetWithCache(runConfig.JWKURL, 15)
 	kset, err := ksetCache.NewKeySet()
@@ -161,9 +166,10 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		runConfig.CognitoUserPoolID,
 	)
 
-	donationService := donations.NewDonationService(donationStore, paypalService, logger)
+	donationService := donations.NewDonationService(donationStore, documentStorage, paypalService, []string{"payments"}, logger)
 	memberService := members.NewMemberService(memberStore, donationStore, authorizer, paypalService, logger)
 	authService := auth.NewAuthService(authorizer, memberStore, logger)
+	financeService := finance.NewFinanceService(donationStore, paypalService, documentStorage, logger)
 
 	authMiddleware := middlewares.Verify(
 		verifier.Verify,
@@ -183,7 +189,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	)
 	authHandlers := authweb.NewAuthHandlers(authService, sessionManager, runConfig.PayPal.ClientID)
 	adminHandlers := adminweb.NewAdminHandlers(
-		adminAuthMiddleware, memberService, donationService, sessionManager, runConfig.PayPal.ClientID,
+		adminAuthMiddleware, memberService, donationService, financeService, sessionManager, runConfig.PayPal.ClientID,
 	)
 	webhooksHandlers := hooksweb.NewWebhooksHandlers(
 		donationService, memberService, &messageBroker, logger, runConfig.PayPal.WebhookID,

@@ -36,3 +36,7 @@ type PaymentsProvider interface {
 type subscriber interface {
 	Subscribe(event string, cb func(data []byte)) error
 }
+
+type documentStorage interface {
+	CreateFundBucket(ctx context.Context, prefix string, fundID uuid.UUID) error
+}

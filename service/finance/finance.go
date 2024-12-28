@@ -2,9 +2,14 @@ package finance
 
 import (
 	"boardfund/service/donations"
+	"bytes"
 	"context"
+	"encoding/csv"
+	"fmt"
 	"github.com/google/uuid"
+	"io"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -22,6 +27,12 @@ type ProviderTransaction struct {
 	AmountCents       int32
 }
 
+type ReportInfo struct {
+	FundID uuid.UUID
+	Date   time.Time
+	Type   string
+}
+
 type donationStore interface {
 	GetRecurringDonationsForFund(ctx context.Context, arg donations.GetRecurringDonationsForFundRequest) ([]donations.Donation, error)
 	GetPaymentsForDonation(ctx context.Context, donationID uuid.UUID) ([]donations.DonationPayment, error)
@@ -36,19 +47,42 @@ type paymentsProvider interface {
 	GetTransaction(ctx context.Context, id string, start, end time.Time) (*ProviderTransaction, error)
 }
 
+type documentManager interface {
+	Upload(ctx context.Context, body io.Reader, name, contentType string) error
+	ListAvailableReports(ctx context.Context, prefix string, fundID uuid.UUID) ([]ReportInfo, error)
+}
+
 type FinanceService struct {
 	donationStore    donationStore
 	paymentsProvider paymentsProvider
+	uploader         documentManager
 
 	logger *slog.Logger
 }
 
-func NewFinanceService(donationStore donationStore, paymentsProvider paymentsProvider, logger *slog.Logger) *FinanceService {
+func NewFinanceService(donationStore donationStore, paymentsProvider paymentsProvider, uploader documentManager, logger *slog.Logger) *FinanceService {
 	return &FinanceService{
 		donationStore:    donationStore,
 		paymentsProvider: paymentsProvider,
+		uploader:         uploader,
 		logger:           logger,
 	}
+}
+
+func (s FinanceService) GetAvailableReportDates(ctx context.Context, reportType string, fundID uuid.UUID) ([]time.Time, error) {
+	reports, err := s.uploader.ListAvailableReports(ctx, reportType, fundID)
+	if err != nil {
+		s.logger.Error("failed to get available reports", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	dates := make([]time.Time, 0)
+	for _, report := range reports {
+		dates = append(dates, report.Date)
+	}
+
+	return dates, nil
 }
 
 func (s FinanceService) RunDonationReconciliation(ctx context.Context) error {
@@ -70,6 +104,11 @@ func (s FinanceService) RunDonationReconciliation(ctx context.Context) error {
 }
 
 func (s FinanceService) reconcileDonationsForFund(ctx context.Context, fundID uuid.UUID) error {
+	bytesBuffer := bytes.NewBuffer([]byte{})
+	csvWriter := csv.NewWriter(bytesBuffer)
+
+	logger := s.logger.With(slog.String("fund_id", fundID.String()), slog.String("date", time.Now().Format("01-02-2006")))
+
 	req := donations.GetRecurringDonationsForFundRequest{
 		FundID: fundID,
 		Active: true,
@@ -77,7 +116,7 @@ func (s FinanceService) reconcileDonationsForFund(ctx context.Context, fundID uu
 
 	recurringDonations, err := s.donationStore.GetRecurringDonationsForFund(ctx, req)
 	if err != nil {
-		s.logger.Error("failed to get recurring donations for fund", slog.String("error", err.Error()))
+		logger.Error("failed to get recurring donations for fund", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -85,18 +124,18 @@ func (s FinanceService) reconcileDonationsForFund(ctx context.Context, fundID uu
 	for _, donation := range recurringDonations {
 		status, errInner := s.paymentsProvider.GetProviderDonationSubscriptionStatus(ctx, donation.ProviderSubscriptionID)
 		if errInner != nil {
-			s.logger.Error("failed to get donation status from provider", slog.String("error", errInner.Error()))
+			logger.Error("failed to get donation status from provider", slog.String("error", errInner.Error()))
 		}
 
 		if !(strings.ToUpper(status) == "ACTIVE") {
-			s.logger.Info("donation is inactive at provider", slog.String("donation_id", donation.ID.String()))
+			logger.Info("donation is inactive at provider", slog.String("donation_id", donation.ID.String()))
 
 			_, errInner = s.donationStore.SetDonationToInactive(ctx, donations.DeactivateDonation{
 				ID:     donation.ID,
 				Reason: status,
 			})
 			if errInner != nil {
-				s.logger.Error("failed to set donation to inactive", slog.String("error", errInner.Error()))
+				logger.Error("failed to set donation to inactive", slog.String("error", errInner.Error()))
 
 				return errInner
 			}
@@ -104,7 +143,7 @@ func (s FinanceService) reconcileDonationsForFund(ctx context.Context, fundID uu
 
 		payments, errInner := s.donationStore.GetDonationPaymentsByDonationID(ctx, donation.ID)
 		if errInner != nil {
-			s.logger.Error("failed to get donation payments", slog.String("error", errInner.Error()))
+			logger.Error("failed to get donation payments", slog.String("error", errInner.Error()))
 
 			return errInner
 		}
@@ -112,22 +151,78 @@ func (s FinanceService) reconcileDonationsForFund(ctx context.Context, fundID uu
 		for _, payment := range payments {
 			transaction, errTrans := s.paymentsProvider.GetTransaction(ctx, payment.ProviderPaymentID, payment.Created.AddDate(0, 0, -1), time.Now())
 			if errTrans != nil {
-				s.logger.Error("failed to get transaction from provider", slog.String("error", errTrans.Error()))
+				logger.Error("failed to get transaction from provider", slog.String("error", errTrans.Error()))
+				errCSV := writeCSVPaymentRow(csvWriter, fundID, payment, transaction)
+				if errCSV != nil {
+					logger.Error("failed to write CSV row in donations payments report", slog.String("error", errCSV.Error()))
+				}
 
 				continue
 			}
 
 			if !(strings.ToUpper(transaction.Status) == "COMPLETED") {
-				s.logger.Info("payment is incomplete at provider", slog.String("payment_id", payment.ID.String()))
+				logger.Info("payment is incomplete at provider", slog.String("payment_id", payment.ID.String()))
+				errCsv := writeCSVPaymentRow(csvWriter, fundID, payment, transaction)
+				if errCsv != nil {
+					logger.Error("failed to write CSV row in donations payments report", slog.String("error", errCsv.Error()))
+				}
 
 				continue
 			}
 
 			if transaction.AmountCents != payment.AmountCents {
-				s.logger.Info("payment amount does not match provider", slog.String("payment_id", payment.ID.String()), slog.Int("expected", int(payment.AmountCents)), slog.Int("actual", int(transaction.AmountCents)))
+				logger.Info("payment amount does not match provider", slog.String("payment_id", payment.ID.String()), slog.Int("expected", int(payment.AmountCents)), slog.Int("actual", int(transaction.AmountCents)))
+			}
+
+			errCSV := writeCSVPaymentRow(csvWriter, fundID, payment, transaction)
+			if errCSV != nil {
+				logger.Error("failed to write CSV row in donations payments report", slog.String("error", errCSV.Error()))
 			}
 		}
 	}
 
+	csvWriter.Flush()
+	err = csvWriter.Error()
+	if err != nil {
+		logger.Error("failed to flush CSV writer for donations payment report", slog.String("error", err.Error()))
+
+		return err
+	}
+
+	fmt.Printf(" to write %s", bytesBuffer.String())
+	fileName := "fund_" + fundID.String() + "_date_" + time.Now().Format("01-02-2006") + "_payments_report.csv"
+	err = s.uploader.Upload(ctx, bytesBuffer, fileName, "text/csv")
+	if err != nil {
+		logger.Error("failed to upload CSV file for donations payment report", slog.String("error", err.Error()))
+	}
+
 	return nil
+}
+
+func writeCSVPaymentRow(writer *csv.Writer, fundID uuid.UUID, payment donations.DonationPayment, transaction *ProviderTransaction) error {
+	if transaction == nil {
+		return writer.Write([]string{
+			fundID.String(),
+			payment.ID.String(),
+			payment.DonationID.String(),
+			payment.ProviderPaymentID,
+			payment.Created.Format(time.RFC3339),
+			strconv.Itoa(int(payment.AmountCents)),
+			"",
+			"",
+			"",
+		})
+	}
+
+	return writer.Write([]string{
+		fundID.String(),
+		payment.ID.String(),
+		payment.DonationID.String(),
+		payment.ProviderPaymentID,
+		payment.Created.Format(time.RFC3339),
+		strconv.Itoa(int(payment.AmountCents)),
+		transaction.ProviderPaymentID,
+		transaction.Status,
+		strconv.Itoa(int(transaction.AmountCents)),
+	})
 }

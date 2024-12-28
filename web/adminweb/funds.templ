@@ -17,13 +17,49 @@ templ Funds(funds []donations.Fund, member *members.Member, path string) {
 				@FundsList(funds)
 			</div>
 		</div>
+		<div id="global-dropdown-container" class="absolute top-0 left-0 w-full h-full pointer-events-none">
+			<script type="application/javascript">
+                me('.gear-icon').on('showMenu', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    console.log(e.target.closest('.fund-row'))
+
+                    const dropdown = e.target.closest('.fund-row').querySelector('.audit-dropdown');
+
+                    const container = document.getElementById('global-dropdown-container');
+
+                    // Move dropdown to the container
+                    container.innerHTML = ''; // Clear existing dropdowns
+                    container.appendChild(dropdown);
+
+                    dropdown.classList.toggle('hidden');
+                    const rect = e.target.getBoundingClientRect();
+                    dropdown.style.position = 'absolute';
+                    dropdown.style.top = `${rect.bottom + window.scrollY}px`;
+                    dropdown.style.left = `${rect.left + window.scrollX}px`;
+                    dropdown.style.pointerEvents = 'auto';
+
+                    if (!dropdown.classList.contains('hidden')) {
+                        document.addEventListener('click', function closeDropdown(event) {
+                            if (!dropdown.contains(event.target) && !event.target.matches('.gear-icon')) {
+                                dropdown.classList.add('hidden');
+                                document.removeEventListener('click', closeDropdown);
+                            }
+                    });
+                }
+
+                    return false;
+                });
+            </script>
+		</div>
 	}
 }
 
 templ AddFund() {
-	<div class="w-full mx-auto max-w-md">
-		<h3 class="text-md font-semibold mt-2 mb-4 inline-block bg-high p-2">new fund</h3>
-		<form hx-post="/admin/fund" hx-swap="afterbegin" hx-target="#admin-funds" hx-target-error="this" class="w-[90%] p-4 bg-odd border-y-2 border-accent">
+	<div class="w-full mx-auto max-w-md blue-boxy-filter">
+		<h3 class="text-md font-semibold mt-2 inline-block bg-high p-2">new fund</h3>
+		<form hx-post="/admin/fund" hx-swap="afterbegin" hx-target="#admin-funds" hx-target-error="this" class="w-[90%] p-4 bg-even">
 			<div class="grid grid-cols-3 gap-4 mt-6">
 				<label for="name" class="col-span-1 text-left">name</label>
 				<input type="text" placeholder="human fund" required name="name" id="name" class="col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm"/>
@@ -52,7 +88,7 @@ templ AddFund() {
 			<div class="mt-6 flex justify-center">
 				<button
 					type="submit"
-					class="px-4 py-2 text-center text-md bg-button text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md"
+					class="px-4 py-2 text-center text-md bg-button text-black hover:text-black hover:font-medium hover:shadow-blue-boxy-thin shadow-blue-boxy"
 				>
 					submit
 				</button>
@@ -62,9 +98,9 @@ templ AddFund() {
 }
 
 templ FundsList(funds []donations.Fund) {
-	<div id="funds-list" class="w-full mx-auto max-w-md h-full">
-		<h3 class="text-md font-semibold mt-2 mb-4 bg-high inline-block p-2">current funds</h3>
-		<ul id="admin-funds" class="max-w-[90%] max-h-[500px] overflow-y-auto border-accent border-y-2">
+	<div id="funds-list" class="w-full mx-auto max-w-md h-full blue-boxy-filter">
+		<h3 class="text-md font-semibold mt-2 bg-high inline-block p-2">current funds</h3>
+		<ul id="admin-funds" class="max-w-[90%] max-h-[300px]">
 			for _, fund := range funds {
 				@FundRow(fund)
 			}
@@ -74,7 +110,7 @@ templ FundsList(funds []donations.Fund) {
 
 templ FundRow(fund donations.Fund) {
 	<li
-		class="clickable fund-row p-2 flex flex-col md:flex-row md:items-center gap-2 odd:bg-odd odd:hover:bg-odd-hover even:hover:bg-even-hover"
+		class="clickable fund-row p-2 flex flex-col md:flex-row md:items-center gap-2 odd:bg-odd even:bg-even odd:hover:bg-odd-hover even:hover:bg-even-hover relative"
 		hx-get={ fmt.Sprintf("/donate/%s", fund.ID.String()) }
 	>
 		<div class="flex items-center w-full">
@@ -82,16 +118,27 @@ templ FundRow(fund donations.Fund) {
 				<span class="font-medium">{ fund.Name }</span>
 				<span class="text-sm text-gray-600 md:ml-auto">{ string(fund.PayoutFrequency) }</span>
 			</div>
-			<span
-				title="audit"
-				class="ml-4 text-2xl text-strong hover:text-links"
-				hx-trigger="click consume"
-				hx-target="#funds-list"
-				hx-swap="outerHTML"
-				hx-get={ fmt.Sprintf("/admin/fund/audit/%s", fund.ID.String()) }
-			>
-				&#x2699;
-			</span>
+			<div class="relative" onclick="event.stopPropagation()">
+				<span
+					title="audit"
+					class="ml-4 text-xl text-strong hover:text-links cursor-pointer gear-icon"
+					data-fund-id={ fund.ID.String() }
+					onclick="toggleDropdown(event, this)"
+					hx-get={ fmt.Sprintf("/admin/fund/audit/%s", fund.ID.String()) }
+					hx-target="next .audit-content"
+					hx-trigger="audit-load"
+				>
+					&#128269;
+				</span>
+				<div class="audit-dropdown hidden absolute right-0 top-[calc(100%+8px)] mt-1 bg-even border border-gray-200 shadow-lg z-50 min-w-[200px] max-h-[300px] overflow-y-auto">
+					<div class="absolute -top-2 right-4 w-4 h-4 bg-white border-t border-l border-gray-200 transform rotate-45"></div>
+					<div class="relative bg-white z-10">
+						<ul class="audit-content">
+							<li class="p-2">Loading...</li>
+						</ul>
+					</div>
+				</div>
+			</div>
 			<div
 				hx-post={ fmt.Sprintf("/admin/fund/deactivate/%s", fund.ID.String()) }
 				hx-confirm={ fmt.Sprintf("deactivate %s?", fund.Name) }
@@ -102,44 +149,16 @@ templ FundRow(fund donations.Fund) {
 				&#215;
 			</div>
 		</div>
-		<script type="application/javascript">
-    		me().on("htmx:fundDeactivated", (ev) => {
-    			me(".fund-row").fadeOut(null, 400);
-    		});
-    	</script>
 	</li>
 }
 
-templ FundAudit(fund donations.Fund) {
-	<div id="funds-list" class="w-full mx-auto max-w-md h-full">
-		<h3 class="text-md font-semibold mt-2 mb-4 bg-high inline-block p-2">fund audit</h3>
-		<form id="audit-form" hx-post={ fmt.Sprintf("/admin/fund/audit/%s", fund.ID.String()) } hx-swap="outerHTML" class="w-full max-w-md">
-			<div class="flex flex-wrap items-center gap-2 mt-6">
-				<button
-					type="submit"
-					class="px-4 py-2 text-center text-sm sm:text-md bg-button text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md"
-				>
-					generate audit
-				</button>
-				if fund.PayoutFrequency == "monthly" {
-					<span class="text-sm">for period ending</span>
-					<input type="text" name="frequency" hidden value="monthly"/>
-					<select
-						name="period"
-						id="period"
-						class="flex-grow sm:flex-none w-full sm:w-auto pl-1 text-sm border border-slate-300 shadow-sm"
-					>
-						for _, period := range fund.Stats.Monthly {
-							<option value={ convertToLastDayOfMonth(period.MonthYear) }>
-								{ convertToLastDayOfMonth(period.MonthYear) }
-							</option>
-						}
-					</select>
-				} else {
-					<input type="text" name="frequency" hidden value="once"/>
-				}
-			</div>
-		</form>
+templ FundAudit(availableReports []time.Time) {
+	<div>
+		for _ , report := range availableReports {
+			<li class="clickable hover:underline p-2">
+				{ report.Format("01-02-2006") }
+			</li>
+		}
 	</div>
 }
 

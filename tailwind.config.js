@@ -6,6 +6,8 @@ module.exports = {
     theme: {
         extend: {
             colors: {
+                'contrast': 'rgb(var(--color-contrast), <alpha-value>)',
+                'fore': 'rgb(var(--color-fore), <alpha-value>)',
                 'even': 'rgb(var(--color-even), <alpha-value>)',
                 'even-hover': 'rgb(var(--color-even-hover), <alpha-value>)',
                 'odd': 'rgb(var(--color-odd), <alpha-value>)',
@@ -26,6 +28,7 @@ module.exports = {
             },
             boxShadow: {
                 'blue-boxy': '5px 5px 0px 0px #788f99',
+                'blue-boxy-thin': '3px 3px 0px 0px #788f99',
             },
             borderColor: {
                 'top-peach': '#ffd4a3',  // Define a custom color

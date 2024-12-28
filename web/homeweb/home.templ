@@ -10,63 +10,65 @@ import (
 )
 
 templ FundsTitle() {
-	<h2 class="font-semibold text-lg p-2 inline-block underline underline-offset-4 mt-4 mx-4">current active funds</h2>
+	<h2 class="font-semibold text-lg p-2 inline-block bg-high shadow-blue-boxy-thin mt-4 mx-4">current active funds</h2>
 }
 
 templ Funds(funds []donations.Fund, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div id="funds">
-			@FundsTitle()
-			<div class="overflow-hidden w-[95%] ml-4 mb-5 mt-4">
-				<div class="hidden lg:table max-h-[300px] w-[90%] overflow-y-auto">
-					<table class="table-auto w-full border-collapse text-sm leading-relaxed">
-						<thead>
-							<tr>
-								<th class="p-2 text-left font-semibold w-[22%]">name</th>
-								<th class="p-2 text-left font-semibold w-[12%]">donors</th>
-								<th class="p-2 text-left font-semibold w-[12%]">donated</th>
-								<th class="p-2 text-left font-semibold w-[12%]">goal</th>
-								<th class="p-2 text-left font-semibold w-[12%]">frequency</th>
-								<th class="p-2 text-left font-semibold w-[15%]">expires</th>
-							</tr>
-						</thead>
-						<tbody>
-							for _, fund := range funds {
-								<tr
-									hx-get={ fmt.Sprintf("/donate/%s", fund.ID.String()) }
-									class="clickable odd:bg-odd odd:hover:bg-odd-hover even:bg-even even:hover:bg-even-hover"
-								>
-									<td class="p-2">{ fund.Name }</td>
-									<td class="p-2">{ fmt.Sprintf("%d", fund.Stats.TotalDonors) }</td>
-									<td class="p-2">${ centsToDecimalString(fund.Stats.TotalDonated) }</td>
-									@TableGoal(fund.GoalCents)
-									<td class="p-2">{ string(fund.PayoutFrequency) }</td>
-									@TableExpires(fund.Expires)
+			<div class="w-[95%] mx-auto">
+				@FundsTitle()
+				<div class="ml-4 mb-5 mt-4 bl">
+					<div class="hidden lg:table max-h-[300px] w-[90%] overflow-y-auto">
+						<table class="table-auto w-full border-collapse text-sm leading-relaxed shadow-blue-boxy">
+							<thead class="bg-even">
+								<tr>
+									<th class="p-2 text-left font-semibold w-[22%]">name</th>
+									<th class="p-2 text-left font-semibold w-[12%]">donors</th>
+									<th class="p-2 text-left font-semibold w-[12%]">donated</th>
+									<th class="p-2 text-left font-semibold w-[12%]">goal</th>
+									<th class="p-2 text-left font-semibold w-[12%]">frequency</th>
+									<th class="p-2 text-left font-semibold w-[15%]">expires</th>
 								</tr>
-							}
-						</tbody>
-					</table>
-				</div>
-				<div class="block lg:hidden space-y-4 text-sm">
-					for _, fund := range funds {
-						<div
-							hx-get={ fmt.Sprintf("/donate/%s", fund.ID.String()) }
-							class="clickable mb-4 p-4 odd:bg-odd even:bg-even odd:hover:bg-odd-hover even:hover:bg-even-hover rounded-lg shadow-sm"
-						>
-							<p class="font-semibold text-lg mb-2">{ fund.Name }</p>
-							<div>
-								<p><span class="font-bold">donors:</span> { fmt.Sprintf("%d", fund.Stats.TotalDonors) }</p>
-								<p><span class="font-bold">donated:</span> ${ centsToDecimalString(fund.Stats.TotalDonated) }</p>
-								<p>
-									<span class="font-bold">goal:</span> @TableGoal(fund.GoalCents)
-								</p>
-								<p><span class="font-bold">frequency:</span> { string(fund.PayoutFrequency) }</p>
-								<p>
-									<span class="font-bold">expires:</span> @TableExpires(fund.Expires)
-								</p>
+							</thead>
+							<tbody>
+								for _, fund := range funds {
+									<tr
+										hx-get={ fmt.Sprintf("/donate/%s", fund.ID.String()) }
+										class="clickable odd:bg-odd odd:hover:bg-odd-hover even:bg-even even:hover:bg-even-hover"
+									>
+										<td class="p-2">{ fund.Name }</td>
+										<td class="p-2">{ fmt.Sprintf("%d", fund.Stats.TotalDonors) }</td>
+										<td class="p-2">${ centsToDecimalString(fund.Stats.TotalDonated) }</td>
+										@TableGoal(fund.GoalCents)
+										<td class="p-2">{ string(fund.PayoutFrequency) }</td>
+										@TableExpires(fund.Expires)
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+					<div class="block lg:hidden space-y-4 text-sm">
+						for _, fund := range funds {
+							<div
+								hx-get={ fmt.Sprintf("/donate/%s", fund.ID.String()) }
+								class="clickable mb-4 p-4 odd:bg-odd even:bg-even hover:shadow-blue-boxy-thin shadow-blue-boxy"
+							>
+								<p class="font-semibold text-lg mb-2">{ fund.Name }</p>
+								<div>
+									<p><span class="font-bold">donors:</span> { fmt.Sprintf("%d", fund.Stats.TotalDonors) }</p>
+									<p><span class="font-bold">donated:</span> ${ centsToDecimalString(fund.Stats.TotalDonated) }</p>
+									<p>
+										<span class="font-bold">goal:</span> @TableGoal(fund.GoalCents)
+									</p>
+									<p><span class="font-bold">frequency:</span> { string(fund.PayoutFrequency) }</p>
+									<p>
+										<span class="font-bold">expires:</span> @TableExpires(fund.Expires)
+									</p>
+								</div>
 							</div>
-						</div>
-					}
+						}
+					</div>
 				</div>
 			</div>
 		</div>

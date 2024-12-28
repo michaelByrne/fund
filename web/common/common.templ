@@ -16,6 +16,7 @@ templ Head() {
 		<script type="application/javascript" src="/static/surreal.js"></script>
 		<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 		<script type="application/javascript" src="/static/shared.js"></script>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
 	</head>
 }
 
@@ -28,7 +29,7 @@ templ Layout(member *members.Member, path string) {
 					<h1 class="text-xl font-bold text-title/90 text-shadow shadow-[#788f99]"><a href="/">elitism. secrecy. redistribution.</a></h1>
 					@Links(member, path)
 				</div>
-				<div id="donation" class="bg-even w-[90%] shadow-blue-boxy mx-auto flex-grow">
+				<div id="donation" class="bg-fore w-[90%] shadow-blue-boxy mx-auto flex-grow">
 					{ children... }
 				</div>
 			</div>

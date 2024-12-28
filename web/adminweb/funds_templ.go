@@ -64,7 +64,7 @@ func Funds(funds []donations.Fund, member *members.Member, path string) templ.Co
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div><div id=\"global-dropdown-container\" class=\"absolute top-0 left-0 w-full h-full pointer-events-none\"><script type=\"application/javascript\">\n                me('.gear-icon').on('showMenu', function (e) {\n                    e.preventDefault();\n                    e.stopPropagation();\n\n                    console.log(e.target.closest('.fund-row'))\n\n                    const dropdown = e.target.closest('.fund-row').querySelector('.audit-dropdown');\n\n                    const container = document.getElementById('global-dropdown-container');\n\n                    // Move dropdown to the container\n                    container.innerHTML = ''; // Clear existing dropdowns\n                    container.appendChild(dropdown);\n\n                    dropdown.classList.toggle('hidden');\n                    const rect = e.target.getBoundingClientRect();\n                    dropdown.style.position = 'absolute';\n                    dropdown.style.top = `${rect.bottom + window.scrollY}px`;\n                    dropdown.style.left = `${rect.left + window.scrollX}px`;\n                    dropdown.style.pointerEvents = 'auto';\n\n                    if (!dropdown.classList.contains('hidden')) {\n                        document.addEventListener('click', function closeDropdown(event) {\n                            if (!dropdown.contains(event.target) && !event.target.matches('.gear-icon')) {\n                                dropdown.classList.add('hidden');\n                                document.removeEventListener('click', closeDropdown);\n                            }\n                    });\n                }\n\n                    return false;\n                });\n            </script></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -99,7 +99,7 @@ func AddFund() templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"w-full mx-auto max-w-md\"><h3 class=\"text-md font-semibold mt-2 mb-4 inline-block bg-high p-2\">new fund</h3><form hx-post=\"/admin/fund\" hx-swap=\"afterbegin\" hx-target=\"#admin-funds\" hx-target-error=\"this\" class=\"w-[90%] p-4 bg-odd border-y-2 border-accent\"><div class=\"grid grid-cols-3 gap-4 mt-6\"><label for=\"name\" class=\"col-span-1 text-left\">name</label> <input type=\"text\" placeholder=\"human fund\" required name=\"name\" id=\"name\" class=\"col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm\"> <label for=\"description\" class=\"col-span-1 text-left\">description</label> <textarea name=\"description\" placeholder=\"what&#39;s it for?\" id=\"description\" class=\"col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm\"></textarea> <label for=\"goal\" class=\"col-span-1 text-left\">goal</label><div class=\"col-span-2 relative\"><span class=\"absolute left-1 top-1/2 transform -translate-y-1/2 text-gray-500\">$</span> <input type=\"number\" name=\"goal\" placeholder=\"optional\" id=\"goal\" min=\"0\" class=\"w-full pl-6 text-sm border border-slate-300 shadow-sm\"></div><label for=\"frequency\" class=\"col-span-1 text-left\">frequency</label> <select name=\"frequency\" id=\"frequency\" class=\"col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm\"><option value=\"monthly\">monthly</option> <option value=\"once\">once</option></select> <label for=\"date\" class=\"col-span-1 text-left\">end date</label> <input type=\"date\" name=\"date\" id=\"date\" class=\"col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm\"></div><div class=\"mt-6 flex justify-center\"><button type=\"submit\" class=\"px-4 py-2 text-center text-md bg-button text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md\">submit</button></div></form></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"w-full mx-auto max-w-md blue-boxy-filter\"><h3 class=\"text-md font-semibold mt-2 inline-block bg-high p-2\">new fund</h3><form hx-post=\"/admin/fund\" hx-swap=\"afterbegin\" hx-target=\"#admin-funds\" hx-target-error=\"this\" class=\"w-[90%] p-4 bg-even\"><div class=\"grid grid-cols-3 gap-4 mt-6\"><label for=\"name\" class=\"col-span-1 text-left\">name</label> <input type=\"text\" placeholder=\"human fund\" required name=\"name\" id=\"name\" class=\"col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm\"> <label for=\"description\" class=\"col-span-1 text-left\">description</label> <textarea name=\"description\" placeholder=\"what&#39;s it for?\" id=\"description\" class=\"col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm\"></textarea> <label for=\"goal\" class=\"col-span-1 text-left\">goal</label><div class=\"col-span-2 relative\"><span class=\"absolute left-1 top-1/2 transform -translate-y-1/2 text-gray-500\">$</span> <input type=\"number\" name=\"goal\" placeholder=\"optional\" id=\"goal\" min=\"0\" class=\"w-full pl-6 text-sm border border-slate-300 shadow-sm\"></div><label for=\"frequency\" class=\"col-span-1 text-left\">frequency</label> <select name=\"frequency\" id=\"frequency\" class=\"col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm\"><option value=\"monthly\">monthly</option> <option value=\"once\">once</option></select> <label for=\"date\" class=\"col-span-1 text-left\">end date</label> <input type=\"date\" name=\"date\" id=\"date\" class=\"col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm\"></div><div class=\"mt-6 flex justify-center\"><button type=\"submit\" class=\"px-4 py-2 text-center text-md bg-button text-black hover:text-black hover:font-medium hover:shadow-blue-boxy-thin shadow-blue-boxy\">submit</button></div></form></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -128,7 +128,7 @@ func FundsList(funds []donations.Fund) templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div id=\"funds-list\" class=\"w-full mx-auto max-w-md h-full\"><h3 class=\"text-md font-semibold mt-2 mb-4 bg-high inline-block p-2\">current funds</h3><ul id=\"admin-funds\" class=\"max-w-[90%] max-h-[500px] overflow-y-auto border-accent border-y-2\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div id=\"funds-list\" class=\"w-full mx-auto max-w-md h-full blue-boxy-filter\"><h3 class=\"text-md font-semibold mt-2 bg-high inline-block p-2\">current funds</h3><ul id=\"admin-funds\" class=\"max-w-[90%] max-h-[300px]\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -167,14 +167,14 @@ func FundRow(fund donations.Fund) templ.Component {
 			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<li class=\"clickable fund-row p-2 flex flex-col md:flex-row md:items-center gap-2 odd:bg-odd odd:hover:bg-odd-hover even:hover:bg-even-hover\" hx-get=\"")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<li class=\"clickable fund-row p-2 flex flex-col md:flex-row md:items-center gap-2 odd:bg-odd even:bg-even odd:hover:bg-odd-hover even:hover:bg-even-hover relative\" hx-get=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/donate/%s", fund.ID.String()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 78, Col: 54}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 114, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -187,7 +187,7 @@ func FundRow(fund donations.Fund) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(fund.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 82, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 118, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -200,35 +200,48 @@ func FundRow(fund donations.Fund) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(string(fund.PayoutFrequency))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 83, Col: 81}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 119, Col: 81}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><span title=\"audit\" class=\"ml-4 text-2xl text-strong hover:text-links\" hx-trigger=\"click consume\" hx-target=\"#funds-list\" hx-swap=\"outerHTML\" hx-get=\"")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div class=\"relative\" onclick=\"event.stopPropagation()\"><span title=\"audit\" class=\"ml-4 text-xl text-strong hover:text-links cursor-pointer gear-icon\" data-fund-id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var9 string
-		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/admin/fund/audit/%s", fund.ID.String()))
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fund.ID.String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 91, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 125, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\">&#x2699;</span><div hx-post=\"")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" onclick=\"toggleDropdown(event, this)\" hx-get=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var10 string
-		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/admin/fund/deactivate/%s", fund.ID.String()))
+		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/admin/fund/audit/%s", fund.ID.String()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 96, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 127, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" hx-target=\"next .audit-content\" hx-trigger=\"audit-load\">&#128269;</span><div class=\"audit-dropdown hidden absolute right-0 top-[calc(100%+8px)] mt-1 bg-even border border-gray-200 shadow-lg z-50 min-w-[200px] max-h-[300px] overflow-y-auto\"><div class=\"absolute -top-2 right-4 w-4 h-4 bg-white border-t border-l border-gray-200 transform rotate-45\"></div><div class=\"relative bg-white z-10\"><ul class=\"audit-content\"><li class=\"p-2\">Loading...</li></ul></div></div></div><div hx-post=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var11 string
+		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/admin/fund/deactivate/%s", fund.ID.String()))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 143, Col: 72}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -236,16 +249,16 @@ func FundRow(fund donations.Fund) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var11 string
-		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("deactivate %s?", fund.Name))
+		var templ_7745c5c3_Var12 string
+		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("deactivate %s?", fund.Name))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 97, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 144, Col: 57}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" hx-trigger=\"click consume\" hx-swap=\"outerHTML\" class=\"text-title/90 hover:text-red-500 text-lg font-bold ml-4\">&#215;</div></div><script type=\"application/javascript\">\n    \t\tme().on(\"htmx:fundDeactivated\", (ev) => {\n    \t\t\tme(\".fund-row\").fadeOut(null, 400);\n    \t\t});\n    \t</script></li>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" hx-trigger=\"click consume\" hx-swap=\"outerHTML\" class=\"text-title/90 hover:text-red-500 text-lg font-bold ml-4\">&#215;</div></div></li>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -253,7 +266,7 @@ func FundRow(fund donations.Fund) templ.Component {
 	})
 }
 
-func FundAudit(fund donations.Fund) templ.Component {
+func FundAudit(availableReports []time.Time) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -269,76 +282,35 @@ func FundAudit(fund donations.Fund) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var12 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var12 == nil {
-			templ_7745c5c3_Var12 = templ.NopComponent
+		templ_7745c5c3_Var13 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var13 == nil {
+			templ_7745c5c3_Var13 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div id=\"funds-list\" class=\"w-full mx-auto max-w-md h-full\"><h3 class=\"text-md font-semibold mt-2 mb-4 bg-high inline-block p-2\">fund audit</h3><form id=\"audit-form\" hx-post=\"")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var13 string
-		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/admin/fund/audit/%s", fund.ID.String()))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 116, Col: 87}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" hx-swap=\"outerHTML\" class=\"w-full max-w-md\"><div class=\"flex flex-wrap items-center gap-2 mt-6\"><button type=\"submit\" class=\"px-4 py-2 text-center text-sm sm:text-md bg-button text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md\">generate audit</button> ")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		if fund.PayoutFrequency == "monthly" {
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<span class=\"text-sm\">for period ending</span> <input type=\"text\" name=\"frequency\" hidden value=\"monthly\"> <select name=\"period\" id=\"period\" class=\"flex-grow sm:flex-none w-full sm:w-auto pl-1 text-sm border border-slate-300 shadow-sm\">")
+		for _, report := range availableReports {
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<li class=\"clickable hover:underline p-2\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			for _, period := range fund.Stats.Monthly {
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<option value=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var14 string
-				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(convertToLastDayOfMonth(period.MonthYear))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 133, Col: 64}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var15 string
-				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(convertToLastDayOfMonth(period.MonthYear))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 134, Col: 51}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</option>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
+			var templ_7745c5c3_Var14 string
+			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(report.Format("01-02-2006"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 159, Col: 33}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</select>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		} else {
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<input type=\"text\" name=\"frequency\" hidden value=\"once\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</li>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></form></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -362,21 +334,21 @@ func FundAuditResult(dateStr string) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var16 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var16 == nil {
-			templ_7745c5c3_Var16 = templ.NopComponent
+		templ_7745c5c3_Var15 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var15 == nil {
+			templ_7745c5c3_Var15 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"w-[90%]\"><h3 class=\"text-base font-semibold mb-5 mt-2 pl-2\">audit results for period ending: <div class=\"underline\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var17 string
-		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(dateStr)
+		var templ_7745c5c3_Var16 string
+		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(dateStr)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 148, Col: 118}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 167, Col: 118}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

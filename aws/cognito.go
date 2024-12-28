@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-type Cognito interface {
+type awsCognito interface {
 	InitiateAuth(ctx context.Context, params *cognito.InitiateAuthInput, optFns ...func(*cognito.Options)) (*cognito.InitiateAuthOutput, error)
 	AdminCreateUser(ctx context.Context, params *cognito.AdminCreateUserInput, optFns ...func(*cognito.Options)) (*cognito.AdminCreateUserOutput, error)
 	AdminDeleteUser(ctx context.Context, params *cognito.AdminDeleteUserInput, optFns ...func(*cognito.Options)) (*cognito.AdminDeleteUserOutput, error)
@@ -21,7 +21,7 @@ type Cognito interface {
 }
 
 type CognitoAuth struct {
-	awsCognito Cognito
+	awsCognito awsCognito
 
 	logger *slog.Logger
 
@@ -29,7 +29,7 @@ type CognitoAuth struct {
 	userPoolID string
 }
 
-func NewCognitoAuth(awsCognito Cognito, logger *slog.Logger, clientID, userPoolID string) *CognitoAuth {
+func NewCognitoAuth(awsCognito awsCognito, logger *slog.Logger, clientID, userPoolID string) *CognitoAuth {
 	return &CognitoAuth{
 		awsCognito: awsCognito,
 		logger:     logger,
@@ -138,10 +138,6 @@ func (c CognitoAuth) DeleteUser(ctx context.Context, username string) error {
 	}
 
 	return nil
-}
-
-func toPointer[T any](v T) *T {
-	return &v
 }
 
 func handleCognitoError(err, base error) error {

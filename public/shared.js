@@ -59,3 +59,44 @@ document.addEventListener('htmx:responseError', evt => {
         }
     }
 });
+
+let currentDropdown = null;
+
+function toggleDropdown(event, iconElement) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const dropdown = iconElement.nextElementSibling;
+
+    if (currentDropdown === dropdown) {
+        closeCurrentDropdown();
+        return;
+    }
+
+    closeCurrentDropdown();
+
+    dropdown.classList.remove('hidden');
+    currentDropdown = dropdown;
+
+    htmx.trigger(iconElement, 'audit-load');
+
+    document.addEventListener('click', closeDropdownOnClickOutside);
+}
+
+function closeCurrentDropdown() {
+    if (currentDropdown) {
+        currentDropdown.classList.add('hidden');
+        document.removeEventListener('click', closeDropdownOnClickOutside);
+        currentDropdown = null;
+    }
+}
+
+function closeDropdownOnClickOutside(event) {
+    if (currentDropdown && !currentDropdown.contains(event.target) && !event.target.matches('.gear-icon')) {
+        closeCurrentDropdown();
+    }
+}
+
+document.addEventListener('htmx:beforeCleanupElement', function(evt) {
+    //closeCurrentDropdown();
+});

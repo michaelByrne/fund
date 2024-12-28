@@ -18,8 +18,11 @@ func donationURL(freq donations.PayoutFrequency) string {
 templ Fund(fund donations.Fund, fundStats donations.FundStats, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div id="donation-form" class="p-5 mt-2">
-			@Title(fund.Name)
-			@DonationForm(fund)
+			<span class="blue-boxy-filter">
+				@Title(fund.Name)
+				<br/>
+				@DonationForm(fund)
+			</span>
 			<hr class="border-odd "/>
 			@Description(fund.Description)
 			<hr class="border-odd "/>
@@ -39,69 +42,71 @@ templ Fund(fund donations.Fund, fundStats donations.FundStats, member *members.M
 }
 
 templ DonationForm(fund donations.Fund) {
-	<form hx-post={ donationURL(fund.PayoutFrequency) } hx-target="#donation-form">
+	<form hx-post={ donationURL(fund.PayoutFrequency) } hx-target="#donation-form" class="bg-even p-4 flex flex-col max-w-md">
 		<input type="hidden" name="fund" value={ fund.ID.String() }/>
-		<div class="initials inline-flex bg-high sm:flex-row flex-col">
-			<div class="space-x-2 flex items-center relative pl-4 sm:pr-0 pr-4 sm:py-4 py-1">
-				<span>I would like to give $</span>
-				<div style="margin-left: 0px">
-					<div class="space-x-2 flex items-center">
-						<input type="number" min="1" name="amount" id="amount" class="w-24 pl-1 block text-sm border-slate-300 shadow-sm"/>
-					</div>
+		<div class="flex flex-wrap items-center gap-2 mb-6">
+			<div class="flex items-center gap-2">
+				<span>I would like to give</span>
+				<div class="inline-flex items-center">
+					<span>$</span>
+					<input
+						type="number"
+						min="1"
+						name="amount"
+						id="amount"
+						class="w-24 ml-1 text-sm border-slate-300 shadow-sm"
+					/>
 				</div>
 			</div>
 			@Frequency(fund.PayoutFrequency)
 		</div>
-		<div class="btn mt-6 w-[100%] bg-transparent items-center">
-			<button
-				type="submit"
-				class="px-4 py-2 mx-auto text-center text-md bg-button text-black hover:text-black hover:bg-button-hover hover:font-medium hover:shadow-md"
-			>
-				pay that shit
-			</button>
-		</div>
+		<button
+			type="submit"
+			class="self-center px-6 py-2 bg-button text-black hover:text-black hover:font-medium hover:shadow-blue-boxy-thin shadow-blue-boxy transition-all"
+		>
+			pay that shit
+		</button>
 	</form>
 }
 
 templ Frequency(freq donations.PayoutFrequency) {
 	if freq == donations.PayoutFrequencyMonthly {
-		<div class="space-x-2 flex items-center relative sm:py-4 py-1 pr-4 sm:pl-0 pl-2">
-			<span class="pl-2">every</span>
-			<div>
-				<div class="space-x-2 flex items-center">
-					<select
-						name="interval"
-						id="interval"
-					>
-						<option value="MONTH">month</option>
-						<option value="WEEK">week</option>
-					</select>
-				</div>
-			</div>
-			<span style="margin-left: 0px">.</span>
+		<div class="flex items-center gap-2">
+			<span>every</span>
+			<span class="gap-0">
+				<select
+					name="interval"
+					id="interval"
+					class="text-sm border-slate-300 shadow-sm"
+				>
+					<option value="MONTH">month</option>
+					<option value="WEEK">week</option>
+				</select><span>.</span>
+			</span>
 		</div>
 	} else {
-		<div class="space-x-2 flex items-center relative sm:py-4 py-1 pr-4 sm:pl-0 pl-2">
-			<span class="pl-2">once.</span>
+		<div class="flex items-center">
+			<span>once.</span>
 		</div>
 	}
 }
 
 templ Description(text string) {
-	<div class="w-full my-2">
-		<div class="text-md font-semibold pl-2 pb-3">about</div>
-		<div class="font-medium italic p-2 bg-odd inline-block">{ text }</div>
+	<div class="w-full my-2 filter blue-boxy-filter">
+		<div class="text-md font-semibold p-2 mt-2 inline-block bg-high">about</div>
+		<br/>
+		<div class="font-medium italic p-2 mb-2 inline-block bg-odd">{ text }</div>
 	</div>
 }
 
 templ Title(text string) {
-	<h2 class="font-semibold text-lg p-2">donate to <span class="underline underline-offset-4 decoration-[#333333]">{ text }</span></h2>
+	<h2 class="font-semibold bg-high inline-flex text-lg px-2 py-4">donate to&nbsp;<span class="underline underline-offset-4 decoration-[#333333]">{ text }</span></h2>
 }
 
 templ FundStatus(fund donations.Fund, fundStats donations.FundStats) {
-	<div class="col-span-1 my-2">
-		@common.SectionTitle("fund status")
-		<ul class="list-none mt-2">
+	<div class="col-span-1 my-2 blue-boxy-filter">
+		<div class="text-md font-semibold p-2 inline-block bg-high">fund status</div>
+		<ul class="list-none">
 			@StatusItem(AmountOrInfinity(fund.GoalCents), "goal")
 			@StatusItem(USD(fundStats.TotalDonated), "raised")
 			@StatusItem(USD(fundStats.AverageDonation), "average donation")
@@ -118,7 +123,7 @@ templ USD(amountCents int32) {
 }
 
 templ StatusItem(content templ.Component, title string) {
-	<li class="p-2 odd:bg-odd flex sm:flex-row flex-col">
+	<li class="p-2 odd:bg-odd even:bg-even flex sm:flex-row flex-col">
 		<span class="font-semibold text-sm pr-2 text-gray-700">
 			{ title }:
 		</span>

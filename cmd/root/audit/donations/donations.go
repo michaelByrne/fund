@@ -1,6 +1,7 @@
 package donations
 
 import (
+	"boardfund/aws"
 	"boardfund/cmd/root"
 	"boardfund/paypal"
 	"boardfund/paypal/token"
@@ -8,6 +9,8 @@ import (
 	donationstore "boardfund/service/donations/store"
 	"boardfund/service/finance"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/spf13/cobra"
 	"log/slog"
 	"os"
@@ -39,9 +42,17 @@ func DonationsAuditCmd(runConfig *root.RunConfig) *cobra.Command {
 				return fmt.Errorf("failed to create pgx pool: %w", err)
 			}
 
+			defaultConfig, err := config.LoadDefaultConfig(cmd.Context(), config.WithRegion("us-west-2"))
+			if err != nil {
+				return err
+			}
+
+			s3Client := s3.NewFromConfig(defaultConfig)
+			donationsPaymentsS3 := aws.NewAWSS3(s3Client, logger, runConfig.DonationsPaymentsReportsS3Bucket)
+
 			donationStore := donationstore.NewDonationStore(pool)
 
-			financeService := finance.NewFinanceService(donationStore, paypalService, logger)
+			financeService := finance.NewFinanceService(donationStore, paypalService, donationsPaymentsS3, logger)
 			err = financeService.RunDonationReconciliation(cmd.Context())
 			if err != nil {
 				return fmt.Errorf("failed to reconcile donations: %w", err)

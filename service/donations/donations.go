@@ -9,16 +9,21 @@ import (
 
 type DonationService struct {
 	donationStore    donationStore
+	documentStorage  documentStorage
 	paymentsProvider PaymentsProvider
+
+	reportBuckets []string
 
 	logger *slog.Logger
 }
 
-func NewDonationService(donationStore donationStore, provider PaymentsProvider, logger *slog.Logger) *DonationService {
+func NewDonationService(donationStore donationStore, documentStorage documentStorage, provider PaymentsProvider, reportBuckets []string, logger *slog.Logger) *DonationService {
 	return &DonationService{
 		donationStore:    donationStore,
+		documentStorage:  documentStorage,
 		paymentsProvider: provider,
 		logger:           logger,
+		reportBuckets:    reportBuckets,
 	}
 }
 
@@ -254,6 +259,13 @@ func (s DonationService) CreateFund(ctx context.Context, createFund Fund) (*Fund
 		return nil, err
 	}
 
+	err = s.createFundBuckets(ctx, fund.ID)
+	if err != nil {
+		s.logger.Error("failed to create fund buckets", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
 	return fund, nil
 }
 
@@ -276,6 +288,17 @@ func (s DonationService) UpdateFund(ctx context.Context, updateFund Fund) (*Fund
 	}
 
 	return fund, nil
+}
+
+func (s DonationService) createFundBuckets(ctx context.Context, fundID uuid.UUID) error {
+	for _, prefix := range s.reportBuckets {
+		err := s.documentStorage.CreateFundBucket(ctx, prefix, fundID)
+		if err != nil {
+			s.logger.Error("failed to create fund bucket", slog.String("error", err.Error()))
+		}
+	}
+
+	return nil
 }
 
 func extractProviderSubscriptionIDs(donations []Donation) []string {

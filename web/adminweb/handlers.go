@@ -3,6 +3,7 @@ package adminweb
 import (
 	"boardfund/service/auth"
 	"boardfund/service/donations"
+	"boardfund/service/finance"
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"boardfund/web/mux"
@@ -20,6 +21,7 @@ type AdminHandlers struct {
 	withAdmin       func(next http.HandlerFunc) http.HandlerFunc
 	memberService   *members.MemberService
 	donationService *donations.DonationService
+	financeServe    *finance.FinanceService
 	sessionManager  *scs.SessionManager
 	clientID        string
 }
@@ -28,6 +30,7 @@ func NewAdminHandlers(
 	withAdmin func(next http.HandlerFunc) http.HandlerFunc,
 	memberService *members.MemberService,
 	donationService *donations.DonationService,
+	financeService *finance.FinanceService,
 	sessionManager *scs.SessionManager,
 	clientID string,
 ) *AdminHandlers {
@@ -35,6 +38,7 @@ func NewAdminHandlers(
 		withAdmin:       withAdmin,
 		memberService:   memberService,
 		donationService: donationService,
+		financeServe:    financeService,
 		sessionManager:  sessionManager,
 		clientID:        clientID,
 	}
@@ -48,7 +52,7 @@ func (h *AdminHandlers) Register(r *mux.Router) {
 	r.HandleFunc("POST /admin/fund/deactivate/{id}", h.withAdmin(h.deactivateFund))
 	r.HandleFunc("POST /admin/member/deactivate/{id}", h.withAdmin(h.deactivateMember))
 	r.HandleFunc("GET /admin/member/{id}", h.withAdmin(h.member))
-	r.HandleFunc("GET /admin/fund/audit/{id}", h.withAdmin(h.fundAuditForm))
+	r.HandleFunc("GET /admin/fund/audit/{id}", h.withAdmin(h.availableAudits))
 	r.HandleFunc("POST /admin/fund/audit/{id}", h.withAdmin(h.fundAudit))
 }
 
@@ -100,7 +104,7 @@ func (h *AdminHandlers) fundAudit(w http.ResponseWriter, r *http.Request) {
 	FundAuditResult(dateStr).Render(ctx, w)
 }
 
-func (h *AdminHandlers) fundAuditForm(w http.ResponseWriter, r *http.Request) {
+func (h *AdminHandlers) availableAudits(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -124,14 +128,14 @@ func (h *AdminHandlers) fundAuditForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fund, err := h.donationService.GetFundByID(ctx, idUUID)
+	availableDates, err := h.financeServe.GetAvailableReportDates(ctx, "payments", idUUID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 
 		return
 	}
 
-	FundAudit(*fund).Render(ctx, w)
+	FundAudit(availableDates).Render(ctx, w)
 }
 
 func (h *AdminHandlers) member(w http.ResponseWriter, r *http.Request) {
@@ -451,4 +455,11 @@ func sendFormValidationErrJSON(w http.ResponseWriter, r *http.Request, fieldErrs
 type fieldError struct {
 	Field string
 	Error string
+}
+
+type menuTarget struct {
+	ShowMessage ShowMessage `json:"showMenu"`
+}
+type ShowMessage struct {
+	Target string `json:"target"`
 }
