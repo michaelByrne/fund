@@ -17,42 +17,6 @@ templ Funds(funds []donations.Fund, member *members.Member, path string) {
 				@FundsList(funds)
 			</div>
 		</div>
-		<div id="global-dropdown-container" class="absolute top-0 left-0 w-full h-full pointer-events-none">
-			<script type="application/javascript">
-                me('.gear-icon').on('showMenu', function (e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-
-                    console.log(e.target.closest('.fund-row'))
-
-                    const dropdown = e.target.closest('.fund-row').querySelector('.audit-dropdown');
-
-                    const container = document.getElementById('global-dropdown-container');
-
-                    // Move dropdown to the container
-                    container.innerHTML = ''; // Clear existing dropdowns
-                    container.appendChild(dropdown);
-
-                    dropdown.classList.toggle('hidden');
-                    const rect = e.target.getBoundingClientRect();
-                    dropdown.style.position = 'absolute';
-                    dropdown.style.top = `${rect.bottom + window.scrollY}px`;
-                    dropdown.style.left = `${rect.left + window.scrollX}px`;
-                    dropdown.style.pointerEvents = 'auto';
-
-                    if (!dropdown.classList.contains('hidden')) {
-                        document.addEventListener('click', function closeDropdown(event) {
-                            if (!dropdown.contains(event.target) && !event.target.matches('.gear-icon')) {
-                                dropdown.classList.add('hidden');
-                                document.removeEventListener('click', closeDropdown);
-                            }
-                    });
-                }
-
-                    return false;
-                });
-            </script>
-		</div>
 	}
 }
 
@@ -149,6 +113,11 @@ templ FundRow(fund donations.Fund) {
 				&#215;
 			</div>
 		</div>
+		<script type="application/javascript">
+            me().on("fundDeactivated", (ev) => {
+                me(".fund-row").fadeOut(null, 400);
+            });
+        </script>
 	</li>
 }
 

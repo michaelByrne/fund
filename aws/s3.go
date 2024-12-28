@@ -47,15 +47,6 @@ func (s AWSS3) CreateFundBucket(ctx context.Context, prefix string, fundID uuid.
 		return err
 	}
 
-	err = s3.NewBucketExistsWaiter(s.s3Client).Wait(ctx, &s3.HeadBucketInput{
-		Bucket: toPointer(prefix + "_" + fundID.String()),
-	}, time.Minute)
-	if err != nil {
-		s.logger.Error("failed to wait for bucket creation", slog.String("error", err.Error()))
-
-		return err
-	}
-
 	return nil
 }
 
