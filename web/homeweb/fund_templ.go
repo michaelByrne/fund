@@ -80,7 +80,7 @@ func Fund(fund donations.Fund, fundStats donations.FundStats, member *members.Me
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<hr class=\"border-odd \"><div class=\"grid grid-cols-1 md:grid-cols-3 gap-2\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<hr class=\"border-odd \"><div class=\"grid grid-cols-1 lg:grid-cols-3 gap-2\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -89,15 +89,7 @@ func Fund(fund donations.Fund, fundStats donations.FundStats, member *members.Me
 				return templ_7745c5c3_Err
 			}
 			if len(fundStats.Monthly) > 0 {
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"col-span-2 pl-4 my-2\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = common.SectionTitle("month-by-month").Render(ctx, templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<canvas>")
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"col-span-2 my-2 blue-boxy-filter\"><div class=\"text-md font-semibold p-2 inline-block bg-high\">month-by-month</div><canvas class=\"bg-odd\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -328,7 +320,7 @@ func FundStatus(fund donations.Fund, fundStats donations.FundStats) templ.Compon
 			templ_7745c5c3_Var11 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"col-span-1 my-2 blue-boxy-filter\"><div class=\"text-md font-semibold p-2 inline-block bg-high\">fund status</div><ul class=\"list-none\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"col-span-1 my-2 mr-4 blue-boxy-filter\"><div class=\"text-md font-semibold p-2 inline-block bg-high\">fund status</div><ul class=\"list-none\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

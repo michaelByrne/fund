@@ -26,12 +26,12 @@ templ Fund(fund donations.Fund, fundStats donations.FundStats, member *members.M
 			<hr class="border-odd "/>
 			@Description(fund.Description)
 			<hr class="border-odd "/>
-			<div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+			<div class="grid grid-cols-1 lg:grid-cols-3 gap-2">
 				@FundStatus(fund, fundStats)
 				if len(fundStats.Monthly) > 0 {
-					<div class="col-span-2 pl-4 my-2">
-						@common.SectionTitle("month-by-month")
-						<canvas>
+					<div class="col-span-2 my-2 blue-boxy-filter">
+					    <div class="text-md font-semibold p-2 inline-block bg-high">month-by-month</div>
+						<canvas class="bg-odd">
 							@MonthlyTotalsChart(fundStats)
 						</canvas>
 					</div>
@@ -104,7 +104,7 @@ templ Title(text string) {
 }
 
 templ FundStatus(fund donations.Fund, fundStats donations.FundStats) {
-	<div class="col-span-1 my-2 blue-boxy-filter">
+	<div class="col-span-1 my-2 mr-4 blue-boxy-filter">
 		<div class="text-md font-semibold p-2 inline-block bg-high">fund status</div>
 		<ul class="list-none">
 			@StatusItem(AmountOrInfinity(fund.GoalCents), "goal")
