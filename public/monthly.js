@@ -51,7 +51,7 @@ new Chart(me(), {
                         }
                     }
                 }
-            }
+            },
         },
         scales: {
             y: {
@@ -97,5 +97,25 @@ new Chart(me(), {
                 }
             }
         }
-    }
+    },
+    plugins: [
+        {
+            id: 'responsiveLabels',
+            beforeInit: (chart) => {
+                const updateVisibility = () => {
+                    const isSmallScreen = window.innerWidth < 768; // Adjust the breakpoint as needed
+                    chart.options.plugins.legend.display = !isSmallScreen; // Hide legend on small screens
+                    chart.options.scales.x.title.display = !isSmallScreen; // Hide x-axis labels on small screens
+                    chart.options.scales.y.title.display = !isSmallScreen; // Hide y-axis labels on small screens
+                };
+
+                updateVisibility();
+
+                window.addEventListener('resize', () => {
+                    updateVisibility();
+                    chart.update();
+                });
+            },
+        },
+    ],
 });
