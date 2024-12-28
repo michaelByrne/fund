@@ -118,3 +118,13 @@ table {
     filter: drop-shadow(4px 4px #788f99);
 }
 
+@media (max-width: 768px) {
+    .chart-container canvas {
+        width: 100%;
+    }
+
+    .chart-container .axis-label {
+        display: none;
+    }
+}
+
