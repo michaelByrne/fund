@@ -8,6 +8,7 @@ import (
 templ Head() {
 	<head>
 		<title>BCO Mutual Aid</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1"/>
 		<link rel="icon" type="image/x-icon" href="/static/favicon.ico"/>
 		<link rel="stylesheet" href="/static/styles.css"/>
 		<script type="application/javascript" src="/static/htmx.min.js"></script>
@@ -16,7 +17,6 @@ templ Head() {
 		<script type="application/javascript" src="/static/surreal.js"></script>
 		<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 		<script type="application/javascript" src="/static/shared.js"></script>
-		<meta name="viewport" content="width=device-width, initial-scale=1">
 	</head>
 }
 
@@ -69,12 +69,11 @@ templ ErrorMessage(member *members.Member, message, link, currentPath string) {
 }
 
 func buildClass(baseClasses string, conditions map[string]bool) string {
-    classes := []string{baseClasses}
-    for className, condition := range conditions {
-        if condition {
-            classes = append(classes, className)
-        }
-    }
-    return strings.Join(classes, " ")
+	classes := []string{baseClasses}
+	for className, condition := range conditions {
+		if condition {
+			classes = append(classes, className)
+		}
+	}
+	return strings.Join(classes, " ")
 }
-
