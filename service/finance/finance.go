@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
-	"fmt"
 	"github.com/google/uuid"
 	"io"
 	"log/slog"
@@ -23,6 +22,7 @@ type AuditDonation struct {
 
 type ProviderTransaction struct {
 	ProviderPaymentID string
+	Date              time.Time
 	Status            string
 	AmountCents       int32
 }
@@ -33,12 +33,38 @@ type ReportInfo struct {
 	Type   string
 }
 
+type Audit struct {
+	FundID   uuid.UUID
+	FundName string
+	Date     time.Time
+	Type     string
+	Payments []AuditPayment
+}
+
+type AuditPayment struct {
+	DonationID             uuid.UUID
+	PaymentID              uuid.UUID
+	ProviderPaymentID      string
+	AmountCents            int32
+	TransactionStatus      string
+	TransactionAmountCents int32
+	Created                time.Time
+	ProviderCreated        time.Time
+}
+
+type GetAuditRequest struct {
+	FundID uuid.UUID
+	Type   string
+	Date   time.Time
+}
+
 type donationStore interface {
 	GetRecurringDonationsForFund(ctx context.Context, arg donations.GetRecurringDonationsForFundRequest) ([]donations.Donation, error)
 	GetPaymentsForDonation(ctx context.Context, donationID uuid.UUID) ([]donations.DonationPayment, error)
 	GetActiveFunds(ctx context.Context) ([]donations.Fund, error)
 	SetDonationToInactive(ctx context.Context, arg donations.DeactivateDonation) (*donations.Donation, error)
 	GetDonationPaymentsByDonationID(ctx context.Context, donationID uuid.UUID) ([]donations.DonationPayment, error)
+	GetFundByID(ctx context.Context, uuid uuid.UUID) (*donations.Fund, error)
 }
 
 type paymentsProvider interface {
@@ -50,39 +76,146 @@ type paymentsProvider interface {
 type documentManager interface {
 	Upload(ctx context.Context, body io.Reader, name, contentType string) error
 	ListAvailableReports(ctx context.Context, prefix string, fundID uuid.UUID) ([]ReportInfo, error)
+	GetReport(ctx context.Context, reportType string, fundID uuid.UUID, date time.Time) (io.Reader, error)
 }
 
 type FinanceService struct {
 	donationStore    donationStore
 	paymentsProvider paymentsProvider
-	uploader         documentManager
+	documentManager  documentManager
+
+	reportPrefixes []string
 
 	logger *slog.Logger
 }
 
-func NewFinanceService(donationStore donationStore, paymentsProvider paymentsProvider, uploader documentManager, logger *slog.Logger) *FinanceService {
+func NewFinanceService(donationStore donationStore, paymentsProvider paymentsProvider, documentManager documentManager, reportPrefixes []string, logger *slog.Logger) *FinanceService {
 	return &FinanceService{
 		donationStore:    donationStore,
 		paymentsProvider: paymentsProvider,
-		uploader:         uploader,
+		documentManager:  documentManager,
+		reportPrefixes:   reportPrefixes,
 		logger:           logger,
 	}
 }
 
-func (s FinanceService) GetAvailableReportDates(ctx context.Context, reportType string, fundID uuid.UUID) ([]time.Time, error) {
-	reports, err := s.uploader.ListAvailableReports(ctx, reportType, fundID)
+func (s FinanceService) GetAudit(ctx context.Context, req GetAuditRequest) (*Audit, error) {
+	reportReader, err := s.documentManager.GetReport(ctx, req.Type, req.FundID, req.Date)
 	if err != nil {
-		s.logger.Error("failed to get available reports", slog.String("error", err.Error()))
+		s.logger.Error("failed to get report", slog.String("error", err.Error()))
 
 		return nil, err
 	}
 
-	dates := make([]time.Time, 0)
-	for _, report := range reports {
-		dates = append(dates, report.Date)
+	fund, err := s.donationStore.GetFundByID(ctx, req.FundID)
+	if err != nil {
+		s.logger.Error("failed to get fund by ID", slog.String("error", err.Error()))
+
+		return nil, err
 	}
 
-	return dates, nil
+	csvReader := csv.NewReader(reportReader)
+	records, err := csvReader.ReadAll()
+	if err != nil {
+		s.logger.Error("failed to read CSV records", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	payments := make([]AuditPayment, 0, len(records))
+	for _, record := range records {
+		amountCents, errInner := strconv.Atoi(record[5])
+		if errInner != nil {
+			s.logger.Error("failed to parse amount cents", slog.String("error", errInner.Error()))
+
+			return nil, errInner
+		}
+
+		transactionAmountCentsStr := record[8]
+		if transactionAmountCentsStr == "" {
+			transactionAmountCentsStr = "0"
+		}
+
+		transactionAmountCents, errInner := strconv.Atoi(transactionAmountCentsStr)
+		if errInner != nil {
+			s.logger.Error("failed to parse transaction amount cents", slog.String("error", errInner.Error()))
+
+			return nil, errInner
+		}
+
+		donationUUID, errInner := uuid.Parse(record[2])
+		if errInner != nil {
+			s.logger.Error("failed to parse donation UUID", slog.String("error", err.Error()))
+
+			return nil, errInner
+		}
+
+		paymentUUID, errInner := uuid.Parse(record[1])
+		if errInner != nil {
+			s.logger.Error("failed to parse payment UUID", slog.String("error", err.Error()))
+
+			return nil, errInner
+		}
+
+		created := record[4]
+		createdTime, errInner := time.Parse(time.RFC3339, created)
+		if errInner != nil {
+			s.logger.Error("failed to parse created time", slog.String("error", err.Error()))
+
+			return nil, errInner
+		}
+
+		providerCreatedStr := record[9]
+		if providerCreatedStr == "" {
+			providerCreatedStr = time.Time{}.Format(time.RFC3339)
+		}
+
+		providerCreated, errInner := time.Parse(time.RFC3339, providerCreatedStr)
+		if errInner != nil {
+			s.logger.Error("failed to parse provider created time", slog.String("error", err.Error()))
+
+			return nil, errInner
+		}
+
+		payment := AuditPayment{
+			DonationID:             donationUUID,
+			PaymentID:              paymentUUID,
+			ProviderPaymentID:      record[3],
+			AmountCents:            int32(amountCents),
+			TransactionStatus:      record[7],
+			TransactionAmountCents: int32(transactionAmountCents),
+			Created:                createdTime,
+			ProviderCreated:        providerCreated,
+		}
+
+		payments = append(payments, payment)
+	}
+
+	audit := &Audit{
+		FundID:   req.FundID,
+		FundName: fund.Name,
+		Date:     req.Date,
+		Type:     req.Type,
+		Payments: payments,
+	}
+
+	return audit, nil
+}
+
+func (s FinanceService) GetAvailableAudits(ctx context.Context, fundID uuid.UUID) ([]ReportInfo, error) {
+	var allReports []ReportInfo
+	for _, prefix := range s.reportPrefixes {
+		reports, err := s.documentManager.ListAvailableReports(ctx, prefix, fundID)
+		if err != nil {
+			s.logger.Error("failed to get available reports", slog.String("error", err.Error()))
+
+			return nil, err
+		}
+
+		allReports = append(allReports, reports...)
+	}
+
+	return allReports, nil
 }
 
 func (s FinanceService) RunDonationReconciliation(ctx context.Context) error {
@@ -189,9 +322,8 @@ func (s FinanceService) reconcileDonationsForFund(ctx context.Context, fundID uu
 		return err
 	}
 
-	fmt.Printf(" to write %s", bytesBuffer.String())
 	fileName := "fund_" + fundID.String() + "_date_" + time.Now().Format("01-02-2006") + "_payments_report.csv"
-	err = s.uploader.Upload(ctx, bytesBuffer, fileName, "text/csv")
+	err = s.documentManager.Upload(ctx, bytesBuffer, fileName, "text/csv")
 	if err != nil {
 		logger.Error("failed to upload CSV file for donations payment report", slog.String("error", err.Error()))
 	}
@@ -200,7 +332,7 @@ func (s FinanceService) reconcileDonationsForFund(ctx context.Context, fundID uu
 }
 
 func writeCSVPaymentRow(writer *csv.Writer, fundID uuid.UUID, payment donations.DonationPayment, transaction *ProviderTransaction) error {
-	if transaction == nil {
+	if transaction.ProviderPaymentID == "" {
 		return writer.Write([]string{
 			fundID.String(),
 			payment.ID.String(),
@@ -208,6 +340,7 @@ func writeCSVPaymentRow(writer *csv.Writer, fundID uuid.UUID, payment donations.
 			payment.ProviderPaymentID,
 			payment.Created.Format(time.RFC3339),
 			strconv.Itoa(int(payment.AmountCents)),
+			"",
 			"",
 			"",
 			"",
@@ -224,5 +357,6 @@ func writeCSVPaymentRow(writer *csv.Writer, fundID uuid.UUID, payment donations.
 		transaction.ProviderPaymentID,
 		transaction.Status,
 		strconv.Itoa(int(transaction.AmountCents)),
+		transaction.Date.Format(time.RFC3339),
 	})
 }

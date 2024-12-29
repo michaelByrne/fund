@@ -68,6 +68,8 @@ type RunConfig struct {
 
 	EnableNATSLogging                bool
 	DonationsPaymentsReportsS3Bucket string
+
+	ReportTypes []string
 }
 
 type ChildDeps struct {
@@ -166,10 +168,10 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		runConfig.CognitoUserPoolID,
 	)
 
-	donationService := donations.NewDonationService(donationStore, documentStorage, paypalService, []string{"payments"}, logger)
+	donationService := donations.NewDonationService(donationStore, documentStorage, paypalService, runConfig.ReportTypes, logger)
 	memberService := members.NewMemberService(memberStore, donationStore, authorizer, paypalService, logger)
 	authService := auth.NewAuthService(authorizer, memberStore, logger)
-	financeService := finance.NewFinanceService(donationStore, paypalService, documentStorage, logger)
+	financeService := finance.NewFinanceService(donationStore, paypalService, documentStorage, runConfig.ReportTypes, logger)
 
 	authMiddleware := middlewares.Verify(
 		verifier.Verify,
@@ -246,7 +248,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		serverStopCtx()
 	}()
 
-	log.Println("** starting server on port 8080 **")
+	log.Println("** starting bco mutual aid on port 8080 **")
 	err = server.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("server failed with error: %w", err)

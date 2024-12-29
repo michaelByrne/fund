@@ -2,8 +2,10 @@ package adminweb
 
 import (
 	"boardfund/service/donations"
+	"boardfund/service/finance"
 	"boardfund/service/members"
 	"fmt"
+	"github.com/google/uuid"
 	"time"
 )
 
@@ -88,7 +90,7 @@ templ FundRow(fund donations.Fund) {
 					class="ml-4 text-xl text-strong hover:text-links cursor-pointer gear-icon"
 					data-fund-id={ fund.ID.String() }
 					onclick="toggleDropdown(event, this)"
-					hx-get={ fmt.Sprintf("/admin/fund/audit/%s", fund.ID.String()) }
+					hx-get={ fmt.Sprintf("/admin/fund/audits/%s", fund.ID.String()) }
 					hx-target="next .audit-content"
 					hx-trigger="audit-load"
 				>
@@ -115,48 +117,110 @@ templ FundRow(fund donations.Fund) {
 		</div>
 		<script type="application/javascript">
             me().on("fundDeactivated", (ev) => {
-                me(".fund-row").fadeOut(null, 400);
+                ev.srcElement.closest('.fund-row').fadeOut(null, 400);
             });
         </script>
 	</li>
 }
 
-templ FundAudit(availableReports []time.Time) {
-	<div>
+templ FundAudits(availableReports []finance.ReportInfo) {
+	<div class="p-2 font-medium">available audits</div>
+	<ul class="p-2">
 		for _ , report := range availableReports {
-			<li class="clickable hover:underline p-2">
-				{ report.Format("01-02-2006") }
+			<li>
+				<span>{ report.Date.Format("01-02-2006") }</span>:&nbsp;<span hx-get={ makeAuditURL(report.FundID, report.Date, report.Type) } class="hover:underline text-blue-400">{ report.Type }</span>
 			</li>
 		}
-	</div>
+	</ul>
 }
 
-templ FundAuditResult(dateStr string) {
-	<div class="w-[90%]">
-		<h3 class="text-base font-semibold mb-5 mt-2 pl-2">audit results for period ending: <div class="underline">{ dateStr }</div></h3>
-		<div class="text-sm my-2 w-[60%]">
-			<div class="flex flex-row items-center my-2">
-				<h4 class="font-semibold p-2">fund:</h4>
-				<span class="ml-auto p-2">the human fund</span>
-			</div>
-			<div class="flex flex-row items-center my-2">
-				<h4 class="font-semibold p-2">db payments:</h4>
-				<span class="ml-auto p-2">$666</span>
-			</div>
-			<div class="flex flex-row items-center my-2">
-				<h4 class="font-semibold p-2">provider payments:</h4>
-				<span class="ml-auto p-2">$666</span>
-			</div>
-			<div class="flex flex-row items-center my-2">
-				<h4 class="font-semibold p-2">paypal fees:</h4>
-				<span class="ml-auto p-2">$50</span>
-			</div>
-			<div class="flex flex-row items-center my-2">
-				<h4 class="font-semibold p-2">expected payouts:</h4>
-				<span class="ml-auto p-2">$616</span>
+templ FundPaymentsAudit(audit finance.Audit, member *members.Member, path string) {
+	@Admin(member, path) {
+		<div id="payments-list" class="blue-boxy-filter p-2">
+			<h3 class="text-md font-semibold bg-high inline-block p-2">payments <span class="font-medium">audit for</span> { audit.FundName } <span class="font-medium">run</span> { audit.Date.Format("01-02-2006") }</h3>
+			<div>
+				<div class="max-h-[300px] overflow-auto">
+					<table class="w-full text-xs text-left border-collapse leading-relaxed">
+						<thead class="sticky top-0 z-10 bg-even">
+							<tr>
+								<th class="text-left w-[2%]">
+									<span class="inline-block p-2"></span>
+								</th>
+								<th class="text-left w-[15%]">
+									<span class="inline-block p-2">date</span>
+								</th>
+								<th class="text-left w-[15%] hide-on-small">
+									<span class="inline-block p-2">provider date</span>
+								</th>
+								<th class="text-left w-[28%] hide-on-small">
+									<span class="inline-block p-2">transaction id</span>
+								</th>
+								<th class="text-left w-[10%]">
+									<span class="inline-block p-2">amount</span>
+								</th>
+								<th class="text-left w-[10%]">
+									<span class="inline-block p-2">paid</span>
+								</th>
+								<th class="text-left w-[20%]">
+									<span class="inline-block p-2">provider status</span>
+								</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, payment := range audit.Payments {
+								<tr class="even:bg-even odd:bg-odd">
+									@WarningCell(payment)
+									<td class="pl-2">{ payment.Created.Format("01-02-2006") }</td>
+									<td class="hide-on-small">{ transactionDate(payment.ProviderCreated) }</td>
+									<td class="font-mono hide-on-small">{ transactionID(payment.ProviderPaymentID) }</td>
+									<td>${ centsToDecimalString(payment.AmountCents) }</td>
+									<td>{ transactionAmount(payment.TransactionAmountCents) }</td>
+									<td>{ transactionStatus(payment.TransactionStatus) }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
 			</div>
 		</div>
-	</div>
+	}
+}
+
+templ WarningCell(payment finance.AuditPayment) {
+	if payment.TransactionAmountCents != payment.AmountCents || payment.TransactionStatus != "COMPLETED" {
+		<td class="px-1 justify-center bg-red-300 flex items-center">!</td>
+	} else {
+		<td class="px-1 justify-center bg-green-200 flex items-center">&check;</td>
+	}
+}
+
+func transactionDate(date time.Time) string {
+	if date.IsZero() {
+		return "?"
+	}
+	return date.Format("01-02-2006")
+}
+
+func transactionID(transactionID string) string {
+	if transactionID == "" {
+		return "?"
+	}
+	return transactionID
+}
+
+func transactionAmount(amount int32) string {
+	if amount == 0 {
+		return "?"
+	}
+
+	return "$" + centsToDecimalString(amount)
+}
+
+func transactionStatus(status string) string {
+	if status == "" {
+		return "?"
+	}
+	return status
 }
 
 func convertToLastDayOfMonth(dateString string) string {
@@ -170,4 +234,13 @@ func convertToLastDayOfMonth(dateString string) string {
 	formattedDate := lastDay.Format("01-02-2006")
 
 	return formattedDate
+}
+
+func makeAuditURL(fundID uuid.UUID, date time.Time, auditType string) string {
+	urlOut := "/admin/fund/audit"
+	urlOut += "?fund=" + fundID.String()
+	urlOut += "&date=" + date.Format("01-02-2006")
+	urlOut += "&type=" + auditType
+
+	return urlOut
 }

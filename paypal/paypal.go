@@ -177,6 +177,7 @@ func (p Paypal) GetTransactionsForDonationSubscription(ctx context.Context, subs
 			ProviderPaymentID: transaction.ID,
 			Status:            transaction.Status,
 			AmountCents:       decimalDollarStringToCents(transaction.AmountWithBreakdown.GrossAmount.Value),
+			Date:              transaction.Time,
 		})
 	}
 
@@ -213,8 +214,14 @@ func (p Paypal) GetTransaction(ctx context.Context, id string, start, end time.T
 		status = "OTHER"
 	}
 
+	transactionDate, err := time.Parse("2006-01-02T15:04:05-0700", transactionInfo.TransactionInitiationDate)
+	if err != nil {
+		return nil, err
+	}
+
 	return &finance.ProviderTransaction{
 		ProviderPaymentID: transactionInfo.TransactionID,
+		Date:              transactionDate,
 		Status:            status,
 		AmountCents:       decimalDollarStringToCents(transactionInfo.TransactionAmount.Value),
 	}, nil

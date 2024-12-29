@@ -77,43 +77,49 @@ th {
     color: #333333;
 }
 
-.blingy {
-    background-image: url("/static/blingy.gif");
-    background-color: rgb(0, 0, 0);
-    background-position: top left;
-    background-repeat: repeat;
-    background-attachment: fixed;
-    z-index: -1;
-}
-
-/* Ensures the header stays pinned while scrolling */
 thead.sticky {
     position: sticky;
     top: 0;
     z-index: 10;
 }
 
-/*!* Forces consistent column widths across the entire table *!*/
-/*th, td {*/
-/*    padding: 8px;*/
-/*    text-align: center;*/
-/*    border-collapse: collapse;*/
-/*}*/
-
-/* Prevents misalignment caused by inconsistent row heights */
 table {
     table-layout: fixed;
     width: 100%;
 }
 
-.hide {
-    display: none;
-}
-
-.audit-date:hover + .hide {
-    display: inline;
-}
-
 .blue-boxy-filter {
     filter: drop-shadow(4px 4px #788f99);
+}
+
+@media screen and (max-width: 800px) {
+    .hide-on-small {
+        display: none;
+    }
+}
+
+.text-responsive {
+    font-size: clamp(2rem, 4vw + 1rem, 4rem);
+}
+.text-responsive-small {
+    font-size: clamp(1rem, 2vw + 0.5rem, 2rem);
+}
+.blingy {
+    background-image: url("/static/blingy.gif");
+    background-color: rgb(0, 0, 0);
+    background-position: top left;
+    background-repeat: repeat;
+    background-attachment: fixed;
+    display: block;
+    white-space: nowrap;
+    line-height: 1.2;
+    height: 100%;
+    width: 100%;
+}
+#bouncing-element, #bouncing-element2 {
+    will-change: transform;
+    pointer-events: none;
+}
+#bouncing-element2 a {
+    pointer-events: auto;
 }

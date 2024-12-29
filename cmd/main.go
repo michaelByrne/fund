@@ -5,10 +5,10 @@ import (
 	"boardfund/cmd/root/audit"
 	donationsaudit "boardfund/cmd/root/audit/donations"
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"strconv"
+	"strings"
 )
 
 func loadRunConfig() (*root.RunConfig, error) {
@@ -50,6 +50,7 @@ func loadRunConfig() (*root.RunConfig, error) {
 		CognitoUserPoolID: getEnvOrError("COGNITO_USER_POOL_ID", true),
 
 		EnableNATSLogging: getEnvAsBool("ENABLE_NATS_LOGGING", false),
+		ReportTypes:       getEnvAsSlice("ENABLED_REPORT_TYPES"),
 	}
 
 	return config, nil
@@ -58,7 +59,7 @@ func loadRunConfig() (*root.RunConfig, error) {
 func getEnvOrError(key string, required bool) string {
 	value, exists := os.LookupEnv(key)
 	if required && !exists {
-		panic(fmt.Errorf("%s is required", key))
+		log.Fatal(key + " is required")
 	}
 	return value
 }
@@ -68,6 +69,15 @@ func getEnvOrDefault(key string, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func getEnvAsSlice(key string) []string {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return []string{}
+	}
+
+	return strings.Split(valueStr, ",")
 }
 
 func getEnvAsBool(key string, defaultValue bool) bool {

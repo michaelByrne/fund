@@ -56,7 +56,7 @@ templ MemberRow(member members.Member) {
 		</div>
 		<script type="application/javascript">
     		me().on("memberDeactivated", (ev) => {
-    			me(".member-row").fadeOut(null, 400);
+    			ev.srcElement.closest(".member-row").fadeOut(null, 400);
     		});
     	</script>
 	</li>

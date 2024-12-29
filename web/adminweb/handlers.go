@@ -52,56 +52,59 @@ func (h *AdminHandlers) Register(r *mux.Router) {
 	r.HandleFunc("POST /admin/fund/deactivate/{id}", h.withAdmin(h.deactivateFund))
 	r.HandleFunc("POST /admin/member/deactivate/{id}", h.withAdmin(h.deactivateMember))
 	r.HandleFunc("GET /admin/member/{id}", h.withAdmin(h.member))
-	r.HandleFunc("GET /admin/fund/audit/{id}", h.withAdmin(h.availableAudits))
-	r.HandleFunc("POST /admin/fund/audit/{id}", h.withAdmin(h.fundAudit))
+	r.HandleFunc("GET /admin/fund/audits/{id}", h.withAdmin(h.availableAudits))
+	r.HandleFunc("GET /admin/fund/audit", h.withAdmin(h.fundAudit))
 }
 
 func (h *AdminHandlers) fundAudit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		http.Redirect(w, r, "/", http.StatusFound)
 
 		return
 	}
 
-	err := r.ParseForm()
+	fundID := r.URL.Query().Get("fund")
+	dateStr := r.URL.Query().Get("date")
+	reportType := r.URL.Query().Get("type")
+
+	if fundID == "" || dateStr == "" || reportType == "" {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	date, err := time.Parse("01-02-2006", dateStr)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 
 		return
 	}
 
-	frequency := r.FormValue("frequency")
-	if frequency == "" {
-		w.WriteHeader(http.StatusBadRequest)
-
-		return
-	}
-
-	var dateStr string
-	if frequency == "monthly" {
-		dateStr = r.FormValue("period")
-	} else {
-		dateStr = time.Now().Format("01-02-2006")
-	}
-
-	id := r.PathValue("id")
-	if id == "" {
-		w.WriteHeader(http.StatusBadRequest)
-
-		return
-	}
-
-	_, err = uuid.Parse(id)
+	fundUUID, err := uuid.Parse(fundID)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 
 		return
 	}
 
-	FundAuditResult(dateStr).Render(ctx, w)
+	req := finance.GetAuditRequest{
+		FundID: fundUUID,
+		Type:   reportType,
+		Date:   date,
+	}
+
+	audit, err := h.financeServe.GetAudit(ctx, req)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	w.Header().Set("HX-Redirect", r.URL.String())
+	FundPaymentsAudit(*audit, &member, r.URL.Path).Render(ctx, w)
 }
 
 func (h *AdminHandlers) availableAudits(w http.ResponseWriter, r *http.Request) {
@@ -128,14 +131,14 @@ func (h *AdminHandlers) availableAudits(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	availableDates, err := h.financeServe.GetAvailableReportDates(ctx, "payments", idUUID)
+	availAudits, err := h.financeServe.GetAvailableAudits(ctx, idUUID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 
 		return
 	}
 
-	FundAudit(availableDates).Render(ctx, w)
+	FundAudits(availAudits).Render(ctx, w)
 }
 
 func (h *AdminHandlers) member(w http.ResponseWriter, r *http.Request) {

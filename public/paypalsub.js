@@ -4,9 +4,11 @@ window.paypal_sub.Buttons({
         color: 'blue',
     },
     createSubscription: function (data, actions) {
+        let fundId = JSON.parse(document.getElementById('fund-id').textContent);
         let providerPlanId = JSON.parse(document.getElementById('provider-plan-id').textContent);
         return actions.subscription.create({
             'plan_id': providerPlanId,
+            'custom_id': fundId,
             'application_context': {
                 'locale': 'en-US',
                 'shipping_preference': 'NO_SHIPPING',

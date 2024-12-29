@@ -203,7 +203,7 @@ func MemberRow(member members.Member) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" hx-trigger=\"click consume\" hx-swap=\"outerHTML\" class=\"text-title/90 hover:text-red-500 text-lg font-bold ml-4\">&#215;</div></div><script type=\"application/javascript\">\n    \t\tme().on(\"memberDeactivated\", (ev) => {\n    \t\t\tme(\".member-row\").fadeOut(null, 400);\n    \t\t});\n    \t</script></li>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" hx-trigger=\"click consume\" hx-swap=\"outerHTML\" class=\"text-title/90 hover:text-red-500 text-lg font-bold ml-4\">&#215;</div></div><script type=\"application/javascript\">\n    \t\tme().on(\"memberDeactivated\", (ev) => {\n    \t\t\tev.srcElement.closest(\".member-row\").fadeOut(null, 400);\n    \t\t});\n    \t</script></li>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -300,6 +300,7 @@ type Transactions struct {
 	PayerName           PayerName           `json:"payer_name"`
 	AmountWithBreakdown AmountWithBreakdown `json:"amount_with_breakdown"`
 	Time                time.Time           `json:"time"`
+	FundID              string              `json:"custom_field"`
 }
 
 type Transaction struct {
@@ -326,6 +327,7 @@ type TransactionInfo struct {
 	FeeAmount                 FeeAmount         `json:"fee_amount"`
 	TransactionStatus         string            `json:"transaction_status"`
 	ProtectionEligibility     string            `json:"protection_eligibility"`
+	FundID                    string            `json:"custom_field"`
 }
 
 type PayerInfo struct {

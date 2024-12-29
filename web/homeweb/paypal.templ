@@ -10,11 +10,11 @@ import (
 
 templ PaypalSubscription(plan donations.DonationPlan, clientID, fundName string) {
 	<script src={ fmt.Sprintf("https://www.paypal.com/sdk/js?client-id=%s&vault=true&intent=subscription", clientID) } data-namespace="paypal_sub"></script>
-	<div class="payment-container w-[70%]">
+	<div class="payment-container w-[70%] blue-boxy-filter bg-even p-4">
 		@templ.JSONScript("provider-plan-id", plan.ProviderPlanID)
 		@templ.JSONScript("plan-id", plan.ID.String())
 		@templ.JSONScript("fund-id", plan.FundID.String())
-		<h4 class="mb-2 mx-auto mt-2 text-lg bg-odd p-2 font-semibold inline-block">I am giving ${ centsToDecimalString(plan.AmountCents) } every { strings.ToLower(string(plan.IntervalUnit)) } to { fundName }.</h4>
+		<h4 class="mb-2 mx-auto mt-2 text-xl p-2 font-papyrus font-semibold inline-block">I am giving ${ centsToDecimalString(plan.AmountCents) } every { strings.ToLower(string(plan.IntervalUnit)) } to { fundName }.</h4>
 		<div id="paypal-button-container"></div>
 		<script type="text/javascript" src="/static/paypalsub.js"></script>
 	</div>
@@ -22,17 +22,152 @@ templ PaypalSubscription(plan donations.DonationPlan, clientID, fundName string)
 
 templ Paypal(fund donations.Fund, amountCents int32, clientID string) {
 	<script src={ fmt.Sprintf("https://www.paypal.com/sdk/js?client-id=%s&vault=true", clientID) } data-namespace="paypal_once"></script>
-	<div class="payment-container w-[70%]">
+	<div class="payment-container w-[70%] blue-boxy-filter bg-even p-4">
 		@templ.JSONScript("fund-id", fund.ID.String())
 		@templ.JSONScript("amount", amountCents)
-		<h4 class="mb-2 mx-auto mt-2 text-lg bg-odd p-2 font-semibold inline-block">I am giving ${ centsToDecimalString(amountCents) } to { fund.Name }.</h4>
+		<h4 class="mb-2 mx-auto mt-2 text-xl font-papyrus p-2 font-semibold inline-block">I am giving ${ centsToDecimalString(amountCents) } to { fund.Name }.</h4>
 		<div id="paypal-button-container"></div>
 		<script type="text/javascript" src="/static/paypalonce.js"></script>
 	</div>
 }
 
 templ ThankYou(member members.Member, path string) {
-	@common.Layout(&member, path) {
-		<h4 class="font-semibold p-8 blingy text-white inline-block m-4 text-6xl font-papyrus">Thank you { member.FirstName }!!!</h4>
-	}
+    @common.Layout(&member, path) {
+        <div id="bouncing-elements" style="position: relative;">
+            <div id="bouncing-element" class="absolute font-semibold text-responsive">
+                <div class="inline-block">
+                    <div class="blingy p-4 text-white font-papyrus">
+                        Thank you { member.FirstName }!!!
+                    </div>
+                </div>
+            </div>
+            <div id="bouncing-element2" class="absolute font-semibold text-responsive-small">
+                <div class="bg-high p-4 text-blue-500 font-papyrus">
+                    <a href="/">donate more money</a>
+                </div>
+            </div>
+        </div>
+        <script>
+            function createBouncer(elementId, initialVelX, initialVelY) {
+                return {
+                    element: document.getElementById(elementId),
+                    pos: { x: 0, y: 0 },
+                    vel: { x: initialVelX, y: initialVelY },
+                    size: { width: 0, height: 0 }
+                };
+            }
+
+            const container = document.getElementById('donation');
+            const bouncer1 = createBouncer('bouncing-element', 2, 1.5);
+            const bouncer2 = createBouncer('bouncing-element2', 1.5, 2);
+            let containerSize = {};
+            let isAnimating = true;
+
+            function updateSizes() {
+                const rect = container.getBoundingClientRect();
+                containerSize = {
+                    width: rect.width,
+                    height: rect.height
+                };
+
+                [bouncer1, bouncer2].forEach(bouncer => {
+                    const elemRect = bouncer.element.getBoundingClientRect();
+                    bouncer.size = {
+                        width: elemRect.width,
+                        height: elemRect.height
+                    };
+                });
+
+                const baseVelocity = Math.min(containerSize.width, containerSize.height) / 400;
+                bouncer1.vel = {
+                    x: Math.sign(bouncer1.vel.x) * baseVelocity * 1.5,
+                    y: Math.sign(bouncer1.vel.y) * baseVelocity * 1.5
+                };
+                bouncer2.vel = {
+                    x: Math.sign(bouncer2.vel.x) * baseVelocity,
+                    y: Math.sign(bouncer2.vel.y) * baseVelocity
+                };
+            }
+
+            function adjustInitialPositions() {
+                [bouncer1, bouncer2].forEach(bouncer => {
+                    bouncer.pos.x = Math.min(
+                        containerSize.width - bouncer.size.width - 20,
+                        Math.max(20, bouncer.pos.x)
+                    );
+                    bouncer.pos.y = Math.min(
+                        containerSize.height - bouncer.size.height - 20,
+                        Math.max(20, bouncer.pos.y)
+                    );
+                });
+            }
+
+            function updateBouncer(bouncer) {
+                if (!isAnimating) return;
+
+                const nextX = bouncer.pos.x + bouncer.vel.x;
+                const nextY = bouncer.pos.y + bouncer.vel.y;
+
+                const dampening = 0.98;
+                const margin = 0;
+
+                if (nextX < margin) {
+                    bouncer.pos.x = margin;
+                    bouncer.vel.x = Math.abs(bouncer.vel.x) * dampening;
+                } else if (nextX + bouncer.size.width > containerSize.width - margin) {
+                    bouncer.pos.x = containerSize.width - bouncer.size.width - margin;
+                    bouncer.vel.x = -Math.abs(bouncer.vel.x) * dampening;
+                } else {
+                    bouncer.pos.x = nextX;
+                }
+
+                if (nextY < margin) {
+                    bouncer.pos.y = margin;
+                    bouncer.vel.y = Math.abs(bouncer.vel.y) * dampening;
+                } else if (nextY + bouncer.size.height > containerSize.height - margin) {
+                    bouncer.pos.y = containerSize.height - bouncer.size.height - margin;
+                    bouncer.vel.y = -Math.abs(bouncer.vel.y) * dampening;
+                } else {
+                    bouncer.pos.y = nextY;
+                }
+
+                const minVel = 0.2;
+                const maxVel = 2;
+                bouncer.vel.x = Math.min(maxVel, Math.max(minVel, Math.abs(bouncer.vel.x))) * Math.sign(bouncer.vel.x);
+                bouncer.vel.y = Math.min(maxVel, Math.max(minVel, Math.abs(bouncer.vel.y))) * Math.sign(bouncer.vel.y);
+
+                bouncer.element.style.transform = `translate(${bouncer.pos.x}px, ${bouncer.pos.y}px)`;
+            }
+
+            function animate() {
+                updateBouncer(bouncer1);
+                updateBouncer(bouncer2);
+                requestAnimationFrame(animate);
+            }
+
+            let resizeTimeout;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimeout);
+                isAnimating = false;
+
+                resizeTimeout = setTimeout(() => {
+                    updateSizes();
+                    adjustInitialPositions();
+                    isAnimating = true;
+                }, 100);
+            });
+
+            // Initial setup with a delay to ensure proper size calculation
+            setTimeout(() => {
+                updateSizes();
+                adjustInitialPositions();
+                requestAnimationFrame(animate);
+            }, 200);
+
+            // Pause animation when tab is not visible
+            document.addEventListener('visibilitychange', () => {
+                isAnimating = !document.hidden;
+            });
+        </script>
+    }
 }

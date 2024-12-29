@@ -32,6 +32,25 @@ func NewAWSS3(s3Client *s3.Client, logger *slog.Logger, bucket string) *AWSS3 {
 	}
 }
 
+func (s AWSS3) GetReport(ctx context.Context, reportName string, fundID uuid.UUID, date time.Time) (io.Reader, error) {
+	bucket := reportName + "." + fundID.String()
+	key := fmt.Sprintf("fund_%s_date_%s_%s_report.csv", fundID.String(), date.Format("01-02-2006"), reportName)
+
+	input := s3.GetObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+	}
+
+	output, err := s.s3Client.GetObject(ctx, &input)
+	if err != nil {
+		s.logger.Error("failed to get object", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	return output.Body, nil
+}
+
 func (s AWSS3) CreateFundBucket(ctx context.Context, prefix string, fundID uuid.UUID) error {
 	input := s3.CreateBucketInput{
 		Bucket: toPointer(prefix + "." + fundID.String()),
@@ -55,6 +74,7 @@ func (s AWSS3) Upload(ctx context.Context, body io.Reader, name, contentType str
 	content, err := io.ReadAll(body)
 	if err != nil {
 		s.logger.Error("failed to read body", slog.String("error", err.Error()))
+
 		return err
 	}
 
@@ -67,6 +87,7 @@ func (s AWSS3) Upload(ctx context.Context, body io.Reader, name, contentType str
 	reportInfo, err := parseReportKey(name)
 	if err != nil {
 		s.logger.Error("failed to parse report key", slog.String("error", err.Error()))
+
 		return err
 	}
 
@@ -83,6 +104,7 @@ func (s AWSS3) Upload(ctx context.Context, body io.Reader, name, contentType str
 	_, err = s.s3Client.PutObject(ctx, &input)
 	if err != nil {
 		s.logger.Error("failed to upload to s3", slog.String("error", err.Error()))
+
 		return err
 	}
 
