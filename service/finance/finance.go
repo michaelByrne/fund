@@ -47,6 +47,7 @@ type AuditPayment struct {
 	PaymentID              uuid.UUID
 	ProviderPaymentID      string
 	AmountCents            int32
+	FeeAmountCents         int32
 	TransactionStatus      string
 	TransactionAmountCents int32
 	Created                time.Time
@@ -180,6 +181,18 @@ func (s FinanceService) GetAudit(ctx context.Context, req GetAuditRequest) (*Aud
 			return nil, errInner
 		}
 
+		feeStr := record[10]
+		if feeStr == "" {
+			feeStr = "0"
+		}
+
+		feeAmountCents, errInner := strconv.Atoi(feeStr)
+		if errInner != nil {
+			s.logger.Error("failed to parse fee amount cents", slog.String("error", errInner.Error()))
+
+			return nil, errInner
+		}
+
 		payment := AuditPayment{
 			DonationID:             donationUUID,
 			PaymentID:              paymentUUID,
@@ -189,6 +202,7 @@ func (s FinanceService) GetAudit(ctx context.Context, req GetAuditRequest) (*Aud
 			TransactionAmountCents: int32(transactionAmountCents),
 			Created:                createdTime,
 			ProviderCreated:        providerCreated,
+			FeeAmountCents:         int32(feeAmountCents),
 		}
 
 		payments = append(payments, payment)
@@ -471,6 +485,7 @@ func writeCSVPaymentRow(writer *csv.Writer, fundID uuid.UUID, payment donations.
 			"",
 			"",
 			"",
+			"",
 		})
 	}
 
@@ -485,5 +500,6 @@ func writeCSVPaymentRow(writer *csv.Writer, fundID uuid.UUID, payment donations.
 		transaction.Status,
 		strconv.Itoa(int(transaction.AmountCents)),
 		transaction.Date.Format(time.RFC3339),
+		strconv.Itoa(int(payment.ProviderFeeCents)),
 	})
 }

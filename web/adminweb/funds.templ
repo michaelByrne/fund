@@ -146,7 +146,7 @@ templ FundPaymentsAudit(audit finance.Audit, member *members.Member, path string
 								<th class="text-left w-[2%]">
 									<span class="inline-block p-2"></span>
 								</th>
-								<th class="text-left w-[15%]">
+								<th class="text-left w-[10%]">
 									<span class="inline-block p-2">date</span>
 								</th>
 								<th class="text-left w-[15%] hide-on-small">
@@ -161,7 +161,10 @@ templ FundPaymentsAudit(audit finance.Audit, member *members.Member, path string
 								<th class="text-left w-[15%]">
 									<span class="inline-block p-2">paypal amount</span>
 								</th>
-								<th class="text-left w-[20%]">
+								<th class="text-left w-[15%]">
+									<span class="inline-block p-2 hide-on-small">paypal fee</span>
+								</th>
+								<th class="text-left w-[15%]">
 									<span class="inline-block p-2">paypal status</span>
 								</th>
 							</tr>
@@ -175,6 +178,7 @@ templ FundPaymentsAudit(audit finance.Audit, member *members.Member, path string
 									<td class="font-mono hide-on-small">{ transactionID(payment.ProviderPaymentID) }</td>
 									<td>${ centsToDecimalString(payment.AmountCents) }</td>
 									<td>{ transactionAmount(payment.TransactionAmountCents) }</td>
+									<td class="hide-on-small">${ centsToDecimalString(payment.FeeAmountCents) }</td>
 									<td>{ transactionStatus(payment.TransactionStatus) }</td>
 								</tr>
 							}
