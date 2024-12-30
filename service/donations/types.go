@@ -96,6 +96,7 @@ type DonationPayment struct {
 	DonationID          uuid.UUID
 	ProviderPaymentID   string
 	AmountCents         int32
+	ProviderFeeCents    int32
 	MemberProviderEmail string
 	Created             time.Time
 	Updated             time.Time
@@ -119,6 +120,7 @@ type RecurringCompletion struct {
 
 type OneTimeCompletion struct {
 	AmountCents       int32
+	ProviderFeeCents  int32
 	FundID            uuid.UUID
 	IPAddress         string
 	BCOName           string
@@ -194,6 +196,7 @@ type InsertDonationPayment struct {
 	DonationID        uuid.UUID
 	ProviderPaymentID string
 	AmountCents       int32
+	ProviderFeeCents  int32
 }
 
 type CreateOrderResponse struct {
@@ -330,4 +333,14 @@ type BillingInfo struct {
 	NextBillingTime     time.Time          `json:"next_billing_time"`
 	FinalPaymentTime    time.Time          `json:"final_payment_time"`
 	FailedPaymentsCount int                `json:"failed_payments_count"`
+}
+
+type GetOneTimeDonationsForFundRequest struct {
+	FundID uuid.UUID
+	Active bool
+}
+
+type UpdatePaymentPaypalFee struct {
+	ID               uuid.UUID
+	ProviderFeeCents int32
 }

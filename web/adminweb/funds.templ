@@ -138,7 +138,7 @@ templ FundPaymentsAudit(audit finance.Audit, member *members.Member, path string
 	@Admin(member, path) {
 		<div id="payments-list" class="blue-boxy-filter p-2">
 			<h3 class="text-md font-semibold bg-high inline-block p-2">payments <span class="font-medium">audit for</span> { audit.FundName } <span class="font-medium">run</span> { audit.Date.Format("01-02-2006") }</h3>
-			<div>
+			<div class="hidden md:block">
 				<div class="max-h-[300px] overflow-auto">
 					<table class="w-full text-xs text-left border-collapse leading-relaxed">
 						<thead class="sticky top-0 z-10 bg-even">
@@ -150,19 +150,19 @@ templ FundPaymentsAudit(audit finance.Audit, member *members.Member, path string
 									<span class="inline-block p-2">date</span>
 								</th>
 								<th class="text-left w-[15%] hide-on-small">
-									<span class="inline-block p-2">provider date</span>
+									<span class="inline-block p-2">paypal date</span>
 								</th>
-								<th class="text-left w-[28%] hide-on-small">
-									<span class="inline-block p-2">transaction id</span>
+								<th class="text-left w-[18%] hide-on-small">
+									<span class="inline-block p-2">paypal id</span>
 								</th>
 								<th class="text-left w-[10%]">
 									<span class="inline-block p-2">amount</span>
 								</th>
-								<th class="text-left w-[10%]">
-									<span class="inline-block p-2">paid</span>
+								<th class="text-left w-[15%]">
+									<span class="inline-block p-2">paypal amount</span>
 								</th>
 								<th class="text-left w-[20%]">
-									<span class="inline-block p-2">provider status</span>
+									<span class="inline-block p-2">paypal status</span>
 								</th>
 							</tr>
 						</thead>
@@ -180,6 +180,39 @@ templ FundPaymentsAudit(audit finance.Audit, member *members.Member, path string
 							}
 						</tbody>
 					</table>
+				</div>
+			</div>
+			<div class="md:hidden">
+				<div class="space-y-4">
+					for _, payment := range audit.Payments {
+						<div class="bg-white p-4">
+							<div class="flex items-center justify-between mb-2">
+								<div class="flex items-center space-x-2">
+									@WarningCell(payment)
+									<span class="text-sm font-medium">{ payment.Created.Format("01-02-2006") }</span>
+								</div>
+								<span class="text-sm font-bold">${ centsToDecimalString(payment.AmountCents) }</span>
+							</div>
+							<div class="space-y-2 text-xs">
+								<div class="flex justify-between">
+									<span class="text-gray-500">PayPal Date:</span>
+									<span>{ transactionDate(payment.ProviderCreated) }</span>
+								</div>
+								<div class="flex justify-between">
+									<span class="text-gray-500">PayPal ID:</span>
+									<span class="font-mono">{ transactionID(payment.ProviderPaymentID) }</span>
+								</div>
+								<div class="flex justify-between">
+									<span class="text-gray-500">PayPal Amount:</span>
+									<span>{ transactionAmount(payment.TransactionAmountCents) }</span>
+								</div>
+								<div class="flex justify-between">
+									<span class="text-gray-500">Status:</span>
+									<span>{ transactionStatus(payment.TransactionStatus) }</span>
+								</div>
+							</div>
+						</div>
+					}
 				</div>
 			</div>
 		</div>

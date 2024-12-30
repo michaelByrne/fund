@@ -405,7 +405,7 @@ func FundPaymentsAudit(audit finance.Audit, member *members.Member, path string)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</h3><div><div class=\"max-h-[300px] overflow-auto\"><table class=\"w-full text-xs text-left border-collapse leading-relaxed\"><thead class=\"sticky top-0 z-10 bg-even\"><tr><th class=\"text-left w-[2%]\"><span class=\"inline-block p-2\"></span></th><th class=\"text-left w-[15%]\"><span class=\"inline-block p-2\">date</span></th><th class=\"text-left w-[15%] hide-on-small\"><span class=\"inline-block p-2\">provider date</span></th><th class=\"text-left w-[28%] hide-on-small\"><span class=\"inline-block p-2\">transaction id</span></th><th class=\"text-left w-[10%]\"><span class=\"inline-block p-2\">amount</span></th><th class=\"text-left w-[10%]\"><span class=\"inline-block p-2\">paid</span></th><th class=\"text-left w-[20%]\"><span class=\"inline-block p-2\">provider status</span></th></tr></thead> <tbody>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</h3><div class=\"hidden md:block\"><div class=\"max-h-[300px] overflow-auto\"><table class=\"w-full text-xs text-left border-collapse leading-relaxed\"><thead class=\"sticky top-0 z-10 bg-even\"><tr><th class=\"text-left w-[2%]\"><span class=\"inline-block p-2\"></span></th><th class=\"text-left w-[15%]\"><span class=\"inline-block p-2\">date</span></th><th class=\"text-left w-[15%] hide-on-small\"><span class=\"inline-block p-2\">paypal date</span></th><th class=\"text-left w-[18%] hide-on-small\"><span class=\"inline-block p-2\">paypal id</span></th><th class=\"text-left w-[10%]\"><span class=\"inline-block p-2\">amount</span></th><th class=\"text-left w-[15%]\"><span class=\"inline-block p-2\">paypal amount</span></th><th class=\"text-left w-[20%]\"><span class=\"inline-block p-2\">paypal status</span></th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -501,7 +501,103 @@ func FundPaymentsAudit(audit finance.Audit, member *members.Member, path string)
 					return templ_7745c5c3_Err
 				}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</tbody></table></div></div></div>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</tbody></table></div></div><div class=\"md:hidden\"><div class=\"space-y-4\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			for _, payment := range audit.Payments {
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"bg-white p-4\"><div class=\"flex items-center justify-between mb-2\"><div class=\"flex items-center space-x-2\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = WarningCell(payment).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<span class=\"text-sm font-medium\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var27 string
+				templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(payment.Created.Format("01-02-2006"))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 192, Col: 81}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><span class=\"text-sm font-bold\">$")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var28 string
+				templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDecimalString(payment.AmountCents))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 194, Col: 84}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div class=\"space-y-2 text-xs\"><div class=\"flex justify-between\"><span class=\"text-gray-500\">PayPal Date:</span> <span>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var29 string
+				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(transactionDate(payment.ProviderCreated))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 199, Col: 57}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div class=\"flex justify-between\"><span class=\"text-gray-500\">PayPal ID:</span> <span class=\"font-mono\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var30 string
+				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(transactionID(payment.ProviderPaymentID))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 203, Col: 75}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div class=\"flex justify-between\"><span class=\"text-gray-500\">PayPal Amount:</span> <span>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var31 string
+				templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(transactionAmount(payment.TransactionAmountCents))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 207, Col: 66}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div><div class=\"flex justify-between\"><span class=\"text-gray-500\">Status:</span> <span>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var32 string
+				templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(transactionStatus(payment.TransactionStatus))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funds.templ`, Line: 211, Col: 61}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></div></div></div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -531,9 +627,9 @@ func WarningCell(payment finance.AuditPayment) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var27 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var27 == nil {
-			templ_7745c5c3_Var27 = templ.NopComponent
+		templ_7745c5c3_Var33 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var33 == nil {
+			templ_7745c5c3_Var33 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		if payment.TransactionAmountCents != payment.AmountCents || payment.TransactionStatus != "COMPLETED" {

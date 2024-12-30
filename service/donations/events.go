@@ -28,8 +28,8 @@ func NewHandlers(donationStore donationStore, logger *slog.Logger) *Handlers {
 func (h *Handlers) Subscribe(subscriber subscriber) error {
 	var errResult error
 
-	if err := subscriber.Subscribe(events.SubscriptionPaymentCompleted, h.paymentSaleCompleted); err != nil {
-		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", events.SubscriptionPaymentCompleted, err))
+	if err := subscriber.Subscribe(events.PaymentCompleted, h.paymentSaleCompleted); err != nil {
+		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", events.PaymentCompleted, err))
 	}
 
 	if err := subscriber.Subscribe(events.SubscriptionExpired, h.subscriptionEnded); err != nil {
@@ -90,11 +90,21 @@ func (h *Handlers) paymentSaleCompleted(data []byte) {
 		return
 	}
 
+	feeAmountCents, err := dollarStringToCents(paymentSale.TransactionFee.Value)
+	if err != nil {
+		h.logger.Error("failed to convert dollar fee amount to cents", slog.String("error", err.Error()))
+
+		return
+	}
+
+	fmt.Printf("Fee amount: %d\n", feeAmountCents)
+
 	insertPayment := InsertDonationPayment{
 		ID:                uuid.New(),
 		DonationID:        parentDonation.ID,
 		ProviderPaymentID: paymentSale.ID,
 		AmountCents:       amountCents,
+		ProviderFeeCents:  feeAmountCents,
 	}
 
 	_, err = h.donationStore.InsertDonationPayment(context.Background(), insertPayment)

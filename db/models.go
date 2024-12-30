@@ -155,12 +155,13 @@ type Donation struct {
 }
 
 type DonationPayment struct {
-	ID              uuid.UUID
-	DonationID      uuid.UUID
-	PaypalPaymentID string
-	AmountCents     int32
-	Created         pgtype.Timestamptz
-	Updated         pgtype.Timestamptz
+	ID               uuid.UUID
+	DonationID       uuid.UUID
+	PaypalPaymentID  string
+	AmountCents      int32
+	Created          pgtype.Timestamptz
+	Updated          pgtype.Timestamptz
+	ProviderFeeCents int32
 }
 
 type DonationPlan struct {

@@ -39,12 +39,21 @@ func (s DonationService) GetTotalDonatedByFund(ctx context.Context, id uuid.UUID
 }
 
 func (s DonationService) ListActiveFunds(ctx context.Context) ([]Fund, error) {
-	funds, err := s.donationStore.GetActiveFunds(ctx)
+	onceFunds, err := s.donationStore.GetActiveFunds(ctx, "once")
 	if err != nil {
 		s.logger.Error("failed to get active funds", slog.String("error", err.Error()))
 
 		return nil, err
 	}
+
+	recurringFunds, err := s.donationStore.GetActiveFunds(ctx, "monthly")
+	if err != nil {
+		s.logger.Error("failed to get active funds", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	funds := append(onceFunds, recurringFunds...)
 
 	for _, fund := range funds {
 		monthly, err := s.donationStore.GetMonthlyDonationTotalsForFund(ctx, fund.ID)

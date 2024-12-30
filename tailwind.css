@@ -92,7 +92,7 @@ table {
     filter: drop-shadow(4px 4px #788f99);
 }
 
-@media screen and (max-width: 800px) {
+@media screen and (max-width: 900px) {
     .hide-on-small {
         display: none;
     }

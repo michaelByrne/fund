@@ -32,10 +32,12 @@ func (s DonationStore) GetTotalDonatedByMemberID(ctx context.Context, id uuid.UU
 	return pg.FetchScalar(ctx, id, query, resultIdentity)
 }
 
-func (s DonationStore) GetActiveFunds(ctx context.Context) ([]donations.Fund, error) {
+func (s DonationStore) GetActiveFunds(ctx context.Context, arg string) ([]donations.Fund, error) {
 	query := s.queries.GetActiveFunds
 
-	return pg.FetchAll(ctx, query, fromDBFundRow)
+	argIn := func(freq string) db.PayoutFrequency { return db.PayoutFrequency(freq) }
+
+	return pg.FetchMany(ctx, arg, query, argIn, fromDBFundRow)
 }
 
 func (s DonationStore) GetMonthlyDonationTotalsForFund(ctx context.Context, id uuid.UUID) ([]donations.MonthTotal, error) {
@@ -286,4 +288,16 @@ func (s DonationStore) GetPaymentsForDonation(ctx context.Context, donationID uu
 	query := s.queries.GetPaymentsForDonation
 
 	return pg.FetchMany(ctx, donationID, query, uuidIdentity, fromDBDonationPayment)
+}
+
+func (s DonationStore) GetOneTimeDonationsForFund(ctx context.Context, arg donations.GetOneTimeDonationsForFundRequest) ([]donations.Donation, error) {
+	query := s.queries.GetOneTimeDonationsForFund
+
+	return pg.FetchMany(ctx, arg, query, toDBGetOneTimeDonationsForFundParams, fromDBDonation)
+}
+
+func (s DonationStore) UpdatePaymentPaypalFee(ctx context.Context, arg donations.UpdatePaymentPaypalFee) (*donations.DonationPayment, error) {
+	query := s.queries.UpdateDonationPaymentPaypalFee
+
+	return pg.UpdateOne(ctx, arg, query, toDBUpdatePaymentPaypalFeeParams, fromDBDonationPayment)
 }

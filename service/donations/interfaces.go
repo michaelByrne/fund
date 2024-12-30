@@ -19,7 +19,7 @@ type donationStore interface {
 	SetFundAndDonationsToInactive(ctx context.Context, id uuid.UUID) ([]Donation, error)
 	SetFundAndDonationsToActive(ctx context.Context, id uuid.UUID) ([]Donation, error)
 	SetDonationToActiveBySubscriptionID(ctx context.Context, id string) (*Donation, error)
-	GetActiveFunds(ctx context.Context) ([]Fund, error)
+	GetActiveFunds(ctx context.Context, freq string) ([]Fund, error)
 	GetMonthlyDonationTotalsForFund(ctx context.Context, id uuid.UUID) ([]MonthTotal, error)
 	GetDonationByProviderSubscriptionID(ctx context.Context, id string) (*Donation, error)
 	SetDonationToInactiveBySubscriptionID(ctx context.Context, arg DeactivateDonationBySubscription) (*Donation, error)

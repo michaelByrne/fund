@@ -53,9 +53,14 @@ func DonationsAuditCmd(runConfig *root.RunConfig) *cobra.Command {
 			donationStore := donationstore.NewDonationStore(pool)
 
 			financeService := finance.NewFinanceService(donationStore, paypalService, donationsPaymentsS3, runConfig.ReportTypes, logger)
-			err = financeService.RunDonationReconciliation(cmd.Context())
+			err = financeService.RunRecurringDonationReconciliation(cmd.Context())
 			if err != nil {
-				return fmt.Errorf("failed to reconcile donations: %w", err)
+				return fmt.Errorf("failed to reconcile recurring donations: %w", err)
+			}
+
+			err = financeService.RunOneTimeDonationReconciliation(cmd.Context())
+			if err != nil {
+				return fmt.Errorf("failed to reconcile one-time donations: %w", err)
 			}
 
 			return nil

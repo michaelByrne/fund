@@ -195,11 +195,12 @@ type OrderPaymentSource struct {
 }
 
 type OrderPurchaseUnits struct {
-	ReferenceID    string `json:"reference_id"`
-	CustomID       string `json:"custom_id"`
-	Amount         Amount `json:"amount"`
-	Description    string `json:"description"`
-	SoftDescriptor string `json:"soft_descriptor"`
+	ReferenceID    string   `json:"reference_id"`
+	CustomID       string   `json:"custom_id"`
+	Amount         Amount   `json:"amount"`
+	Description    string   `json:"description"`
+	SoftDescriptor string   `json:"soft_descriptor"`
+	Payments       Payments `json:"payments"`
 }
 
 type CreateOrderResponse struct {
@@ -392,4 +393,10 @@ type IncentiveInfo struct {
 }
 type TransactionDetails struct {
 	TransactionInfo TransactionInfo `json:"transaction_info"`
+}
+
+type Order struct {
+	ID            string `json:"id"`
+	PurchaseUnits OrderPurchaseUnits
+	Links         []Link `json:"links"`
 }

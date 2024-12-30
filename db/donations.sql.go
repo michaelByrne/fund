@@ -34,6 +34,7 @@ FROM fund f
          LEFT JOIN FundStats fs ON f.id = fs.fund_id
 WHERE f.active = true
   AND (f.expires IS NULL OR f.expires > NOW())
+  AND f.payout_frequency = $1
 GROUP BY f.id, f.name, f.active, f.expires, f.created, fs.total_donated, fs.total_donations, fs.average_donation,
          fs.total_donors
 `
@@ -58,8 +59,8 @@ type GetActiveFundsRow struct {
 	TotalDonors     pgtype.Int8
 }
 
-func (q *Queries) GetActiveFunds(ctx context.Context) ([]GetActiveFundsRow, error) {
-	rows, err := q.db.Query(ctx, getActiveFunds)
+func (q *Queries) GetActiveFunds(ctx context.Context, payoutFrequency PayoutFrequency) ([]GetActiveFundsRow, error) {
+	rows, err := q.db.Query(ctx, getActiveFunds, payoutFrequency)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +148,7 @@ func (q *Queries) GetDonationByProviderSubscriptionId(ctx context.Context, provi
 }
 
 const getDonationPaymentById = `-- name: GetDonationPaymentById :one
-SELECT id, donation_id, paypal_payment_id, amount_cents, created, updated
+SELECT id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents
 FROM donation_payment
 WHERE id = $1
 `
@@ -162,12 +163,13 @@ func (q *Queries) GetDonationPaymentById(ctx context.Context, id uuid.UUID) (Don
 		&i.AmountCents,
 		&i.Created,
 		&i.Updated,
+		&i.ProviderFeeCents,
 	)
 	return i, err
 }
 
 const getDonationPaymentsByDonationId = `-- name: GetDonationPaymentsByDonationId :many
-SELECT id, donation_id, paypal_payment_id, amount_cents, created, updated
+SELECT id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents
 FROM donation_payment
 WHERE donation_id = $1
 `
@@ -188,6 +190,7 @@ func (q *Queries) GetDonationPaymentsByDonationId(ctx context.Context, donationI
 			&i.AmountCents,
 			&i.Created,
 			&i.Updated,
+			&i.ProviderFeeCents,
 		); err != nil {
 			return nil, err
 		}
@@ -200,7 +203,7 @@ func (q *Queries) GetDonationPaymentsByDonationId(ctx context.Context, donationI
 }
 
 const getDonationPaymentsByMemberPaypalEmail = `-- name: GetDonationPaymentsByMemberPaypalEmail :many
-SELECT donation_payment.id, donation_payment.donation_id, donation_payment.paypal_payment_id, donation_payment.amount_cents, donation_payment.created, donation_payment.updated
+SELECT donation_payment.id, donation_payment.donation_id, donation_payment.paypal_payment_id, donation_payment.amount_cents, donation_payment.created, donation_payment.updated, donation_payment.provider_fee_cents
 FROM donation_payment
          JOIN donation ON donation.id = donation_payment.donation_id
          JOIN member ON member.id = donation.donor_id
@@ -223,6 +226,7 @@ func (q *Queries) GetDonationPaymentsByMemberPaypalEmail(ctx context.Context, pa
 			&i.AmountCents,
 			&i.Created,
 			&i.Updated,
+			&i.ProviderFeeCents,
 		); err != nil {
 			return nil, err
 		}
@@ -564,6 +568,132 @@ func (q *Queries) GetMonthlyTotalsByFund(ctx context.Context, id uuid.UUID) ([]G
 	return items, nil
 }
 
+const getOneTimeDonationsForFund = `-- name: GetOneTimeDonationsForFund :many
+SELECT d.id, d.recurring, d.donor_id, d.donation_plan_id, d.provider_order_id, d.created, d.updated, d.fund_id, d.active, d.provider_subscription_id, d.inactive_reason
+FROM donation d
+         JOIN fund f ON d.fund_id = f.id
+WHERE d.active = $1
+  AND d.recurring = false
+  AND f.id = $2
+`
+
+type GetOneTimeDonationsForFundParams struct {
+	Active bool
+	ID     uuid.UUID
+}
+
+func (q *Queries) GetOneTimeDonationsForFund(ctx context.Context, arg GetOneTimeDonationsForFundParams) ([]Donation, error) {
+	rows, err := q.db.Query(ctx, getOneTimeDonationsForFund, arg.Active, arg.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Donation
+	for rows.Next() {
+		var i Donation
+		if err := rows.Scan(
+			&i.ID,
+			&i.Recurring,
+			&i.DonorID,
+			&i.DonationPlanID,
+			&i.ProviderOrderID,
+			&i.Created,
+			&i.Updated,
+			&i.FundID,
+			&i.Active,
+			&i.ProviderSubscriptionID,
+			&i.InactiveReason,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPaymentsForDonation = `-- name: GetPaymentsForDonation :many
+SELECT dp.id, dp.donation_id, dp.paypal_payment_id, dp.amount_cents, dp.created, dp.updated, dp.provider_fee_cents
+FROM donation_payment dp
+WHERE dp.donation_id = $1
+`
+
+func (q *Queries) GetPaymentsForDonation(ctx context.Context, donationID uuid.UUID) ([]DonationPayment, error) {
+	rows, err := q.db.Query(ctx, getPaymentsForDonation, donationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DonationPayment
+	for rows.Next() {
+		var i DonationPayment
+		if err := rows.Scan(
+			&i.ID,
+			&i.DonationID,
+			&i.PaypalPaymentID,
+			&i.AmountCents,
+			&i.Created,
+			&i.Updated,
+			&i.ProviderFeeCents,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRecurringDonationsForFund = `-- name: GetRecurringDonationsForFund :many
+SELECT d.id, d.recurring, d.donor_id, d.donation_plan_id, d.provider_order_id, d.created, d.updated, d.fund_id, d.active, d.provider_subscription_id, d.inactive_reason
+FROM donation d
+         JOIN fund f ON d.fund_id = f.id
+WHERE d.active = $1
+  AND d.recurring = true
+  AND f.id = $2
+`
+
+type GetRecurringDonationsForFundParams struct {
+	Active bool
+	ID     uuid.UUID
+}
+
+func (q *Queries) GetRecurringDonationsForFund(ctx context.Context, arg GetRecurringDonationsForFundParams) ([]Donation, error) {
+	rows, err := q.db.Query(ctx, getRecurringDonationsForFund, arg.Active, arg.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Donation
+	for rows.Next() {
+		var i Donation
+		if err := rows.Scan(
+			&i.ID,
+			&i.Recurring,
+			&i.DonorID,
+			&i.DonationPlanID,
+			&i.ProviderOrderID,
+			&i.Created,
+			&i.Updated,
+			&i.FundID,
+			&i.Active,
+			&i.ProviderSubscriptionID,
+			&i.InactiveReason,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTotalDonatedByFund = `-- name: GetTotalDonatedByFund :one
 SELECT sum(amount_cents)
 FROM donation
@@ -636,16 +766,17 @@ func (q *Queries) InsertDonation(ctx context.Context, arg InsertDonationParams) 
 }
 
 const insertDonationPayment = `-- name: InsertDonationPayment :one
-INSERT INTO donation_payment (id, donation_id, paypal_payment_id, amount_cents)
-VALUES ($1, $2, $3, $4)
-RETURNING id, donation_id, paypal_payment_id, amount_cents, created, updated
+INSERT INTO donation_payment (id, donation_id, paypal_payment_id, amount_cents, provider_fee_cents)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents
 `
 
 type InsertDonationPaymentParams struct {
-	ID              uuid.UUID
-	DonationID      uuid.UUID
-	PaypalPaymentID string
-	AmountCents     int32
+	ID               uuid.UUID
+	DonationID       uuid.UUID
+	PaypalPaymentID  string
+	AmountCents      int32
+	ProviderFeeCents int32
 }
 
 func (q *Queries) InsertDonationPayment(ctx context.Context, arg InsertDonationPaymentParams) (DonationPayment, error) {
@@ -654,6 +785,7 @@ func (q *Queries) InsertDonationPayment(ctx context.Context, arg InsertDonationP
 		arg.DonationID,
 		arg.PaypalPaymentID,
 		arg.AmountCents,
+		arg.ProviderFeeCents,
 	)
 	var i DonationPayment
 	err := row.Scan(
@@ -663,6 +795,7 @@ func (q *Queries) InsertDonationPayment(ctx context.Context, arg InsertDonationP
 		&i.AmountCents,
 		&i.Created,
 		&i.Updated,
+		&i.ProviderFeeCents,
 	)
 	return i, err
 }
@@ -766,7 +899,8 @@ func (q *Queries) InsertFund(ctx context.Context, arg InsertFundParams) (Fund, e
 
 const setDonationToInactive = `-- name: SetDonationToInactive :one
 UPDATE donation
-SET active = false, inactive_reason = $2
+SET active          = false,
+    inactive_reason = $2
 WHERE id = $1
 RETURNING id, recurring, donor_id, donation_plan_id, provider_order_id, created, updated, fund_id, active, provider_subscription_id, inactive_reason
 `
@@ -797,7 +931,8 @@ func (q *Queries) SetDonationToInactive(ctx context.Context, arg SetDonationToIn
 
 const setDonationToInactiveBySubscriptionId = `-- name: SetDonationToInactiveBySubscriptionId :one
 UPDATE donation
-SET active = false, inactive_reason = $2
+SET active          = false,
+    inactive_reason = $2
 WHERE provider_subscription_id = $1
 RETURNING id, recurring, donor_id, donation_plan_id, provider_order_id, created, updated, fund_id, active, provider_subscription_id, inactive_reason
 `
@@ -829,7 +964,7 @@ func (q *Queries) SetDonationToInactiveBySubscriptionId(ctx context.Context, arg
 const setDonationsToActive = `-- name: SetDonationsToActive :many
 UPDATE donation
 SET active = true
-WHERE id = ANY($1::uuid[])
+WHERE id = ANY ($1::uuid[])
 RETURNING id, recurring, donor_id, donation_plan_id, provider_order_id, created, updated, fund_id, active, provider_subscription_id, inactive_reason
 `
 
@@ -1101,6 +1236,33 @@ func (q *Queries) UpdateDonation(ctx context.Context, arg UpdateDonationParams) 
 		&i.Active,
 		&i.ProviderSubscriptionID,
 		&i.InactiveReason,
+	)
+	return i, err
+}
+
+const updateDonationPaymentPaypalFee = `-- name: UpdateDonationPaymentPaypalFee :one
+UPDATE donation_payment
+SET provider_fee_cents = $2
+WHERE id = $1
+RETURNING id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents
+`
+
+type UpdateDonationPaymentPaypalFeeParams struct {
+	ID               uuid.UUID
+	ProviderFeeCents int32
+}
+
+func (q *Queries) UpdateDonationPaymentPaypalFee(ctx context.Context, arg UpdateDonationPaymentPaypalFeeParams) (DonationPayment, error) {
+	row := q.db.QueryRow(ctx, updateDonationPaymentPaypalFee, arg.ID, arg.ProviderFeeCents)
+	var i DonationPayment
+	err := row.Scan(
+		&i.ID,
+		&i.DonationID,
+		&i.PaypalPaymentID,
+		&i.AmountCents,
+		&i.Created,
+		&i.Updated,
+		&i.ProviderFeeCents,
 	)
 	return i, err
 }

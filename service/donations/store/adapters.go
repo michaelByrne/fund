@@ -227,6 +227,7 @@ func fromDBDonationPayment(payment db.DonationPayment) donations.DonationPayment
 		DonationID:        payment.DonationID,
 		ProviderPaymentID: payment.PaypalPaymentID,
 		AmountCents:       payment.AmountCents,
+		ProviderFeeCents:  payment.ProviderFeeCents,
 		Created:           payment.Created.Time,
 		Updated:           payment.Updated.Time,
 	}
@@ -234,10 +235,11 @@ func fromDBDonationPayment(payment db.DonationPayment) donations.DonationPayment
 
 func toDBDonationPaymentInsertParams(payment donations.InsertDonationPayment) db.InsertDonationPaymentParams {
 	return db.InsertDonationPaymentParams{
-		ID:              payment.ID,
-		DonationID:      payment.DonationID,
-		PaypalPaymentID: payment.ProviderPaymentID,
-		AmountCents:     payment.AmountCents,
+		ID:               payment.ID,
+		DonationID:       payment.DonationID,
+		PaypalPaymentID:  payment.ProviderPaymentID,
+		AmountCents:      payment.AmountCents,
+		ProviderFeeCents: payment.ProviderFeeCents,
 	}
 }
 
@@ -268,5 +270,19 @@ func toDBGetRecurringDonationsForFundParams(arg donations.GetRecurringDonationsF
 	return db.GetRecurringDonationsForFundParams{
 		ID:     arg.FundID,
 		Active: arg.Active,
+	}
+}
+
+func toDBGetOneTimeDonationsForFundParams(arg donations.GetOneTimeDonationsForFundRequest) db.GetOneTimeDonationsForFundParams {
+	return db.GetOneTimeDonationsForFundParams{
+		ID:     arg.FundID,
+		Active: arg.Active,
+	}
+}
+
+func toDBUpdatePaymentPaypalFeeParams(arg donations.UpdatePaymentPaypalFee) db.UpdateDonationPaymentPaypalFeeParams {
+	return db.UpdateDonationPaymentPaypalFeeParams{
+		ID:               arg.ID,
+		ProviderFeeCents: arg.ProviderFeeCents,
 	}
 }

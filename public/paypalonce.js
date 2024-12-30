@@ -36,7 +36,7 @@ window.paypal_once.Buttons({
                 order_id: data.orderID,
                 amount: capture.purchase_units[0].amount.value,
                 fund_id: JSON.parse(document.getElementById('fund-id').textContent),
-                payment_id: paymentId
+                payment_id: paymentId,
             })
         })
 

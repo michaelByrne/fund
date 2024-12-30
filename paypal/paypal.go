@@ -189,7 +189,6 @@ func (p Paypal) GetTransaction(ctx context.Context, id string, start, end time.T
 	path += "?start_date=" + start.Format(time.RFC3339)
 	path += "&end_date=" + end.Format(time.RFC3339)
 	path += "&transaction_id=" + id
-	path += "&transaction_type=" + "T0002"
 
 	transactionBytes, err := p.client.get(ctx, path)
 	if err != nil {
@@ -200,6 +199,10 @@ func (p Paypal) GetTransaction(ctx context.Context, id string, start, end time.T
 	err = json.Unmarshal(transactionBytes, &transaction)
 	if err != nil {
 		return nil, err
+	}
+
+	if transaction.TotalItems == 0 {
+		return nil, nil
 	}
 
 	var transactionInfo TransactionInfo

@@ -101,8 +101,14 @@ FROM donation_payment
 WHERE member.paypal_email = $1;
 
 -- name: InsertDonationPayment :one
-INSERT INTO donation_payment (id, donation_id, paypal_payment_id, amount_cents)
-VALUES ($1, $2, $3, $4)
+INSERT INTO donation_payment (id, donation_id, paypal_payment_id, amount_cents, provider_fee_cents)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING *;
+
+-- name: UpdateDonationPaymentPaypalFee :one
+UPDATE donation_payment
+SET provider_fee_cents = $2
+WHERE id = $1
 RETURNING *;
 
 -- name: InsertFund :one
@@ -207,6 +213,7 @@ FROM fund f
          LEFT JOIN FundStats fs ON f.id = fs.fund_id
 WHERE f.active = true
   AND (f.expires IS NULL OR f.expires > NOW())
+  AND f.payout_frequency = $1
 GROUP BY f.id, f.name, f.active, f.expires, f.created, fs.total_donated, fs.total_donations, fs.average_donation,
          fs.total_donors;
 
@@ -271,6 +278,14 @@ WHERE d.active = $1
 SELECT dp.*
 FROM donation_payment dp
 WHERE dp.donation_id = $1;
+
+-- name: GetOneTimeDonationsForFund :many
+SELECT d.*
+FROM donation d
+         JOIN fund f ON d.fund_id = f.id
+WHERE d.active = $1
+  AND d.recurring = false
+  AND f.id = $2;
 
 
 

@@ -109,8 +109,6 @@ templ FundStatus(fund donations.Fund, fundStats donations.FundStats) {
 		<ul class="list-none">
 			@StatusItem(AmountOrInfinity(fund.GoalCents), "goal")
 			@StatusItem(USD(fundStats.TotalDonated), "raised")
-			@StatusItem(USD(fundStats.AverageDonation), "average donation")
-			@StatusItem(Donors(fundStats.TotalDonors), "donors")
 			@StatusItem(Date(&fund.Created), "start")
 			@StatusItem(EndDate(fund.Expires), "end")
 			@StatusItem(NextPayment(&fund.NextPayment), "next payment")
