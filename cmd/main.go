@@ -44,6 +44,7 @@ func loadRunConfig() (*root.RunConfig, error) {
 		PGHost: getEnvOrError("PG_HOST", true),
 		PGPort: getEnvOrDefault("PG_PORT", "5432"),
 		PGDB:   getEnvOrError("PG_DB", true),
+		Host:   getEnvOrDefault("HOST", "localhost"),
 
 		JWKURL:            getEnvOrError("JWK_URL", true),
 		CognitoClientID:   getEnvOrError("COGNITO_CLIENT_ID", true),

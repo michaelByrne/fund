@@ -57,6 +57,8 @@ type RunConfig struct {
 	PayPal PayPalConfig
 	IsLive bool
 
+	Host string
+
 	PGUser string
 	PGPass string
 	PGHost string
