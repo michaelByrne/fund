@@ -153,7 +153,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	sessionManager.Store = pgxstore.New(pool)
 	webAuthn, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: "BCO Mutual Aid",
-		RPID:          "localhost",
+		RPID:          runConfig.Host,
 		RPOrigins:     []string{"http://localhost:8080", "https://bcofund.org"},
 	})
 	if err != nil {
