@@ -87,7 +87,7 @@ func Funds(funds []donations.Fund, member *members.Member, path string) templ.Co
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"ml-4 mb-5 mt-4 bl\"><div class=\"hidden lg:table max-h-[300px] w-[90%] overflow-y-auto\"><table class=\"table-auto w-full border-collapse text-sm leading-relaxed shadow-blue-boxy\"><thead class=\"bg-even\"><tr><th class=\"p-2 text-left font-semibold w-[30%]\">name</th><th class=\"p-2 text-left font-semibold w-[10%]\">donors</th><th class=\"p-2 text-left font-semibold w-[10%]\">donated</th><th class=\"p-2 text-left font-semibold w-[10%]\">goal</th><th class=\"p-2 text-left font-semibold w-[10%]\">frequency</th><th class=\"p-2 text-left font-semibold w-[15%]\">expires</th></tr></thead> <tbody>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"ml-4 mb-5 mt-4 bl\"><div class=\"hidden lg:table max-h-[300px] w-[90%] overflow-y-auto\"><table class=\"table-auto w-full border-collapse text-sm leading-relaxed blue-boxy-filter\"><thead class=\"bg-even\"><tr><th class=\"p-2 text-left font-semibold w-[30%]\">name</th><th class=\"p-2 text-left font-semibold w-[10%]\">donors</th><th class=\"p-2 text-left font-semibold w-[10%]\">donated</th><th class=\"p-2 text-left font-semibold w-[10%]\">goal</th><th class=\"p-2 text-left font-semibold w-[10%]\">frequency</th><th class=\"p-2 text-left font-semibold w-[15%]\">expires</th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
