@@ -85,6 +85,35 @@ func (q *Queries) GetMemberById(ctx context.Context, id uuid.UUID) (Member, erro
 	return i, err
 }
 
+const getMemberByUsername = `-- name: GetMemberByUsername :one
+SELECT id, first_name, last_name, bco_name, roles, email, ip_address, last_login, cognito_id, paypal_email, postal_code, created, updated, provider_payer_id, active
+FROM member
+WHERE bco_name = $1
+`
+
+func (q *Queries) GetMemberByUsername(ctx context.Context, bcoName pgtype.Text) (Member, error) {
+	row := q.db.QueryRow(ctx, getMemberByUsername, bcoName)
+	var i Member
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.BcoName,
+		&i.Roles,
+		&i.Email,
+		&i.IpAddress,
+		&i.LastLogin,
+		&i.CognitoID,
+		&i.PaypalEmail,
+		&i.PostalCode,
+		&i.Created,
+		&i.Updated,
+		&i.ProviderPayerID,
+		&i.Active,
+	)
+	return i, err
+}
+
 const getMemberWithDonations = `-- name: GetMemberWithDonations :one
 SELECT m.id, m.first_name, m.last_name, m.bco_name, m.roles, m.email, m.ip_address, m.last_login, m.cognito_id, m.paypal_email, m.postal_code, m.created, m.updated, m.provider_payer_id, m.active,
        COALESCE(
@@ -213,6 +242,39 @@ func (q *Queries) GetMembers(ctx context.Context) ([]Member, error) {
 			&i.ProviderPayerID,
 			&i.Active,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchMembersByUsername = `-- name: SearchMembersByUsername :many
+SELECT id, bco_name
+FROM member
+WHERE bco_name ILIKE $1 || '%'
+AND active = true
+ORDER BY bco_name
+`
+
+type SearchMembersByUsernameRow struct {
+	ID      uuid.UUID
+	BcoName pgtype.Text
+}
+
+func (q *Queries) SearchMembersByUsername(ctx context.Context, dollar_1 pgtype.Text) ([]SearchMembersByUsernameRow, error) {
+	rows, err := q.db.Query(ctx, searchMembersByUsername, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchMembersByUsernameRow
+	for rows.Next() {
+		var i SearchMembersByUsernameRow
+		if err := rows.Scan(&i.ID, &i.BcoName); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

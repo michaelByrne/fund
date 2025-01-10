@@ -40,6 +40,27 @@
         --color-button: 208, 217, 255;
         --color-strong: 250, 167, 88;
     }
+
+    html[data-theme='default'] {
+        --color-contrast: 249, 250, 251; /* gray-50 */
+        --color-fore: 243, 244, 246; /* gray-100 */
+        --color-odd: 255, 255, 255; /* white */
+        --color-even: 249, 250, 251; /* gray-50 */
+        --color-odd-hover: 243, 244, 246; /* gray-100 */
+        --color-even-hover: 243, 244, 246; /* gray-100 */
+        --color-accent: 243, 244, 246; /* gray-100 */
+        --color-back: 255, 255, 255; /* white */
+        --color-high: 243, 244, 246; /* gray-100 */
+        --color-peak: 243, 244, 246; /* gray-100 */
+
+        --color-title: 31, 41, 55; /* gray-800 */
+        --color-links: 31, 41, 55; /* gray-800 */
+        --color-disabled: 156, 163, 175; /* gray-400 */
+
+        --color-button-hover: 229, 231, 235; /* gray-200 */
+        --color-button: 243, 244, 246; /* gray-100 */
+        --color-strong: 59, 130, 246; /* blue-500 */
+    }
 }
 
 @media (min-width: 640px) {
@@ -101,9 +122,11 @@ table {
 .text-responsive {
     font-size: clamp(2rem, 4vw + 1rem, 4rem);
 }
+
 .text-responsive-small {
     font-size: clamp(1rem, 2vw + 0.5rem, 2rem);
 }
+
 .blingy {
     background-image: url("/static/blingy.gif");
     background-color: rgb(0, 0, 0);
@@ -116,10 +139,40 @@ table {
     height: 100%;
     width: 100%;
 }
+
 #bouncing-element, #bouncing-element2 {
     will-change: transform;
     pointer-events: none;
 }
+
 #bouncing-element2 a {
     pointer-events: auto;
+}
+
+.loader {
+    position: relative;
+    width: 16px;
+    height: 16px;
+    border: 3px solid #0000;
+    border-radius: 50%;
+    animation: piefill 2s linear infinite;
+    display: block;
+}
+
+@keyframes piefill {
+    0%, 19% {
+        border-color: #333333 #333333 #333333 #333333
+    }
+    20%, 39% {
+        border-color: #fff #333333 #333333 #333333
+    }
+    40%, 59% {
+        border-color: #fff #fff #333333 #333333
+    }
+    60%, 79% {
+        border-color: #fff #fff #fff #333333
+    }
+    80%, 100% {
+        border-color: #fff #fff #fff #fff
+    }
 }

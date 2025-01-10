@@ -6,6 +6,7 @@ import (
 	"boardfund/service/members"
 	"context"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -70,4 +71,20 @@ func (s MemberStore) GetMemberWithDonations(ctx context.Context, id uuid.UUID) (
 	}
 
 	return fromDBMemberWithDonations(member)
+}
+
+func (s MemberStore) SearchMembersByUsername(ctx context.Context, arg string) ([]members.MemberSearchResult, error) {
+	query := s.queries.SearchMembersByUsername
+
+	argToPGText := func(username string) pgtype.Text { return pgtype.Text{String: username, Valid: true} }
+
+	return pg.FetchMany(ctx, arg, query, argToPGText, fromDBMemberSearchResult)
+}
+
+func (s MemberStore) GetMemberByUsername(ctx context.Context, username string) (*members.Member, error) {
+	query := s.queries.GetMemberByUsername
+
+	argToPGText := func(username string) pgtype.Text { return pgtype.Text{String: username, Valid: true} }
+
+	return pg.FetchOne(ctx, username, query, argToPGText, fromDBMember)
 }

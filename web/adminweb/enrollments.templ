@@ -1,0 +1,228 @@
+package adminweb
+
+import (
+	"boardfund/service/donations"
+	"boardfund/service/enrollments"
+	"boardfund/service/members"
+	"boardfund/web/common"
+	"fmt"
+	"time"
+)
+
+templ Enrollments(fund donations.Fund, enrollments []enrollments.Enrollment, member *members.Member, path string) {
+	@Admin(member, path) {
+		<div class="grid grid-cols-1 md:grid-cols-2 gap-6 overflow-visible">
+			<div class="h-[255x] flex flex-col overflow-visible">
+				@common.FundStatus(fund, fund.Stats)
+			</div>
+			<div class="md:h-[255px] flex flex-col overflow-visible">
+				<div id="add-enrollment" class="relative z-40">
+					@AddEnrollment(fund)
+				</div>
+			</div>
+			<div class="flex flex-col overflow-visible">
+				@FundActions(fund)
+			</div>
+			<div class="flex flex-col overflow-visible">
+				@CurrentEnrollments(enrollments)
+			</div>
+		</div>
+	}
+}
+
+templ FundActions(fund donations.Fund) {
+	@common.Section("fund actions") {
+		stuff here
+	}
+}
+
+templ CurrentEnrollments(enrollments []enrollments.Enrollment) {
+	@common.Section("current enrollments") {
+		enrollments here
+	}
+}
+
+templ MemberSearch(fund donations.Fund) {
+	<div
+		id="member-search"
+		class="relative w-full"
+		x-data="{
+            selectedIndex: '-1',
+            isOpen: false,
+            handleKeydown(e) {
+                const items = this.$refs.results.getElementsByClassName('member-option');
+                if (!items.length) return;
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    this.selectedIndex = parseInt(this.selectedIndex) >= items.length - 1 ? '0' : String(parseInt(this.selectedIndex) + 1);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    this.selectedIndex = parseInt(this.selectedIndex) <= 0 ? String(items.length - 1) : String(parseInt(this.selectedIndex) - 1);
+                } else if (e.key === 'Enter' && this.selectedIndex !== '-1') {
+                    e.preventDefault();
+                    items[parseInt(this.selectedIndex)].click();
+                    this.isOpen = false;
+                }
+
+                if (this.selectedIndex !== '-1') {
+                    items[parseInt(this.selectedIndex)].scrollIntoView({ block: 'nearest' });
+                }
+            }
+        }"
+		@keydown.window="handleKeydown"
+		@click.away="isOpen = false"
+	>
+		<div class="relative">
+			<input
+				type="text"
+				name="member_search"
+				class="w-full p-2 pr-10 border-x border-y focus:outline-none focus:border-gray-400 focus:ring-0"
+				placeholder="Search members..."
+				hx-get="/admin/members/search"
+				hx-trigger="keyup[target.value.length > 1] delay:200ms"
+				hx-target="#member-results"
+				hx-swap="innerHTML"
+				@focus="isOpen = true"
+			/>
+		</div>
+		<input
+			type="hidden"
+			name="fund"
+			value={ fund.ID.String() }
+		/>
+		<div
+			id="member-results"
+			x-ref="results"
+			class="absolute z-50 w-full mt-1 bg-white border-x shadow-sm max-h-60 overflow-auto"
+			x-show="isOpen"
+		></div>
+	</div>
+}
+
+templ MemberSearchResults(members []members.MemberSearchResult) {
+	if len(members) > 0 {
+		for i, member := range members {
+			<div
+				class="member-option px-4 py-2 cursor-pointer hover:bg-gray-100"
+				:class="{ 'bg-gray-100': selectedIndex === $el.dataset.index }"
+				data-index={ fmt.Sprint(i) }
+				@mouseenter={ fmt.Sprintf("selectedIndex = '%d'", i) }
+				@click="isOpen = false"
+				hx-get={ fmt.Sprintf("/admin/enrollment/confirm?member=%s", member.ID.String()) }
+				hx-target="#add-enrollment"
+				hx-swap="innerHTML"
+				hx-include="input[name='fund']"
+			>
+				<div class="font-medium">{ member.BCOName }</div>
+			</div>
+		}
+	} else {
+		<div class="px-4 py-2 text-gray-500">no members found</div>
+	}
+}
+
+templ ConfirmEnrollment(fund donations.Fund, member members.Member) {
+	@common.Section("confirm enrollment") {
+		<div class="font-medium mb-2 underline underline-offset-4">confirm enrollment for <span class="font-semibold">{ member.BCOName }</span></div>
+		@EnrollmentDates(fund)
+		<div class="flex justify-start gap-2">
+			<form hx-post="/admin/enrollment" class="w-full">
+				<input type="hidden" value={ member.ID.String() } name="member"/>
+				<input type="hidden" value={ fund.ID.String() } name="fund"/>
+				<div class="flex flex-row mt-2 mb-4 items-center">
+					<label for="paypal">paypal email</label>
+					<input type="text" id="paypal" name="paypal" class="w-[45%] py-1 py-auto ml-2 pl-2 text-sm border border-slate-300 shadow-sm"/>
+				</div>
+				<button
+					class="px-4 py-2 text-center text-md bg-button text-black hover:text-black hover:font-medium hover:shadow-blue-boxy-thin shadow-blue-boxy"
+					hx-post="/admin/enrollment"
+					hx-target="#add-enrollment"
+					hx-swap="innerHTML"
+				>
+					confirm
+				</button>
+				<button
+					hx-get={ fmt.Sprintf("/admin/fund?fund=%s", fund.ID.String()) }
+					hx-target="#add-enrollment"
+					hx-swap="innerHTML"
+					class="px-4 py-2 text-center text-md bg-button text-black hover:text-black hover:font-medium hover:shadow-blue-boxy-thin shadow-blue-boxy"
+				>
+					cancel
+				</button>
+			</form>
+		</div>
+	}
+}
+
+templ EnrollmentSuccess(enrollment enrollments.Enrollment, member members.Member) {
+	@common.Section("enrollment successful") {
+		<div class="font-medium mb-2 underline underline-offset-4">enrollment for <span class="font-semibold">{ member.BCOName }</span> successful</div>
+		<div class="flex flex-col gap-2 my-2">
+			<div class="flex">
+				<div class="w-48">first payout:</div>
+				<div>{ enrollment.FirstPayoutDate.Format("01-02-2006") }</div>
+			</div>
+		</div>
+		<div class="flex justify-start gap-2 mb-2">
+			<button
+				hx-get={ fmt.Sprintf("/admin/fund?fund=%s", enrollment.FundID.String()) }
+				hx-target="#add-enrollment"
+				hx-swap="innerHTML"
+				class="px-4 py-2 text-center text-md bg-button text-black hover:text-black hover:font-medium hover:shadow-blue-boxy-thin shadow-blue-boxy"
+			>
+				ok
+			</button>
+		</div>
+	}
+}
+
+templ EnrollmentDates(fund donations.Fund) {
+	if fund.PayoutFrequency == "monthly" {
+		<div class="flex flex-col gap-2 my-2">
+			<div class="flex">
+				<div class="w-48">first day of enrollment:</div>
+				<div>{ fund.NextPayment.Format("01-02-2006") }</div>
+			</div>
+			<div class="flex">
+				<div class="w-48">first payout:</div>
+				<div>{ fund.NextPayment.AddDate(0,1,0).Format("01-02-2006") }</div>
+			</div>
+		</div>
+	} else {
+		<div class="flex flex-col gap-2 my-2">
+			<div class="flex">
+				<div class="w-48">first day of enrollment:</div>
+				<div>{ time.Now().Format("01-02-2006") }</div>
+			</div>
+			<div class="flex">
+				<div class="w-48">payout:</div>
+				<div>{ fund.NextPayment.Format("01-02-2006") }</div>
+			</div>
+		</div>
+	}
+}
+
+templ AddEnrollment(fund donations.Fund) {
+	@common.Section("add enrollment") {
+		<div class="flex flex-col relative">
+			@MemberSearch(fund)
+		</div>
+	}
+}
+
+templ EnrollmentExistsErr(member members.Member, fund donations.Fund) {
+	@common.Section("enrollment exists") {
+		<div class="font-medium mb-2 text-red-700 font-semibold underline">enrollment for <span class="font-semibold">{ member.BCOName }</span> already exists</div>
+		<div class="flex justify-start gap-2 mb-2">
+			<button
+				hx-get={ fmt.Sprintf("/admin/fund?fund=%s", fund.ID.String()) }
+				hx-target="#add-enrollment"
+				hx-swap="innerHTML"
+				class="px-4 py-2 text-center text-md bg-button text-black hover:text-black hover:font-medium hover:shadow-blue-boxy-thin shadow-blue-boxy"
+			>
+				ok
+			</button>
+		</div>
+	}
+}

@@ -1,14 +1,19 @@
 package common
 
 import (
+	"boardfund/service/donations"
 	"boardfund/service/members"
+	"fmt"
 	"strings"
+	"time"
 )
 
 templ Head() {
 	<head>
 		<title>BCO Mutual Aid</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1"/>
+		<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+		<script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
 		<link rel="icon" type="image/x-icon" href="/static/favicon.ico"/>
 		<link rel="stylesheet" href="/static/styles.css"/>
 		<script type="application/javascript" src="/static/htmx.min.js"></script>
@@ -17,13 +22,14 @@ templ Head() {
 		<script type="application/javascript" src="/static/surreal.js"></script>
 		<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 		<script type="application/javascript" src="/static/shared.js"></script>
+		<script type="application/javascript" src="/static/auth.js"></script>
 	</head>
 }
 
 templ Layout(member *members.Member, path string) {
 	<html data-theme="hot">
 		@Head()
-		<body class="bg-back font-bco text-sm">
+		<body class="bg-back font-bco text-sm" x-data="auth">
 			<div class="flex flex-col min-h-[75%]">
 				<div class="flex flex-row justify-between items-center w-[90%] mx-auto my-2">
 					<h1 class="text-xl font-bold text-title/90 text-shadow shadow-[#788f99]"><a href="/">elitism. secrecy. redistribution.</a></h1>
@@ -66,6 +72,108 @@ templ ErrorMessage(member *members.Member, message, link, currentPath string) {
 			}
 		</div>
 	}
+}
+
+templ FundStatus(fund donations.Fund, fundStats donations.FundStats) {
+	@Section("fund status") {
+		<ul class="list-none">
+			@StatusItem(AmountOrInfinity(fund.GoalCents), "goal")
+			@StatusItem(USD(fundStats.TotalDonated), "raised")
+			@StatusItem(Date(&fund.Created), "start")
+			@StatusItem(EndDate(fund.Expires), "end")
+			@StatusItem(NextPayment(&fund.NextPayment), "next payment")
+		</ul>
+	}
+}
+
+templ USD(amountCents int32) {
+	${ centsToDecimalString(amountCents) }
+}
+
+templ StatusItem(content templ.Component, title string) {
+	<li class="p-2 odd:bg-odd even:bg-even flex sm:flex-row flex-col">
+		<span class="font-semibold text-sm pr-2 text-gray-700">
+			{ title }:
+		</span>
+		<span class="sm:ml-auto">
+			@content
+		</span>
+	</li>
+}
+
+templ NextPayment(date *time.Time) {
+	if date == nil {
+		<span>&#8734;</span>
+	} else if date.Before(time.Now()) {
+		<span>paid</span>
+	} else {
+		<span>{ date.Format("01-02-2006") }</span>
+	}
+}
+
+templ Donors(count int32) {
+	<span>{ fmt.Sprintf("%d", count) }</span>
+}
+
+templ EndDate(date *time.Time) {
+	if date == nil {
+		<span>&#8734;</span>
+	} else if date.Before(time.Now()) {
+		<span class="text-red-700">{ date.Format("01-02-2006") }</span>
+	} else {
+		<span>{ date.Format("01-02-2006") }</span>
+	}
+}
+
+templ Date(date *time.Time) {
+	if date == nil {
+		<span>&#8734;</span>
+	} else {
+		<span>{ date.Format("01-02-2006") }</span>
+	}
+}
+
+templ AmountOrInfinity(amount int32) {
+	if amount == 0 {
+		<span class="text-green-700">$&#8734;</span>
+	} else {
+		<span class="text-green-700">${ centsToDecimalString(amount) }</span>
+	}
+}
+
+templ Section(title string) {
+	<div id="enrollment-success" class="w-full mx-auto overflow-visible blue-boxy-filter">
+		<div class="flex items-center justify-between bg-high inline-flex p-2">
+			<h3 class="text-md font-semibold">{ title }</h3>
+		</div>
+		<div class="p-4 bg-even">
+			{ children... }
+		</div>
+	</div>
+}
+
+func centsToDecimalString(cents int32) string {
+	x := float64(cents) / 100
+
+	s := fmt.Sprintf("%.2f", x)
+
+	parts := strings.Split(s, ".")
+	integerPart := parts[0]
+	decimalPart := parts[1]
+
+	n := len(integerPart)
+	if n > 3 {
+		var result strings.Builder
+		for i, digit := range integerPart {
+			if (n-i)%3 == 0 && i != 0 {
+				result.WriteString(",")
+			}
+			result.WriteRune(digit)
+		}
+		integerPart = result.String()
+	}
+
+	return integerPart + "." + decimalPart
 }
 
 func buildClass(baseClasses string, conditions map[string]bool) string {

@@ -56,6 +56,7 @@ type Member struct {
 	FirstName       string               `json:"first_name"`
 	LastName        string               `json:"last_name"`
 	ProviderPayerID string               `json:"provider_payer_id"`
+	PaypalEmail     string               `json:"paypal_email"`
 	Roles           []MemberRole         `json:"role"`
 	Active          bool                 `json:"active"`
 	Created         time.Time            `json:"created"`
@@ -101,4 +102,15 @@ type CreateMember struct {
 	BCOName   string
 	FirstName string
 	LastName  string
+	Roles     []MemberRole
+}
+
+type MemberSearchResult struct {
+	ID      uuid.UUID
+	BCOName string
+}
+
+type UpdatePaypalEmail struct {
+	ID    uuid.UUID
+	Email string
 }

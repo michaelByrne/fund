@@ -3,14 +3,15 @@ package root
 import (
 	"boardfund/aws"
 	"boardfund/events"
-	"boardfund/jwtauth"
-	"boardfund/jwtauth/keyset"
 	"boardfund/paypal"
 	"boardfund/paypal/token"
 	"boardfund/pg"
 	"boardfund/service/auth"
+	"boardfund/service/auth/store"
 	"boardfund/service/donations"
 	donationstore "boardfund/service/donations/store"
+	"boardfund/service/enrollments"
+	enrollmentstore "boardfund/service/enrollments/store"
 	"boardfund/service/finance"
 	"boardfund/service/members"
 	memberstore "boardfund/service/members/store"
@@ -26,8 +27,8 @@ import (
 	"github.com/alexedwards/scs/pgxstore"
 	"github.com/alexedwards/scs/v2"
 	"github.com/aws/aws-sdk-go-v2/config"
-	cognito "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/golang-migrate/migrate/v4"
 	pgxmigrate "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -141,57 +142,49 @@ func run(ctx context.Context, runConfig RunConfig) error {
 
 	donationStore := donationstore.NewDonationStore(pool)
 	memberStore := memberstore.NewMemberStore(pool)
+	enrollmentStore := enrollmentstore.NewEnrollmentStore(pool)
+	authStore := store.NewAuthStore(pool)
 	sessionManager := scs.New()
+	sessionManager.IdleTimeout = 1 * time.Hour
+	sessionManager.Lifetime = 2 * time.Hour
+
 	sessionManager.Store = pgxstore.New(pool)
+	webAuthn, err := webauthn.New(&webauthn.Config{
+		RPDisplayName: "BCO Mutual Aid",
+		RPID:          "localhost",
+		RPOrigins:     []string{"http://localhost:8080", "https://bcofund.org"},
+	})
+	if err != nil {
+		return err
+	}
 
 	defaultConfig, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-west-2"))
 	if err != nil {
 		return err
 	}
-	cognitoClient := cognito.NewFromConfig(defaultConfig)
 	s3Client := s3.NewFromConfig(defaultConfig)
 
 	documentStorage := aws.NewAWSS3(s3Client, logger, "")
 
-	ksetCache := keyset.NewKeySetWithCache(runConfig.JWKURL, 15)
-	kset, err := ksetCache.NewKeySet()
-	if err != nil {
-		return err
-	}
-	verifier := jwtauth.NewToken(kset)
-
 	messageBroker := events.NewNATSMessageBroker(nc)
-	authorizer := aws.NewCognitoAuth(
-		cognitoClient,
-		logger,
-		runConfig.CognitoClientID,
-		runConfig.CognitoUserPoolID,
-	)
 
 	donationService := donations.NewDonationService(donationStore, documentStorage, paypalService, runConfig.ReportTypes, logger)
-	memberService := members.NewMemberService(memberStore, donationStore, authorizer, paypalService, logger)
-	authService := auth.NewAuthService(authorizer, memberStore, logger)
+	memberService := members.NewMemberService(memberStore, donationStore, paypalService, logger)
+	authService := auth.NewAuthService(memberStore, authStore, logger)
 	financeService := finance.NewFinanceService(donationStore, paypalService, documentStorage, runConfig.ReportTypes, logger)
+	enrollmentService := enrollments.NewEnrollmentsService(enrollmentStore, logger)
 
-	authMiddleware := middlewares.Verify(
-		verifier.Verify,
-		middlewares.TokenFromCookie,
-		middlewares.TokenFromHeader,
-	)
-	adminAuthMiddleware := middlewares.Verify(
-		verifier.VerifyAdmin,
-		middlewares.TokenFromCookie,
-		middlewares.TokenFromHeader,
-	)
+	authMiddleware := middlewares.PasskeyVerify(sessionManager)
+	adminAuthMiddleware := middlewares.PasskeyVerifyAdmin(sessionManager)
 
 	// Handlers setup
 	donationHandlers := homeweb.NewFundHandlers(
 		donationService, sessionManager, authMiddleware, logger,
 		runConfig.PayPal.ProductID, runConfig.PayPal.ClientID,
 	)
-	authHandlers := authweb.NewAuthHandlers(authService, sessionManager, runConfig.PayPal.ClientID)
+	authHandlers := authweb.NewAuthHandlers(authService, memberService, webAuthn, sessionManager, runConfig.PayPal.ClientID)
 	adminHandlers := adminweb.NewAdminHandlers(
-		adminAuthMiddleware, memberService, donationService, financeService, sessionManager, runConfig.PayPal.ClientID,
+		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, sessionManager, runConfig.PayPal.ClientID,
 	)
 	webhooksHandlers := hooksweb.NewWebhooksHandlers(
 		donationService, memberService, &messageBroker, logger, runConfig.PayPal.WebhookID,

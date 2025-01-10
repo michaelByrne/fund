@@ -165,3 +165,10 @@ func fromDBMemberWithDonations(member db.GetMemberWithDonationsRow) (*members.Me
 
 	return memberOut, nil
 }
+
+func fromDBMemberSearchResult(dbMemberSearchResult db.SearchMembersByUsernameRow) members.MemberSearchResult {
+	return members.MemberSearchResult{
+		ID:      dbMemberSearchResult.ID,
+		BCOName: dbMemberSearchResult.BcoName.String,
+	}
+}

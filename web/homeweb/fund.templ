@@ -4,8 +4,6 @@ import (
 	"boardfund/service/donations"
 	"boardfund/service/members"
 	"boardfund/web/common"
-	"fmt"
-	"time"
 )
 
 func donationURL(freq donations.PayoutFrequency) string {
@@ -27,7 +25,7 @@ templ Fund(fund donations.Fund, fundStats donations.FundStats, member *members.M
 			@Description(fund.Description)
 			<hr class="border-odd "/>
 			<div class="grid grid-cols-1 lg:grid-cols-3 gap-2">
-				@FundStatus(fund, fundStats)
+				@common.FundStatus(fund, fundStats)
 				if len(fundStats.Monthly) > 0 {
 					<div class="col-span-2 my-2 blue-boxy-filter">
 					    <div class="text-md font-semibold p-2 inline-block bg-high">month-by-month</div>
@@ -101,72 +99,4 @@ templ Description(text string) {
 
 templ Title(text string) {
 	<h2 class="font-semibold bg-high inline-flex text-lg px-2 py-4">donate to&nbsp;<span class="underline underline-offset-4 decoration-[#333333]">{ text }</span></h2>
-}
-
-templ FundStatus(fund donations.Fund, fundStats donations.FundStats) {
-	<div class="col-span-1 my-2 mr-4 blue-boxy-filter">
-		<div class="text-md font-semibold p-2 inline-block bg-high">fund status</div>
-		<ul class="list-none">
-			@StatusItem(AmountOrInfinity(fund.GoalCents), "goal")
-			@StatusItem(USD(fundStats.TotalDonated), "raised")
-			@StatusItem(Date(&fund.Created), "start")
-			@StatusItem(EndDate(fund.Expires), "end")
-			@StatusItem(NextPayment(&fund.NextPayment), "next payment")
-		</ul>
-	</div>
-}
-
-templ USD(amountCents int32) {
-	${ centsToDecimalString(amountCents) }
-}
-
-templ StatusItem(content templ.Component, title string) {
-	<li class="p-2 odd:bg-odd even:bg-even flex sm:flex-row flex-col">
-		<span class="font-semibold text-sm pr-2 text-gray-700">
-			{ title }:
-		</span>
-		<span class="sm:ml-auto">
-			@content
-		</span>
-	</li>
-}
-
-templ NextPayment(date *time.Time) {
-	if date == nil {
-		<span>&#8734;</span>
-	} else if date.Before(time.Now()) {
-		<span>paid</span>
-	} else {
-		<span>{ date.Format("01-02-2006") }</span>
-	}
-}
-
-templ Donors(count int32) {
-	<span>{ fmt.Sprintf("%d", count) }</span>
-}
-
-templ EndDate(date *time.Time) {
-	if date == nil {
-		<span>&#8734;</span>
-	} else if date.Before(time.Now()) {
-		<span class="text-red-700">{ date.Format("01-02-2006") }</span>
-	} else {
-		<span>{ date.Format("01-02-2006") }</span>
-	}
-}
-
-templ Date(date *time.Time) {
-	if date == nil {
-		<span>&#8734;</span>
-	} else {
-		<span>{ date.Format("01-02-2006") }</span>
-	}
-}
-
-templ AmountOrInfinity(amount int32) {
-	if amount == 0 {
-		<span class="text-green-700">$&#8734;</span>
-	} else {
-		<span class="text-green-700">${ centsToDecimalString(amount) }</span>
-	}
 }

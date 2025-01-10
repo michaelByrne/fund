@@ -3,57 +3,342 @@ package adminweb
 import (
 	"boardfund/service/auth"
 	"boardfund/service/donations"
+	"boardfund/service/enrollments"
 	"boardfund/service/finance"
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"boardfund/web/mux"
 	"encoding/json"
-	"errors"
 	"github.com/alexedwards/scs/v2"
 	"github.com/google/uuid"
 	"net/http"
-	"net/mail"
 	"strconv"
 	"time"
 )
 
 type AdminHandlers struct {
-	withAdmin       func(next http.HandlerFunc) http.HandlerFunc
-	memberService   *members.MemberService
-	donationService *donations.DonationService
-	financeServe    *finance.FinanceService
-	sessionManager  *scs.SessionManager
-	clientID        string
+	withAdmin         func(next http.HandlerFunc) http.HandlerFunc
+	memberService     *members.MemberService
+	donationService   *donations.DonationService
+	enrollmentService *enrollments.EnrollmentsService
+	authService       *auth.AuthService
+	financeService    *finance.FinanceService
+	sessionManager    *scs.SessionManager
+	clientID          string
 }
 
 func NewAdminHandlers(
 	withAdmin func(next http.HandlerFunc) http.HandlerFunc,
 	memberService *members.MemberService,
 	donationService *donations.DonationService,
+	authService *auth.AuthService,
 	financeService *finance.FinanceService,
+	enrollmentsService *enrollments.EnrollmentsService,
 	sessionManager *scs.SessionManager,
 	clientID string,
 ) *AdminHandlers {
 	return &AdminHandlers{
-		withAdmin:       withAdmin,
-		memberService:   memberService,
-		donationService: donationService,
-		financeServe:    financeService,
-		sessionManager:  sessionManager,
-		clientID:        clientID,
+		withAdmin:         withAdmin,
+		memberService:     memberService,
+		donationService:   donationService,
+		authService:       authService,
+		financeService:    financeService,
+		enrollmentService: enrollmentsService,
+		sessionManager:    sessionManager,
+		clientID:          clientID,
 	}
 }
 
 func (h *AdminHandlers) Register(r *mux.Router) {
-	r.HandleFunc("/admin", h.withAdmin(h.admin))
-	r.HandleFunc("GET /admin/funds", h.withAdmin(h.funds))
-	r.HandleFunc("POST /admin/member", h.withAdmin(h.createMember))
+	r.HandleFunc("/admin", h.withAdmin(h.adminPage))
+	r.HandleFunc("GET /admin/funds", h.withAdmin(h.fundsPage))
 	r.HandleFunc("POST /admin/fund", h.withAdmin(h.createFund))
 	r.HandleFunc("POST /admin/fund/deactivate/{id}", h.withAdmin(h.deactivateFund))
 	r.HandleFunc("POST /admin/member/deactivate/{id}", h.withAdmin(h.deactivateMember))
-	r.HandleFunc("GET /admin/member/{id}", h.withAdmin(h.member))
+	r.HandleFunc("GET /admin/member/{id}", h.withAdmin(h.memberPage))
 	r.HandleFunc("GET /admin/fund/audits/{id}", h.withAdmin(h.availableAudits))
 	r.HandleFunc("GET /admin/fund/audit", h.withAdmin(h.fundAudit))
+	r.HandleFunc("GET /admin/fund", h.withAdmin(h.fundPage))
+	r.HandleFunc("GET /admin/members/search", h.withAdmin(h.searchMembers))
+	r.HandleFunc("POST /admin/enrollment", h.withAdmin(h.createEnrollment))
+	r.HandleFunc("GET /admin/enrollment/confirm", h.withAdmin(h.confirmEnrollment))
+	r.HandleFunc("DELETE /admin/approved/{email}", h.withAdmin(h.deleteApprovedEmail))
+	r.HandleFunc("POST /admin/approved", h.withAdmin(h.addApprovedEmail))
+}
+
+func (h *AdminHandlers) addApprovedEmail(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		http.Redirect(w, r, "/", http.StatusFound)
+
+		return
+	}
+
+	err := r.ParseForm()
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	email := r.FormValue("email")
+	if email == "" {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	_, err = h.authService.InsertApprovedEmail(ctx, email)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	approvedEmails, err := h.authService.GetApprovedEmails(ctx)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	ApprovedEmails(approvedEmails).Render(ctx, w)
+}
+
+func (h *AdminHandlers) deleteApprovedEmail(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		http.Redirect(w, r, "/", http.StatusFound)
+
+		return
+	}
+
+	email := r.PathValue("email")
+	if email == "" {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	_, err := h.authService.DeleteApprovedEmail(ctx, email)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	approvedEmails, err := h.authService.GetApprovedEmails(ctx)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	EmailList(approvedEmails).Render(ctx, w)
+}
+
+func (h *AdminHandlers) confirmEnrollment(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		http.Redirect(w, r, "/", http.StatusFound)
+
+		return
+	}
+
+	memberIDStr := r.URL.Query().Get("member")
+	if memberIDStr == "" {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	memberUUID, err := uuid.Parse(memberIDStr)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	fundIDStr := r.URL.Query().Get("fund")
+	if fundIDStr == "" {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	fundUUID, err := uuid.Parse(fundIDStr)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	member, err := h.memberService.GetMemberByID(ctx, memberUUID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	fund, err := h.donationService.GetFundByID(ctx, fundUUID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	enrollment, err := h.enrollmentService.FundEnrollmentExists(ctx, fundUUID, memberUUID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	if enrollment {
+		EnrollmentExistsErr(*member, *fund).Render(ctx, w)
+
+		return
+	}
+
+	ConfirmEnrollment(*fund, *member).Render(ctx, w)
+}
+
+func (h *AdminHandlers) createEnrollment(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		http.Redirect(w, r, "/", http.StatusFound)
+
+		return
+	}
+
+	err := r.ParseForm()
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	fundIDStr := r.FormValue("fund")
+	if fundIDStr == "" {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	fundID, err := uuid.Parse(fundIDStr)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	memberIDStr := r.FormValue("member")
+	if memberIDStr == "" {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	memberID, err := uuid.Parse(memberIDStr)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	paypalEmail := r.FormValue("paypal")
+	if paypalEmail == "" {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	createEnrollment := enrollments.CreateEnrollment{
+		FundID:      fundID,
+		MemberID:    memberID,
+		PaypalEmail: paypalEmail,
+	}
+
+	enrollment, err := h.enrollmentService.CreateEnrollment(ctx, createEnrollment)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	member, err := h.memberService.GetMemberByID(ctx, memberID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	EnrollmentSuccess(*enrollment, *member).Render(ctx, w)
+}
+
+func (h *AdminHandlers) searchMembers(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	query := r.URL.Query().Get("member_search")
+
+	membersByUsername, err := h.memberService.SearchMembersByUsername(ctx, query)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	MemberSearchResults(membersByUsername).Render(ctx, w)
+}
+
+func (h *AdminHandlers) fundPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	member, ok := h.sessionManager.Get(r.Context(), "member").(members.Member)
+	if !ok {
+		http.Redirect(w, r, "/", http.StatusFound)
+
+		return
+	}
+
+	fundIDStr := r.URL.Query().Get("fund")
+	if fundIDStr == "" {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	fundID, err := uuid.Parse(fundIDStr)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	fund, err := h.donationService.GetFundByID(ctx, fundID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	activeEnrollments, err := h.enrollmentService.GetActiveEnrollmentsForFund(ctx, fundID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	w.Header().Add("HX-Redirect", r.URL.String())
+	Enrollments(*fund, activeEnrollments, &member, r.URL.Path).Render(ctx, w)
 }
 
 func (h *AdminHandlers) fundAudit(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +381,7 @@ func (h *AdminHandlers) fundAudit(w http.ResponseWriter, r *http.Request) {
 		Date:   date,
 	}
 
-	audit, err := h.financeServe.GetAudit(ctx, req)
+	audit, err := h.financeService.GetAudit(ctx, req)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 
@@ -131,7 +416,7 @@ func (h *AdminHandlers) availableAudits(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	availAudits, err := h.financeServe.GetAvailableAudits(ctx, idUUID)
+	availAudits, err := h.financeService.GetAvailableAudits(ctx, idUUID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 
@@ -141,7 +426,7 @@ func (h *AdminHandlers) availableAudits(w http.ResponseWriter, r *http.Request) 
 	FundAudits(availAudits).Render(ctx, w)
 }
 
-func (h *AdminHandlers) member(w http.ResponseWriter, r *http.Request) {
+func (h *AdminHandlers) memberPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -279,7 +564,7 @@ func (h *AdminHandlers) createFund(w http.ResponseWriter, r *http.Request) {
 	FundRow(*newFund).Render(ctx, w)
 }
 
-func (h *AdminHandlers) funds(w http.ResponseWriter, r *http.Request) {
+func (h *AdminHandlers) fundsPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -335,68 +620,7 @@ func (h *AdminHandlers) deactivateMember(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *AdminHandlers) createMember(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
-	if !ok {
-		http.Redirect(w, r, "/", http.StatusFound)
-
-		return
-	}
-
-	var fieldErrs []fieldError
-
-	err := r.ParseForm()
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		common.ErrorMessage(&member, "failed to parse form", r.URL.Path, r.URL.Path).Render(ctx, w)
-
-		return
-	}
-
-	email := r.FormValue("email")
-	_, err = mail.ParseAddress(email)
-	if err != nil {
-		fieldErrs = append(fieldErrs, fieldError{"email", "invalid email address"})
-	}
-
-	user := r.FormValue("username")
-	first := r.FormValue("first")
-	last := r.FormValue("last")
-
-	if len(fieldErrs) > 0 {
-		sendFormValidationErrJSON(w, r, fieldErrs)
-
-		return
-	}
-
-	createMember := members.CreateMember{
-		Email:     email,
-		BCOName:   user,
-		FirstName: first,
-		LastName:  last,
-	}
-
-	newMember, err := h.memberService.CreateMember(ctx, createMember)
-	if err != nil {
-		if errors.Is(err, auth.ErrUsernameExists) {
-			fieldErrs = append(fieldErrs, fieldError{"username", "username already exists"})
-			sendFormValidationErrJSON(w, r, fieldErrs)
-
-			return
-		}
-
-		w.WriteHeader(http.StatusInternalServerError)
-		common.ErrorMessage(&member, "failed to create member", r.URL.Path, r.URL.Path).Render(ctx, w)
-
-		return
-	}
-
-	MemberRow(*newMember).Render(ctx, w)
-}
-
-func (h *AdminHandlers) admin(w http.ResponseWriter, r *http.Request) {
+func (h *AdminHandlers) adminPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
@@ -414,7 +638,14 @@ func (h *AdminHandlers) admin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	Members(currentMembers, &member, r.URL.Path).Render(ctx, w)
+	emails, err := h.authService.GetApprovedEmails(ctx)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	Members(currentMembers, emails, &member, r.URL.Path).Render(ctx, w)
 }
 
 func dollarStringToCents(dollars string) (int32, error) {

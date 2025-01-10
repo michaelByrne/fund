@@ -17,6 +17,7 @@ type updateOne[In any, Out any] func(ctx context.Context, arg In) (Out, error)
 type updateMany[In any, Out any] func(ctx context.Context, arg In) ([]Out, error)
 type getMany[In any, Out any] func(ctx context.Context, arg In) ([]Out, error)
 type getAll[DB any] func(ctx context.Context) ([]DB, error)
+type deleteOne[In any, Out any] func(ctx context.Context, arg In) (Out, error)
 
 type transform[In any, Out any] func(In) Out
 
@@ -117,6 +118,18 @@ func FetchAll[Realm any, DB any](ctx context.Context, get getAll[DB], transform 
 func UpdateOne[DBArg any, StoreArg any, Realm any, DB any](ctx context.Context, arg StoreArg, update updateOne[DBArg, DB], transformIn transform[StoreArg, DBArg], transformOut transform[DB, Realm]) (*Realm, error) {
 	dbArg := transformIn(arg)
 	dbRes, err := update(ctx, dbArg)
+	if err != nil {
+		return nil, err
+	}
+
+	result := transformOut(dbRes)
+
+	return &result, nil
+}
+
+func DeleteOne[DBArg any, StoreArg any, Realm any, DB any](ctx context.Context, arg StoreArg, delete deleteOne[DBArg, DB], transformIn transform[StoreArg, DBArg], transformOut transform[DB, Realm]) (*Realm, error) {
+	dbArg := transformIn(arg)
+	dbRes, err := delete(ctx, dbArg)
 	if err != nil {
 		return nil, err
 	}

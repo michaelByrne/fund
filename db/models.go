@@ -97,6 +97,50 @@ func (ns NullPayoutFrequency) Value() (driver.Value, error) {
 	return string(ns.PayoutFrequency), nil
 }
 
+type PayoutStatus string
+
+const (
+	PayoutStatusPlanned PayoutStatus = "planned"
+	PayoutStatusReady   PayoutStatus = "ready"
+	PayoutStatusPaid    PayoutStatus = "paid"
+	PayoutStatusFailed  PayoutStatus = "failed"
+)
+
+func (e *PayoutStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PayoutStatus(s)
+	case string:
+		*e = PayoutStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PayoutStatus: %T", src)
+	}
+	return nil
+}
+
+type NullPayoutStatus struct {
+	PayoutStatus PayoutStatus
+	Valid        bool // Valid is true if PayoutStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPayoutStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.PayoutStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PayoutStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPayoutStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PayoutStatus), nil
+}
+
 type Role string
 
 const (
@@ -138,6 +182,29 @@ func (ns NullRole) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.Role), nil
+}
+
+type ApprovedEmail struct {
+	Email   string
+	Used    bool
+	UsedAt  NullDBTime
+	Created pgtype.Timestamptz
+	Updated pgtype.Timestamptz
+}
+
+type BatchPayout struct {
+	ID              uuid.UUID
+	FundID          uuid.UUID
+	AmountCents     int32
+	NumEnrollments  int32
+	Status          PayoutStatus
+	FailureReason   pgtype.Text
+	Notes           pgtype.Text
+	Description     pgtype.Text
+	ProviderBatchID pgtype.Text
+	PayoutDate      pgtype.Timestamptz
+	Created         pgtype.Timestamptz
+	Updated         pgtype.Timestamptz
 }
 
 type Donation struct {
@@ -193,6 +260,17 @@ type Fund struct {
 	Updated         pgtype.Timestamptz
 }
 
+type FundEnrollment struct {
+	ID              uuid.UUID
+	FundID          uuid.UUID
+	MemberID        uuid.UUID
+	MemberBcoName   pgtype.Text
+	FirstPayoutDate pgtype.Timestamptz
+	Active          bool
+	Created         pgtype.Timestamptz
+	Updated         pgtype.Timestamptz
+}
+
 type Member struct {
 	ID              uuid.UUID
 	FirstName       pgtype.Text
@@ -209,6 +287,29 @@ type Member struct {
 	Updated         pgtype.Timestamptz
 	ProviderPayerID pgtype.Text
 	Active          bool
+}
+
+type PasskeyUser struct {
+	ID      []byte
+	Email   string
+	BcoName string
+	Creds   []byte
+	Created pgtype.Timestamptz
+	Updated pgtype.Timestamptz
+}
+
+type Payout struct {
+	ID               uuid.UUID
+	FundEnrollmentID uuid.UUID
+	BatchID          uuid.UUID
+	AmountCents      int32
+	Status           PayoutStatus
+	FailureReason    pgtype.Text
+	Notes            pgtype.Text
+	Description      pgtype.Text
+	PayoutDate       pgtype.Timestamptz
+	Created          pgtype.Timestamptz
+	Updated          pgtype.Timestamptz
 }
 
 type Session struct {

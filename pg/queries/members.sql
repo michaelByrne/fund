@@ -92,7 +92,16 @@ FROM member m
 WHERE m.id = $1
 GROUP BY m.id;
 
+-- name: SearchMembersByUsername :many
+SELECT id, bco_name
+FROM member
+WHERE bco_name ILIKE $1 || '%'
+AND active = true
+ORDER BY bco_name;
 
-
+-- name: GetMemberByUsername :one
+SELECT *
+FROM member
+WHERE bco_name = $1;
 
 

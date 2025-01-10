@@ -1,19 +1,21 @@
 package adminweb
 
 import (
+	"boardfund/service/auth"
 	"boardfund/service/donations"
 	"boardfund/service/members"
+	"boardfund/web/common"
 	"fmt"
 	"strings"
 )
 
-templ Members(members []members.Member, member *members.Member, path string) {
+templ Members(members []members.Member, emails []auth.ApprovedEmail, member *members.Member, path string) {
 	@Admin(member, path) {
-		<div class="grid grid-cols-1 lg:grid-cols-2 h-full">
-			<div class="flex flex-col">
-				@AddMember()
+		<div class="grid grid-cols-1 gap-2 lg:grid-cols-2 h-full">
+			<div class="approved-emails flex flex-col h-full p-2 overflow-hidden w-[95%]">
+				@ApprovedEmails(emails)
 			</div>
-			<div class="flex flex-col h-full overflow-hidden">
+			<div class="flex flex-col h-full p-2 overflow-hidden w-[95%]">
 				@MembersList(members)
 			</div>
 		</div>
@@ -21,8 +23,7 @@ templ Members(members []members.Member, member *members.Member, path string) {
 }
 
 templ MembersList(members []members.Member) {
-	<div class="w-full mx-auto max-w-md h-full blue-boxy-filter">
-		<h3 class="text-md font-semibold mt-2 inline-block bg-high p-2">current members</h3>
+	@common.Section("current members") {
 		<div class="flex-grow overflow-y-auto max-h-[300px] sm:max-h-[500px]">
 			<ul id="admin-members">
 				for _, member := range members {
@@ -30,7 +31,77 @@ templ MembersList(members []members.Member) {
 				}
 			</ul>
 		</div>
-		<div class="text-slate-200">-</div>
+	}
+}
+
+templ ApprovedEmails(emails []auth.ApprovedEmail) {
+	@common.Section("approved emails") {
+		<div class="flex-grow overflow-y-auto max-h-[300px] sm:max-h-[500px]">
+			@AddEmail()
+			@EmailList(emails)
+		</div>
+	}
+}
+
+templ AddEmail() {
+	<form
+		hx-post="/admin/approved"
+		hx-target="closest .approved-emails"
+		class="flex gap-2"
+	>
+		<input
+			type="email"
+			name="email"
+			placeholder="Add new email..."
+			required
+			class="flex-1 border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+		/>
+		<button
+			type="submit"
+			class="h-10 w-10 flex items-center justify-center bg-white border border-odd hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+		>
+			<span class="text-gray-600 leading-none translate-y-[-1px]">+</span>
+		</button>
+	</form>
+}
+
+templ EmailList(emails []auth.ApprovedEmail) {
+	<div id="email-list">
+		for _, email := range emails {
+			@ApprovedEmail(email)
+		}
+	</div>
+}
+
+templ ApprovedEmail(email auth.ApprovedEmail) {
+	<div class="approved-email flex items-center justify-between py-2 border-b last:border-0 even:bg-even odd:bg-odd">
+		<div class="flex flex-col">
+			<span
+				class={
+					"text-sm font-medium",
+					templ.KV("line-through text-gray-400", email.Used),
+				}
+			>
+				{ email.Email }
+			</span>
+			<span class="text-xs text-gray-500">
+				if email.Used {
+					Used { email.UsedAt.Format("Jan 02, 2006") }
+				} else {
+					Added { email.Created.Format("Jan 02, 2006") }
+				}
+			</span>
+		</div>
+		if !email.Used {
+			<button
+				hx-delete={ "/admin/approved/" + email.Email }
+				hx-target="#email-list"
+				hx-swap="outerHTML"
+				class="h-8 w-8 p-0 text-gray-500 hover:text-red-500"
+			>
+				&#215;
+			</button>
+		}
 	</div>
 }
 
@@ -49,43 +120,17 @@ templ MemberRow(member members.Member) {
 				hx-confirm={ fmt.Sprintf("deactivate %s?", member.BCOName) }
 				hx-trigger="click consume"
 				hx-swap="outerHTML"
-				class="text-title/90 hover:text-red-500 text-lg font-bold ml-4"
+				class="flex items-center justify-center h-8 w-8 text-gray-500 hover:text-red-500"
 			>
 				&#215;
 			</div>
 		</div>
 		<script type="application/javascript">
-    		me().on("memberDeactivated", (ev) => {
-    			ev.srcElement.closest(".member-row").fadeOut(null, 400);
-    		});
-    	</script>
+            me().on("memberDeactivated", (ev) => {
+                ev.srcElement.closest(".member-row").fadeOut(null, 400);
+            });
+        </script>
 	</li>
-}
-
-templ AddMember() {
-	<div class="w-full mx-auto max-w-md blue-boxy-filter">
-		<h3 class="text-md font-semibold mt-2 inline-block bg-high p-2">new member</h3>
-		<form hx-post="/admin/member" hx-swap="afterbegin" hx-target="#admin-members" id="new-member" class="w-[90%] p-4 bg-even">
-			<div class="grid grid-cols-1 gap-4 sm:grid-cols-3 mt-6">
-				<label for="first" class="col-span-1 text-left">first name</label>
-				<input type="text" required name="first" id="first" placeholder="first" class="col-span-2 w-full pl-2 text-sm border border-slate-300 shadow-sm"/>
-				<label for="last" class="col-span-1 text-left">last name</label>
-				<input type="text" required name="last" id="last" placeholder="last" class="col-span-2 w-full pl-2 text-sm border border-slate-300 shadow-sm"/>
-				<label for="email" class="col-span-1 text-left">email</label>
-				<input type="email" required name="email" id="email" placeholder="email" class="col-span-2 w-full pl-2 text-sm border border-slate-300 shadow-sm"/>
-				<label for="username" class="col-span-1 text-left">username</label>
-				<input type="text" required name="username" id="username" placeholder="hotdoghorny" class="col-span-2 w-full pl-2 text-sm border border-slate-300 shadow-sm"/>
-			</div>
-			<div class="mt-6 flex justify-center">
-				<button
-					type="submit"
-					class="px-4 py-2 text-center text-md bg-button text-black hover:text-black hover:font-medium hover:shadow-blue-boxy-thin shadow-blue-boxy"
-				>
-					submit
-				</button>
-			</div>
-		</form>
-	</div>
 }
 
 templ Member(viewedMember members.Member, member *members.Member, path string) {
@@ -108,6 +153,10 @@ templ Member(viewedMember members.Member, member *members.Member, path string) {
 				<div class="flex flex-row items-center my-2">
 					<h4 class="font-semibold p-2">total contributions:</h4>
 					<span class="ml-auto p-2">${ centsToDecimalString(viewedMember.GetTotalDonatedCents()) }</span>
+				</div>
+				<div class="flex flex-row items-center my-2">
+					<h4 class="font-semibold p-2">roles:</h4>
+					<span class="ml-auto p-2">{ rolesToCommaString(viewedMember.Roles) }</span>
 				</div>
 			</div>
 		</div>
@@ -199,4 +248,13 @@ templ LastPayment(payment *donations.DonationPayment) {
 	} else {
 		<td class="py-2 text-center">-</td>
 	}
+}
+
+func rolesToCommaString(roles []members.MemberRole) string {
+	var roleStrings []string
+	for _, role := range roles {
+		roleStrings = append(roleStrings, strings.ToLower(string(role)))
+	}
+
+	return strings.Join(roleStrings, ", ")
 }
