@@ -32,10 +32,6 @@ variable "fund_pass_url" {
   type = string
 }
 
-variable "fund_register_url" {
-  type = string
-}
-
 variable "domain" {
   type = string
 }
