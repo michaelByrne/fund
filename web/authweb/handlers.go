@@ -38,6 +38,9 @@ func NewAuthHandlers(authService *auth.AuthService, memberService *members.Membe
 
 func (h AuthHandlers) Register(r *mux.Router) {
 	r.HandleFunc("GET /login", h.loginPage)
+	r.HandleFunc("POST /login", h.login)
+	r.HandleFunc("GET /register", h.passwordRegistrationPage)
+	r.HandleFunc("POST /register", h.register)
 	r.HandleFunc("/logout", h.logout)
 	r.HandleFunc("GET /password", h.passwordPage)
 	r.HandleFunc("GET /auth/error", h.errorPage)
@@ -47,6 +50,106 @@ func (h AuthHandlers) Register(r *mux.Router) {
 	r.HandleFunc("GET /auth/login", h.passkeyLoginPage)
 	r.HandleFunc("POST /auth/login", h.startLogin)
 	r.HandleFunc("PUT /auth/login", h.finishLogin)
+	r.HandleFunc("POST /password", h.resetPassword)
+}
+
+func (h AuthHandlers) register(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	username := r.FormValue("username")
+	email := r.FormValue("email")
+
+	approvedEmail, err := h.authService.GetApprovedEmail(ctx, email)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	if approvedEmail.Used {
+		http.Error(w, "email is already in use", http.StatusBadRequest)
+
+		return
+	}
+
+	_, err = h.authService.Register(ctx, username, email)
+	if err != nil {
+		errRedirect(w, r, err.Error(), "/register")
+
+		return
+	}
+
+	http.Redirect(w, r, "/password", http.StatusFound)
+}
+
+func (h AuthHandlers) passwordRegistrationPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	PasswordRegistration().Render(ctx, w)
+}
+
+func (h AuthHandlers) resetPassword(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	username := r.FormValue("username")
+	password := r.FormValue("old")
+	newPassword := r.FormValue("new")
+	confirmNew := r.FormValue("confirm")
+
+	if newPassword != confirmNew {
+		errRedirect(w, r, "passwords do not match", "/password")
+
+		return
+	}
+
+	member, authResp, err := h.authService.ResetPassword(ctx, username, password, newPassword)
+	if err != nil {
+		errRedirect(w, r, err.Error(), "/password")
+
+		return
+	}
+
+	if authResp.ResetPassword {
+		http.Redirect(w, r, "/password", http.StatusFound)
+
+		return
+	}
+
+	setTokenCookie("access-token", authResp.Token.IDTokenStr, authResp.Token.Expires, w)
+	h.sessionManager.Put(ctx, "member", member)
+
+	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+func (h AuthHandlers) login(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	username := r.FormValue("username")
+	password := r.FormValue("password")
+
+	member, authResp, err := h.authService.Authenticate(ctx, username, password)
+	if err != nil {
+		errRedirect(w, r, err.Error(), "/login")
+
+		return
+	}
+
+	if authResp.ResetPassword {
+		http.Redirect(w, r, "/password", http.StatusFound)
+
+		return
+	}
+
+	if !member.Active {
+		http.Redirect(w, r, "/", http.StatusFound)
+
+		return
+	}
+
+	setTokenCookie("access-token", authResp.Token.IDTokenStr, authResp.Token.Expires, w)
+	h.sessionManager.Put(ctx, "member", member)
+
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 func (h AuthHandlers) passkeyLoginPage(w http.ResponseWriter, r *http.Request) {
@@ -250,12 +353,12 @@ func (h AuthHandlers) startRegistration(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	err := h.authService.ValidateNewPasskeyUser(ctx, username, email)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
-		return
-	}
+	//err := h.authService.ValidateNewPasskeyUser(ctx, username, email)
+	//if err != nil {
+	//	http.Error(w, err.Error(), http.StatusBadRequest)
+	//
+	//	return
+	//}
 
 	approvedEmail, err := h.authService.GetApprovedEmail(ctx, email)
 	if err != nil {

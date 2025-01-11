@@ -54,6 +54,7 @@ jobs:
         run: terraform plan -input=false
         env:
           TF_VAR_fund_pass_url: ${{ secrets.TF_VAR_FUND_PASS_URL }}
+          TF_VAR_fund_registration_url: ${{ secrets.TF_VAR_FUND_REGISTRATION_URL }}
           TF_VAR_paypal_email: ${{ secrets.TF_VAR_PAYPAL_EMAIL }}
           TF_VAR_paypal_pass: ${{ secrets.TF_VAR_PAYPAL_PASS }}
           TF_VAR_domain: ${{ secrets.TF_VAR_DOMAIN }}
@@ -66,6 +67,7 @@ jobs:
         run: terraform apply -auto-approve -input=false
         env:
           TF_VAR_fund_pass_url: ${{ secrets.TF_VAR_FUND_PASS_URL }}
+          TF_VAR_fund_registration_url: ${{ secrets.TF_VAR_FUND_REGISTRATION_URL }}
           TF_VAR_paypal_email: ${{ secrets.TF_VAR_PAYPAL_EMAIL }}
           TF_VAR_paypal_pass: ${{ secrets.TF_VAR_PAYPAL_PASS }}
           TF_VAR_domain: ${{ secrets.TF_VAR_DOMAIN }}

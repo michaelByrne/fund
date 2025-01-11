@@ -27,6 +27,7 @@ import (
 	"github.com/alexedwards/scs/pgxstore"
 	"github.com/alexedwards/scs/v2"
 	"github.com/aws/aws-sdk-go-v2/config"
+	cognito "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/golang-migrate/migrate/v4"
@@ -165,6 +166,9 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		return err
 	}
 	s3Client := s3.NewFromConfig(defaultConfig)
+	cognitoClient := cognito.NewFromConfig(defaultConfig)
+
+	authorizer := aws.NewCognitoAuth(cognitoClient, logger, runConfig.CognitoClientID, runConfig.CognitoUserPoolID)
 
 	documentStorage := aws.NewAWSS3(s3Client, logger, "")
 
@@ -172,7 +176,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 
 	donationService := donations.NewDonationService(donationStore, documentStorage, paypalService, runConfig.ReportTypes, logger)
 	memberService := members.NewMemberService(memberStore, donationStore, paypalService, logger)
-	authService := auth.NewAuthService(memberStore, authStore, logger)
+	authService := auth.NewAuthService(memberStore, authStore, authorizer, logger)
 	financeService := finance.NewFinanceService(donationStore, paypalService, documentStorage, runConfig.ReportTypes, logger)
 	enrollmentService := enrollments.NewEnrollmentsService(enrollmentStore, logger)
 

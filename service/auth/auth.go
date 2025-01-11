@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/lestrrat-go/jwx/v2/jwt"
 	"log/slog"
 )
 
 type memberStore interface {
 	GetMemberByID(ctx context.Context, id uuid.UUID) (*members.Member, error)
+	UpsertMember(ctx context.Context, upsert members.UpsertMember) (*members.Member, error)
 }
 
 type authStore interface {
@@ -28,19 +30,71 @@ type authStore interface {
 	DeleteApprovedEmail(ctx context.Context, email string) (*ApprovedEmail, error)
 }
 
+type authorizer interface {
+	Authorize(ctx context.Context, user, pass string) (*AuthResponse, error)
+	SetPassword(ctx context.Context, user, old, new string) error
+	CreateUser(ctx context.Context, username, email string, memberID uuid.UUID) (string, error)
+}
+
 type AuthService struct {
 	memberStore memberStore
 	authStore   authStore
+	authorizer  authorizer
 
 	logger *slog.Logger
 }
 
-func NewAuthService(memberStore memberStore, authStore authStore, logger *slog.Logger) *AuthService {
+func NewAuthService(memberStore memberStore, authStore authStore, authorizer authorizer, logger *slog.Logger) *AuthService {
 	return &AuthService{
 		memberStore: memberStore,
 		authStore:   authStore,
+		authorizer:  authorizer,
 		logger:      logger,
 	}
+}
+
+func (s AuthService) Register(ctx context.Context, username, email string) (*members.Member, error) {
+	memberID := uuid.New()
+
+	cognitoID, err := s.authorizer.CreateUser(ctx, username, email, memberID)
+	if err != nil {
+		s.logger.Error("failed to create user", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	upsert := members.UpsertMember{
+		CognitoID: cognitoID,
+		Email:     email,
+		BCOName:   username,
+	}
+
+	member, err := s.memberStore.UpsertMember(ctx, upsert)
+	if err != nil {
+		s.logger.Error("failed to upsert member", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	return member, nil
+}
+
+func (s AuthService) ResetPassword(ctx context.Context, username, password, newPassword string) (*members.Member, *AuthResponse, error) {
+	err := s.authorizer.SetPassword(ctx, username, password, newPassword)
+	if err != nil {
+		s.logger.Error("failed to reset password", slog.String("error", err.Error()))
+
+		return nil, nil, err
+	}
+
+	member, autResp, err := s.Authenticate(ctx, username, newPassword)
+	if err != nil {
+		s.logger.Error("failed to authenticate", slog.String("error", err.Error()))
+
+		return nil, nil, err
+	}
+
+	return member, autResp, nil
 }
 
 func (s AuthService) GetApprovedEmails(ctx context.Context) ([]ApprovedEmail, error) {
@@ -187,4 +241,43 @@ func (s AuthService) DeleteApprovedEmail(ctx context.Context, email string) (*Ap
 	}
 
 	return approvedEmail, nil
+}
+
+func (s AuthService) Authenticate(ctx context.Context, username, password string) (*members.Member, *AuthResponse, error) {
+	resp, err := s.authorizer.Authorize(ctx, username, password)
+	if err != nil {
+		s.logger.Error("failed to authenticate", slog.String("error", err.Error()))
+
+		return nil, nil, err
+	}
+
+	if resp.ResetPassword {
+		return nil, resp, nil
+	}
+
+	parsedToken, err := jwt.ParseString(resp.Token.IDTokenStr, jwt.WithVerify(false))
+	if err != nil {
+		s.logger.Error("failed to parse token", slog.String("error", err.Error()))
+
+		return nil, nil, err
+	}
+
+	claims := parsedToken.PrivateClaims()
+	memberID := claims["custom:member_id"].(string)
+
+	memberUUID, err := uuid.Parse(memberID)
+	if err != nil {
+		s.logger.Error("failed to parse member id", slog.String("error", err.Error()))
+
+		return nil, nil, err
+	}
+
+	member, err := s.memberStore.GetMemberByID(ctx, memberUUID)
+	if err != nil {
+		s.logger.Error("failed to get member by id", slog.String("error", err.Error()))
+
+		return nil, nil, err
+	}
+
+	return member, resp, nil
 }
