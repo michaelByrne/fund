@@ -3,6 +3,8 @@ package root
 import (
 	"boardfund/aws"
 	"boardfund/events"
+	"boardfund/jwtauth"
+	"boardfund/jwtauth/keyset"
 	"boardfund/paypal"
 	"boardfund/paypal/token"
 	"boardfund/pg"
@@ -172,6 +174,13 @@ func run(ctx context.Context, runConfig RunConfig) error {
 
 	documentStorage := aws.NewAWSS3(s3Client, logger, "")
 
+	ksetCache := keyset.NewKeySetWithCache(runConfig.JWKURL, 15)
+	kset, err := ksetCache.NewKeySet()
+	if err != nil {
+		return err
+	}
+	verifier := jwtauth.NewToken(kset)
+
 	messageBroker := events.NewNATSMessageBroker(nc)
 
 	donationService := donations.NewDonationService(donationStore, documentStorage, paypalService, runConfig.ReportTypes, logger)
@@ -180,8 +189,16 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	financeService := finance.NewFinanceService(donationStore, paypalService, documentStorage, runConfig.ReportTypes, logger)
 	enrollmentService := enrollments.NewEnrollmentsService(enrollmentStore, logger)
 
-	authMiddleware := middlewares.PasskeyVerify(sessionManager)
-	adminAuthMiddleware := middlewares.PasskeyVerifyAdmin(sessionManager)
+	authMiddleware := middlewares.Verify(
+		verifier.Verify,
+		middlewares.TokenFromCookie,
+		middlewares.TokenFromHeader,
+	)
+	adminAuthMiddleware := middlewares.Verify(
+		verifier.VerifyAdmin,
+		middlewares.TokenFromCookie,
+		middlewares.TokenFromHeader,
+	)
 
 	// Handlers setup
 	donationHandlers := homeweb.NewFundHandlers(

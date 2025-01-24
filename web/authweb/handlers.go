@@ -79,7 +79,14 @@ func (h AuthHandlers) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/password", http.StatusFound)
+	_, err = h.authService.MarkEmailAsUsed(ctx, email)
+	if err != nil {
+		errRedirect(w, r, err.Error(), "/register")
+
+		return
+	}
+
+	RegistrationSuccess().Render(ctx, w)
 }
 
 func (h AuthHandlers) passwordRegistrationPage(w http.ResponseWriter, r *http.Request) {

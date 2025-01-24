@@ -64,6 +64,7 @@ func (s AuthService) Register(ctx context.Context, username, email string) (*mem
 	}
 
 	upsert := members.UpsertMember{
+		ID:        memberID,
 		CognitoID: cognitoID,
 		Email:     email,
 		BCOName:   username,
