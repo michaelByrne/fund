@@ -62,8 +62,44 @@ func (h *AdminHandlers) Register(r *mux.Router) {
 	r.HandleFunc("GET /admin/members/search", h.withAdmin(h.searchMembers))
 	r.HandleFunc("POST /admin/enrollment", h.withAdmin(h.createEnrollment))
 	r.HandleFunc("GET /admin/enrollment/confirm", h.withAdmin(h.confirmEnrollment))
+	r.HandleFunc("POST /admin/enrollment/cancel/{id}", h.withAdmin(h.deactivateEnrollment))
 	r.HandleFunc("DELETE /admin/approved/{email}", h.withAdmin(h.deleteApprovedEmail))
 	r.HandleFunc("POST /admin/approved", h.withAdmin(h.addApprovedEmail))
+}
+
+func (h *AdminHandlers) deactivateEnrollment(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		http.Redirect(w, r, "/", http.StatusFound)
+
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	idUUID, err := uuid.Parse(id)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	_, err = h.enrollmentService.DeactivateEnrollment(ctx, idUUID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	w.Header().Set("HX-Trigger", "enrollmentDeactivated")
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *AdminHandlers) addApprovedEmail(w http.ResponseWriter, r *http.Request) {
@@ -261,10 +297,18 @@ func (h *AdminHandlers) createEnrollment(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	username := r.FormValue("username")
+	if username == "" {
+		w.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
 	createEnrollment := enrollments.CreateEnrollment{
-		FundID:      fundID,
-		MemberID:    memberID,
-		PaypalEmail: paypalEmail,
+		FundID:        fundID,
+		MemberID:      memberID,
+		PaypalEmail:   paypalEmail,
+		MemberBCOName: username,
 	}
 
 	enrollment, err := h.enrollmentService.CreateEnrollment(ctx, createEnrollment)

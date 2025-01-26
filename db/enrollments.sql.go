@@ -12,13 +12,36 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deactivateEnrollment = `-- name: DeactivateEnrollment :one
+UPDATE fund_enrollment
+SET active = false
+WHERE id = $1
+RETURNING id, fund_id, member_id, member_bco_name, first_payout_date, active, created, updated, paypal_email
+`
+
+func (q *Queries) DeactivateEnrollment(ctx context.Context, id uuid.UUID) (FundEnrollment, error) {
+	row := q.db.QueryRow(ctx, deactivateEnrollment, id)
+	var i FundEnrollment
+	err := row.Scan(
+		&i.ID,
+		&i.FundID,
+		&i.MemberID,
+		&i.MemberBcoName,
+		&i.FirstPayoutDate,
+		&i.Active,
+		&i.Created,
+		&i.Updated,
+		&i.PaypalEmail,
+	)
+	return i, err
+}
+
 const fundEnrollmentExists = `-- name: FundEnrollmentExists :one
-SELECT EXISTS (
-  SELECT 1
-  FROM fund_enrollment
-  WHERE member_id = $1
-  AND fund_id = $2
-) AS exists
+SELECT EXISTS (SELECT 1
+               FROM fund_enrollment
+               WHERE member_id = $1
+                 AND fund_id = $2
+                 AND active = true) AS exists
 `
 
 type FundEnrollmentExistsParams struct {
@@ -34,9 +57,10 @@ func (q *Queries) FundEnrollmentExists(ctx context.Context, arg FundEnrollmentEx
 }
 
 const getActiveEnrollmentsByFundId = `-- name: GetActiveEnrollmentsByFundId :many
-SELECT id, fund_id, member_id, member_bco_name, first_payout_date, active, created, updated FROM fund_enrollment
+SELECT id, fund_id, member_id, member_bco_name, first_payout_date, active, created, updated, paypal_email
+FROM fund_enrollment
 WHERE fund_id = $1
-AND active = true
+  AND active = true
 `
 
 func (q *Queries) GetActiveEnrollmentsByFundId(ctx context.Context, fundID uuid.UUID) ([]FundEnrollment, error) {
@@ -57,6 +81,7 @@ func (q *Queries) GetActiveEnrollmentsByFundId(ctx context.Context, fundID uuid.
 			&i.Active,
 			&i.Created,
 			&i.Updated,
+			&i.PaypalEmail,
 		); err != nil {
 			return nil, err
 		}
@@ -69,9 +94,10 @@ func (q *Queries) GetActiveEnrollmentsByFundId(ctx context.Context, fundID uuid.
 }
 
 const getEnrollmentForFundByMemberId = `-- name: GetEnrollmentForFundByMemberId :one
-SELECT id, fund_id, member_id, member_bco_name, first_payout_date, active, created, updated FROM fund_enrollment
+SELECT id, fund_id, member_id, member_bco_name, first_payout_date, active, created, updated, paypal_email
+FROM fund_enrollment
 WHERE member_id = $1
-AND fund_id = $2
+  AND fund_id = $2
 `
 
 type GetEnrollmentForFundByMemberIdParams struct {
@@ -91,16 +117,19 @@ func (q *Queries) GetEnrollmentForFundByMemberId(ctx context.Context, arg GetEnr
 		&i.Active,
 		&i.Created,
 		&i.Updated,
+		&i.PaypalEmail,
 	)
 	return i, err
 }
 
 const insertEnrollment = `-- name: InsertEnrollment :one
-INSERT INTO fund_enrollment (id, fund_id, member_id, first_payout_date, member_bco_name)
-SELECT $1, $2, $3, fund.next_payment + INTERVAL '1 month', $4
+INSERT INTO fund_enrollment (id, fund_id, member_id, first_payout_date, member_bco_name, paypal_email, active)
+SELECT $1, $2, $3, fund.next_payment + INTERVAL '1 month', $4, $5, true
 FROM fund
 WHERE fund.id = $2
-RETURNING id, fund_id, member_id, member_bco_name, first_payout_date, active, created, updated
+ON CONFLICT (fund_id, member_id) DO UPDATE
+    SET active = true
+RETURNING id, fund_id, member_id, member_bco_name, first_payout_date, active, created, updated, paypal_email
 `
 
 type InsertEnrollmentParams struct {
@@ -108,6 +137,7 @@ type InsertEnrollmentParams struct {
 	FundID        uuid.UUID
 	MemberID      uuid.UUID
 	MemberBcoName pgtype.Text
+	PaypalEmail   string
 }
 
 func (q *Queries) InsertEnrollment(ctx context.Context, arg InsertEnrollmentParams) (FundEnrollment, error) {
@@ -116,6 +146,7 @@ func (q *Queries) InsertEnrollment(ctx context.Context, arg InsertEnrollmentPara
 		arg.FundID,
 		arg.MemberID,
 		arg.MemberBcoName,
+		arg.PaypalEmail,
 	)
 	var i FundEnrollment
 	err := row.Scan(
@@ -127,6 +158,7 @@ func (q *Queries) InsertEnrollment(ctx context.Context, arg InsertEnrollmentPara
 		&i.Active,
 		&i.Created,
 		&i.Updated,
+		&i.PaypalEmail,
 	)
 	return i, err
 }

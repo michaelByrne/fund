@@ -38,8 +38,43 @@ templ FundActions(fund donations.Fund) {
 
 templ CurrentEnrollments(enrollments []enrollments.Enrollment) {
 	@common.Section("current enrollments") {
-		enrollments here
+		<div class="flex-grow overflow-y-auto max-h-[300px] sm:max-h-[500px]">
+			<ul id="enrollments">
+				@EnrollmentsList(enrollments)
+			</ul>
+		</div>
 	}
+}
+
+templ EnrollmentsList(enrollments []enrollments.Enrollment) {
+	for _, enrollment := range enrollments {
+		@EnrollmentRow(enrollment)
+	}
+}
+
+templ EnrollmentRow(enrollment enrollments.Enrollment) {
+	<li
+		class="enrollment-row p-2 flex flex-col md:flex-row md:items-center even:bg-even odd:bg-odd odd:hover:bg-odd-hover even:hover:bg-even-hover transition-opacity duration-300"
+	>
+		<div class="flex items-center w-full">
+			<div class="flex flex-col w-full md:flex-row md:items-center">
+				<span class="font-medium">{ enrollment.MemberBCOName }</span>
+			</div>
+			<div
+				hx-post={ fmt.Sprintf("/admin/enrollment/cancel/%s", enrollment.ID.String()) }
+				hx-confirm={ fmt.Sprintf("deactivate enrollment for %s?", enrollment.MemberBCOName) }
+				hx-trigger="click consume"
+				class="clickable flex items-center justify-center h-8 w-8 text-gray-500 hover:text-red-500"
+			>
+				&#215;
+			</div>
+		</div>
+		<script type="application/javascript">
+            me().on("enrollmentDeactivated", (ev) => {
+                ev.srcElement.closest(".enrollment-row").fadeOut(null, 400);
+            });
+        </script>
+	</li>
 }
 
 templ MemberSearch(fund donations.Fund) {
@@ -130,6 +165,7 @@ templ ConfirmEnrollment(fund donations.Fund, member members.Member) {
 			<form hx-post="/admin/enrollment" class="w-full">
 				<input type="hidden" value={ member.ID.String() } name="member"/>
 				<input type="hidden" value={ fund.ID.String() } name="fund"/>
+				<input type="hidden" value={ member.BCOName } name="username"/>
 				<div class="flex flex-row mt-2 mb-4 items-center">
 					<label for="paypal">paypal email</label>
 					<input type="text" id="paypal" name="paypal" class="w-[45%] py-1 py-auto ml-2 pl-2 text-sm border border-slate-300 shadow-sm"/>
@@ -175,6 +211,9 @@ templ EnrollmentSuccess(enrollment enrollments.Enrollment, member members.Member
 			</button>
 		</div>
 	}
+	<div hx-swap-oob="beforeend:#enrollments">
+		@EnrollmentRow(enrollment)
+	</div>
 }
 
 templ EnrollmentDates(fund donations.Fund) {

@@ -12,6 +12,7 @@ type enrollmentStore interface {
 	GetEnrollmentByMemberID(ctx context.Context, arg GetEnrollmentForFundByMemberID) (*Enrollment, error)
 	FundEnrollmentExists(ctx context.Context, arg FundEnrollmentExists) (*bool, error)
 	GetActiveEnrollmentsForFund(ctx context.Context, arg uuid.UUID) ([]Enrollment, error)
+	DeactivateEnrollment(ctx context.Context, arg uuid.UUID) (*Enrollment, error)
 }
 
 type EnrollmentsService struct {
@@ -27,11 +28,24 @@ func NewEnrollmentsService(enrollmentStore enrollmentStore, logger *slog.Logger)
 	}
 }
 
+func (s EnrollmentsService) DeactivateEnrollment(ctx context.Context, enrollmentID uuid.UUID) (*Enrollment, error) {
+	enrollment, err := s.enrollmentStore.DeactivateEnrollment(ctx, enrollmentID)
+	if err != nil {
+		s.logger.Error("failed to deactivate enrollment", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	return enrollment, nil
+}
+
 func (s EnrollmentsService) CreateEnrollment(ctx context.Context, createEnrollment CreateEnrollment) (*Enrollment, error) {
 	insert := InsertEnrollment{
-		MemberID: createEnrollment.MemberID,
-		FundID:   createEnrollment.FundID,
-		ID:       uuid.New(),
+		MemberID:      createEnrollment.MemberID,
+		FundID:        createEnrollment.FundID,
+		ID:            uuid.New(),
+		PaypalEmail:   createEnrollment.PaypalEmail,
+		MemberBCOName: createEnrollment.MemberBCOName,
 	}
 
 	updatePaypal := UpdatePaypalEmail{

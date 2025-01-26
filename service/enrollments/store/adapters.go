@@ -9,9 +9,10 @@ import (
 
 func toDBEnrollmentParams(arg enrollments.InsertEnrollment) db.InsertEnrollmentParams {
 	return db.InsertEnrollmentParams{
-		ID:       arg.ID,
-		MemberID: arg.MemberID,
-		FundID:   arg.FundID,
+		ID:          arg.ID,
+		MemberID:    arg.MemberID,
+		FundID:      arg.FundID,
+		PaypalEmail: arg.PaypalEmail,
 		MemberBcoName: pgtype.Text{
 			String: arg.MemberBCOName,
 			Valid:  true,

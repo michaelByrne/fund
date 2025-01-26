@@ -86,3 +86,11 @@ func (s EnrollmentStore) GetActiveEnrollmentsForFund(ctx context.Context, arg uu
 
 	return pg.FetchMany(ctx, arg, query, argIdentity, fromDBEnrollment)
 }
+
+func (s EnrollmentStore) DeactivateEnrollment(ctx context.Context, arg uuid.UUID) (*enrollments.Enrollment, error) {
+	query := s.queries.DeactivateEnrollment
+
+	argIdentity := func(id uuid.UUID) uuid.UUID { return id }
+
+	return pg.UpdateOne(ctx, arg, query, argIdentity, fromDBEnrollment)
+}

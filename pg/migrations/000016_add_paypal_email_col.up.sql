@@ -1,0 +1,1 @@
+ALTER TABLE fund_enrollment ADD COLUMN paypal_email text NOT NULL DEFAULT '';

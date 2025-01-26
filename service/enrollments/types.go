@@ -12,6 +12,7 @@ type InsertEnrollment struct {
 	MemberID      uuid.UUID
 	MemberBCOName string
 	FundID        uuid.UUID
+	PaypalEmail   string
 }
 
 type Enrollment struct {

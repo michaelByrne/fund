@@ -269,6 +269,7 @@ type FundEnrollment struct {
 	Active          bool
 	Created         pgtype.Timestamptz
 	Updated         pgtype.Timestamptz
+	PaypalEmail     string
 }
 
 type Member struct {

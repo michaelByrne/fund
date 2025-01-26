@@ -138,11 +138,7 @@ templ Member(viewedMember members.Member, member *members.Member, path string) {
 		<div id="admin-member" class="w-[95%] mx-auto h-full mt-4 blue-boxy-filter">
 			<h3 class="text-base font-semibold bg-high inline-flex p-2">member: { viewedMember.BCOName }</h3>
 			<div class="text-sm mb-2 md:w-[55%] w-[90%] bg-even">
-				<div class="flex flex-row items-center bg-odd mb-2">
-					<h4 class="font-semibold p-2">name:</h4>
-					<span class="ml-auto p-2">{ viewedMember.FirstName } { viewedMember.LastName }</span>
-				</div>
-				<div class="flex flex-row items-center my-2">
+				<div class="flex flex-row items-center mb-2">
 					<h4 class="font-semibold p-2">member since:</h4>
 					<span class="ml-auto p-2">{ viewedMember.Created.Format("01-02-2006") }</span>
 				</div>
