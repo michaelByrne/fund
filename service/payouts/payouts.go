@@ -24,6 +24,11 @@ var (
 	// ErrNotSubmittable is returned when a batch is not in 'ready', which means it
 	// was never approved or has already been sent.
 	ErrNotSubmittable = errors.New("batch is not ready for submission")
+
+	// ErrFundInactive is returned when planning against a closed fund.
+	// Deactivating a fund cancels its donations but leaves enrollments intact,
+	// so without this a fund that stopped taking money could still send it.
+	ErrFundInactive = errors.New("fund is not active")
 )
 
 // DefaultApprovalWindow is how long a treasurer has to approve a batch before it
@@ -43,6 +48,7 @@ type payoutStore interface {
 	GetBatchesByStatus(ctx context.Context, status Status) ([]Batch, error)
 	GetPayoutsForBatch(ctx context.Context, batchID uuid.UUID) ([]Payout, error)
 	GetEnrollmentsForPayout(ctx context.Context, fundID uuid.UUID) ([]PayoutEnrollment, error)
+	IsFundActive(ctx context.Context, fundID uuid.UUID) (bool, error)
 	ApproveBatch(ctx context.Context, arg ApproveBatch) (*Batch, error)
 	RejectBatch(ctx context.Context, arg RejectBatch) (*Batch, error)
 	CancelExpiredBatches(ctx context.Context) ([]Batch, error)
@@ -112,6 +118,20 @@ func NewPayoutService(payoutStore payoutStore, provider PayoutsProvider, notifie
 // move until ApproveBatch and SubmitBatch have both run.
 func (s PayoutService) PlanBatch(ctx context.Context, req PlanBatch) (*Batch, error) {
 	logger := s.logger.With(slog.String("fund_id", req.FundID.String()))
+
+	// Checked before the enrollment query so a closed fund reports why, rather
+	// than reporting that nobody is eligible -- which is what the filtering in
+	// that query would otherwise produce, and reads like a different problem.
+	active, err := s.payoutStore.IsFundActive(ctx, req.FundID)
+	if err != nil {
+		logger.Error("failed to check whether the fund is active", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	if !active {
+		return nil, ErrFundInactive
+	}
 
 	enrollments, err := s.payoutStore.GetEnrollmentsForPayout(ctx, req.FundID)
 	if err != nil {

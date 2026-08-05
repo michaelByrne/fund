@@ -318,6 +318,31 @@ func TestPayoutService(t *testing.T) {
 		assert.Equal(t, int32(2000), batch.AmountCents)
 	})
 
+	// Deactivating a fund stops donations but leaves enrollments alone, so
+	// without an explicit check a closed fund still had payable enrollees and
+	// could still send money.
+	t.Run("a closed fund cannot pay out", func(t *testing.T) {
+		svc := newService(t, pool, &stubProvider{})
+
+		fundID := seedFundWithEnrollees(t, ctx, pool, 2)
+
+		// Confirm it would otherwise have paid, so the refusal below is the fund
+		// being closed and not an unrelated absence of enrollees.
+		_, err := svc.PlanBatch(ctx, payouts.PlanBatch{
+			FundID: fundID, PayoutDate: time.Now().AddDate(1, 0, 0), AmountCents: 500, RequireApproval: true,
+		})
+		require.NoError(t, err)
+
+		_, err = pool.Exec(ctx, `UPDATE fund SET active = false WHERE id = $1`, fundID)
+		require.NoError(t, err)
+
+		_, err = svc.PlanBatch(ctx, payouts.PlanBatch{
+			FundID: fundID, PayoutDate: time.Now().AddDate(2, 0, 0), AmountCents: 500, RequireApproval: true,
+		})
+		require.ErrorIs(t, err, payouts.ErrFundInactive,
+			"a closed fund should say so, not report that nobody is eligible")
+	})
+
 	t.Run("a fund with no payable enrollees yields no batch", func(t *testing.T) {
 		svc := newService(t, pool, &stubProvider{})
 

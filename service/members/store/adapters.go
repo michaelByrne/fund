@@ -142,6 +142,7 @@ func fromDBMemberWithDonations(member db.GetMemberWithDonationsRow) (*members.Me
 			FundID:                 donation.FundID,
 			FundName:               donation.FundName,
 			Recurring:              donation.Recurring,
+			Active:                 donation.Active,
 			Created:                donation.Created.Time,
 			Updated:                donation.Updated.Time,
 			ProviderOrderID:        donation.ProviderOrderID,

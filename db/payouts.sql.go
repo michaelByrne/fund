@@ -112,13 +112,18 @@ const getActiveEnrollmentsForPayout = `-- name: GetActiveEnrollmentsForPayout :m
 SELECT fund_enrollment.id, fund_enrollment.fund_id, fund_enrollment.member_id, fund_enrollment.member_bco_name, fund_enrollment.first_payout_date, fund_enrollment.active, fund_enrollment.created, fund_enrollment.updated, fund_enrollment.paypal_email
 FROM fund_enrollment
          JOIN member ON member.id = fund_enrollment.member_id
+         JOIN fund ON fund.id = fund_enrollment.fund_id
 WHERE fund_enrollment.fund_id = $1
+  AND fund.active = true
   AND fund_enrollment.active = true
   AND member.active = true
   AND fund_enrollment.first_payout_date <= now()
 ORDER BY fund_enrollment.created
 `
 
+// The fund's own active flag is checked here as well as by the service, because
+// deactivating a fund stops donations but leaves enrollments alone -- so without
+// it a closed fund still has payable enrollees and can still send money.
 func (q *Queries) GetActiveEnrollmentsForPayout(ctx context.Context, fundID uuid.UUID) ([]FundEnrollment, error) {
 	rows, err := q.db.Query(ctx, getActiveEnrollmentsForPayout, fundID)
 	if err != nil {
@@ -498,6 +503,21 @@ func (q *Queries) InsertPayout(ctx context.Context, arg InsertPayoutParams) (Pay
 		&i.ProviderFeeCents,
 	)
 	return i, err
+}
+
+const isFundActive = `-- name: IsFundActive :one
+SELECT active
+FROM fund
+WHERE id = $1
+`
+
+// Lets the service say "that fund is closed" rather than "nobody is eligible",
+// which are very different things to read on a payout you expected to run.
+func (q *Queries) IsFundActive(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, isFundActive, id)
+	var active bool
+	err := row.Scan(&active)
+	return active, err
 }
 
 const markBatchPayoutReminderSent = `-- name: MarkBatchPayoutReminderSent :one

@@ -86,6 +86,10 @@ func (s PayoutStore) GetPayoutsForBatch(ctx context.Context, batchID uuid.UUID) 
 	return pg.FetchMany(ctx, batchID, s.queries.GetPayoutsByBatchId, uuidIdentity, fromDBPayout)
 }
 
+func (s PayoutStore) IsFundActive(ctx context.Context, fundID uuid.UUID) (bool, error) {
+	return s.queries.IsFundActive(ctx, fundID)
+}
+
 func (s PayoutStore) GetEnrollmentsForPayout(ctx context.Context, fundID uuid.UUID) ([]payouts.PayoutEnrollment, error) {
 	return pg.FetchMany(ctx, fundID, s.queries.GetActiveEnrollmentsForPayout, uuidIdentity, fromDBPayoutEnrollment)
 }
