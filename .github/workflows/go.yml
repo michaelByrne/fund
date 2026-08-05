@@ -1,0 +1,47 @@
+name: 'go'
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A new push supersedes whatever was running for the same ref.
+  group: go-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: 'build, vet, lint, test'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          # Track the toolchain in go.mod rather than pinning twice.
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install golangci-lint
+        # Pinned: an unpinned linter turns an upstream release into a red build
+        # on an unrelated PR. Matches what .golangci.yml was written against.
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
+            | sh -s -- -b "$(go env GOPATH)/bin" v2.12.2
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Check
+        # The same target developers run locally, so CI cannot drift from it.
+        #
+        # Integration tests start a Postgres container via testcontainers. The
+        # runner has Docker on the default socket, so the Makefile's Colima and
+        # Docker Desktop detection finds nothing and correctly leaves DOCKER_HOST
+        # alone.
+        run: make check
