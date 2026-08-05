@@ -59,7 +59,7 @@ func TestDonationService_DeactivateFund(t *testing.T) {
 		donationTestService := donations.NewDonationService(donationTestStore, stubDocumentStorage{}, &paymentsMock, fundEvents, []string{"payments"}, logger)
 
 		memberTestStore := membersstore.NewMemberStore(pool)
-		memberTestService := members.NewMemberService(memberTestStore, donationTestStore, &paymentsMock, logger)
+		memberTestService := members.NewMemberService(memberTestStore, donationTestStore, &paymentsMock, fundEvents, logger)
 
 		createFund := donations.Fund{
 			Name:            "Test Fund",
@@ -167,7 +167,7 @@ func TestDeactivateFundLeavesTheFundOpenIfCancellationFails(t *testing.T) {
 	svc := donations.NewDonationService(donationStore, stubDocumentStorage{}, &paymentsMock, fundEvents, []string{"payments"}, logger)
 
 	memberStore := membersstore.NewMemberStore(pool)
-	memberSvc := members.NewMemberService(memberStore, donationStore, &paymentsMock, logger)
+	memberSvc := members.NewMemberService(memberStore, donationStore, &paymentsMock, fundEvents, logger)
 
 	fund, err := svc.CreateFund(ctx, donations.Fund{
 		Name: "Test Fund", Description: "d",
@@ -213,6 +213,77 @@ func TestDeactivateFundLeavesTheFundOpenIfCancellationFails(t *testing.T) {
 	require.NotEmpty(t, withDonations.Donations)
 
 	for _, donation := range withDonations.Donations {
+		assert.True(t, donation.Active, "donations should be untouched when cancellation fails")
+	}
+}
+
+// The partial-cancellation path used to return an error having already closed
+// the member and their donations, leaving some subscriptions live at the
+// provider and still charging someone whose account was shut.
+func TestDeactivateMemberLeavesTheMemberActiveIfCancellationFails(t *testing.T) {
+	ctx := context.Background()
+
+	container, pool, err := pg.SetupTestDatabase()
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = container.Terminate(ctx) })
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	paymentsMock := mocks.PaymentsProviderMock{}
+	paymentsMock.CreateFundFunc = func(ctx context.Context, name, description string) (string, error) {
+		return "provider-fund-id", nil
+	}
+	paymentsMock.CreatePlanFunc = func(ctx context.Context, plan donations.CreatePlan) (string, error) {
+		return "provider-plan-id", nil
+	}
+
+	donationStore := donationsstore.NewDonationStore(pool)
+	fundEvents := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
+	svc := donations.NewDonationService(donationStore, stubDocumentStorage{}, &paymentsMock, fundEvents, []string{"payments"}, logger)
+
+	memberStore := membersstore.NewMemberStore(pool)
+	memberSvc := members.NewMemberService(memberStore, donationStore, &paymentsMock, fundEvents, logger)
+
+	fund, err := svc.CreateFund(ctx, donations.Fund{
+		Name: "Test Fund", Description: "d",
+		PayoutFrequency: donations.PayoutFrequencyMonthly, Active: true,
+	})
+	require.NoError(t, err)
+
+	member, err := memberSvc.CreateMember(ctx, members.CreateMember{
+		FirstName: "Test", LastName: "User", Email: "membercancel@test.org", BCOName: "membercancel",
+	})
+	require.NoError(t, err)
+
+	plan, err := svc.CreateDonationPlan(ctx, donations.CreatePlan{
+		Name: "Plan", AmountCents: 1000, ProviderFundID: "pf",
+		IntervalUnit: donations.IntervalUnitMonth, IntervalCount: 1, FundID: fund.ID,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, svc.CompleteRecurringDonation(ctx, member.ID, donations.RecurringCompletion{
+		PlanID:                 uuid.NullUUID{UUID: plan.ID, Valid: true},
+		ProviderOrderID:        "order",
+		ProviderSubscriptionID: "sub-that-will-not-cancel",
+		AmountCents:            1000,
+		FundID:                 fund.ID,
+	}))
+
+	paymentsMock.CancelSubscriptionsFunc = func(ctx context.Context, ids []string) ([]string, error) {
+		return nil, nil
+	}
+
+	_, err = memberSvc.DeactivateMember(ctx, member.ID)
+	require.Error(t, err, "a member must not be closed while their subscriptions are still live")
+
+	after, err := memberSvc.GetMemberWithDonations(ctx, member.ID)
+	require.NoError(t, err)
+
+	assert.True(t, after.Active, "the member should still be active")
+	require.NotEmpty(t, after.Donations)
+
+	for _, donation := range after.Donations {
 		assert.True(t, donation.Active, "donations should be untouched when cancellation fails")
 	}
 }
