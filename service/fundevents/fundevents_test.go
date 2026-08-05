@@ -153,6 +153,32 @@ func TestFundEvents(t *testing.T) {
 		assert.Equal(t, int32(7500), *events[0].AmountCents)
 	})
 
+	// member.bco_name is nullable, so an actor can be recorded with no name to
+	// resolve. That must still read as a person, not as an automated action.
+	t.Run("an actor with no name is still not automatic", func(t *testing.T) {
+		fundID := seedFund(t, ctx, pool)
+
+		nameless := uuid.New()
+		_, err := pool.Exec(ctx,
+			`INSERT INTO member (id, email, bco_name, active) VALUES ($1, $2, NULL, true)`,
+			nameless, nameless.String()+"@test.org",
+		)
+		require.NoError(t, err)
+
+		svc.Record(ctx, fundevents.Record{
+			FundID:        fundID,
+			Kind:          fundevents.KindBatchApproved,
+			ActorMemberID: &nameless,
+		})
+
+		events, err := svc.GetFundEvents(ctx, fundID, fundevents.DefaultLimit)
+		require.NoError(t, err)
+		require.Len(t, events, 1)
+
+		assert.False(t, events[0].ByProvider(), "an actor is recorded, so a person did this")
+		assert.Empty(t, events[0].ActorName)
+	})
+
 	t.Run("limit is honoured", func(t *testing.T) {
 		fundID := seedFund(t, ctx, pool)
 

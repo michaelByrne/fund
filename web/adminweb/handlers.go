@@ -534,7 +534,7 @@ func (h *AdminHandlers) memberPage(w http.ResponseWriter, r *http.Request) {
 func (h *AdminHandlers) deactivateFund(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		http.Redirect(w, r, "/", http.StatusFound)
 
@@ -557,7 +557,7 @@ func (h *AdminHandlers) deactivateFund(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.donationService.DeactivateFund(ctx, idUUID)
+	err = h.donationService.DeactivateFund(ctx, idUUID, member.ID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		common.ErrorMessage(nil, "failed to deactivate fund", r.URL.Path, r.URL.Path).Render(ctx, w)

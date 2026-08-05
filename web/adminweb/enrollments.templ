@@ -80,6 +80,11 @@ templ EventActor(event fundevents.Event) {
 		<span class="italic">automatic</span>
 	} else if event.ActorName != "" {
 		<span>by { event.ActorName }</span>
+	} else {
+		// A person acted but has no name on record -- member.bco_name is
+		// nullable. Rendering nothing here would read as "automatic" with the
+		// label missing, which is the one confusion this column exists to avoid.
+		<span class="italic">by unknown member</span>
 	}
 }
 

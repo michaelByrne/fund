@@ -119,7 +119,7 @@ func TestDonationService_DeactivateFund(t *testing.T) {
 		err = donationTestService.CompleteRecurringDonation(ctx, member.ID, completeDonationTwo)
 		require.NoError(t, err)
 
-		err = donationTestService.DeactivateFund(ctx, fund.ID)
+		err = donationTestService.DeactivateFund(ctx, fund.ID, member.ID)
 		require.NoError(t, err)
 
 		fund, err = donationTestService.GetFundByID(ctx, fund.ID)

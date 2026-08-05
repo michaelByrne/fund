@@ -79,7 +79,7 @@ func (s DonationService) ListActiveFunds(ctx context.Context) ([]Fund, error) {
 	return funds, nil
 }
 
-func (s DonationService) DeactivateFund(ctx context.Context, id uuid.UUID) error {
+func (s DonationService) DeactivateFund(ctx context.Context, id, actorID uuid.UUID) error {
 	deactivated, err := s.donationStore.SetFundAndDonationsToInactive(ctx, id)
 	if err != nil {
 		s.logger.Error("failed to deactivate fund", slog.String("error", err.Error()))
@@ -91,6 +91,7 @@ func (s DonationService) DeactivateFund(ctx context.Context, id uuid.UUID) error
 		s.events.Record(ctx, fundevents.Record{
 			FundID:          cancelled.FundID,
 			Kind:            fundevents.KindDonationCancelled,
+			ActorMemberID:   &actorID,
 			SubjectMemberID: &cancelled.DonorID,
 			Detail:          "fund deactivated",
 			ReferenceID:     &cancelled.ID,
@@ -123,7 +124,7 @@ func (s DonationService) DeactivateFund(ctx context.Context, id uuid.UUID) error
 	return nil
 }
 
-func (s DonationService) DeactivateDonation(ctx context.Context, id uuid.UUID, reason string) (*Donation, error) {
+func (s DonationService) DeactivateDonation(ctx context.Context, id, actorID uuid.UUID, reason string) (*Donation, error) {
 	donation, err := s.donationStore.SetDonationToInactive(ctx, DeactivateDonation{
 		ID:     id,
 		Reason: reason,
@@ -137,6 +138,7 @@ func (s DonationService) DeactivateDonation(ctx context.Context, id uuid.UUID, r
 	s.events.Record(ctx, fundevents.Record{
 		FundID:          donation.FundID,
 		Kind:            fundevents.KindDonationCancelled,
+		ActorMemberID:   &actorID,
 		SubjectMemberID: &donation.DonorID,
 		Detail:          reason,
 		ReferenceID:     &donation.ID,
@@ -226,6 +228,7 @@ func (s DonationService) CompleteRecurringDonation(ctx context.Context, memberID
 	s.events.Record(ctx, fundevents.Record{
 		FundID:          completion.FundID,
 		Kind:            fundevents.KindDonationStarted,
+		ActorMemberID:   &memberID,
 		SubjectMemberID: &memberID,
 		AmountCents:     &completion.AmountCents,
 		Detail:          "recurring",
@@ -278,6 +281,7 @@ func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUI
 	s.events.Record(ctx, fundevents.Record{
 		FundID:          completion.FundID,
 		Kind:            fundevents.KindDonationStarted,
+		ActorMemberID:   &memberID,
 		SubjectMemberID: &memberID,
 		AmountCents:     &completion.AmountCents,
 		Detail:          "one-time",
@@ -287,6 +291,7 @@ func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUI
 	s.events.Record(ctx, fundevents.Record{
 		FundID:          completion.FundID,
 		Kind:            fundevents.KindPaymentReceived,
+		ActorMemberID:   &memberID,
 		SubjectMemberID: &memberID,
 		AmountCents:     &completion.AmountCents,
 		ReferenceID:     &insertDonation.ID,
