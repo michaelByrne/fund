@@ -1,11 +1,20 @@
 package enrollments
 
 import (
+	"boardfund/service/donations"
 	"boardfund/service/fundevents"
 	"context"
 	"github.com/google/uuid"
 	"log/slog"
+	"time"
 )
+
+// fundStore supplies the payout schedule. An enrollment's first payout is a
+// property of the fund it joins, so the service reads it rather than having the
+// handler compute a domain date and pass it down.
+type fundStore interface {
+	GetFundByID(ctx context.Context, id uuid.UUID) (*donations.Fund, error)
+}
 
 type enrollmentStore interface {
 	InsertEnrollment(ctx context.Context, arg InsertEnrollment) (*Enrollment, error)
@@ -24,14 +33,16 @@ type eventRecorder interface {
 
 type EnrollmentsService struct {
 	enrollmentStore enrollmentStore
+	fundStore       fundStore
 	events          eventRecorder
 
 	logger *slog.Logger
 }
 
-func NewEnrollmentsService(enrollmentStore enrollmentStore, events eventRecorder, logger *slog.Logger) *EnrollmentsService {
+func NewEnrollmentsService(enrollmentStore enrollmentStore, fundStore fundStore, events eventRecorder, logger *slog.Logger) *EnrollmentsService {
 	return &EnrollmentsService{
 		enrollmentStore: enrollmentStore,
+		fundStore:       fundStore,
 		events:          events,
 		logger:          logger,
 	}
@@ -56,12 +67,23 @@ func (s EnrollmentsService) DeactivateEnrollment(ctx context.Context, enrollment
 }
 
 func (s EnrollmentsService) CreateEnrollment(ctx context.Context, createEnrollment CreateEnrollment) (*Enrollment, error) {
+	fund, err := s.fundStore.GetFundByID(ctx, createEnrollment.FundID)
+	if err != nil {
+		s.logger.Error("failed to get fund for enrollment", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
 	insert := InsertEnrollment{
 		MemberID:      createEnrollment.MemberID,
 		FundID:        createEnrollment.FundID,
 		ID:            uuid.New(),
 		PaypalEmail:   createEnrollment.PaypalEmail,
 		MemberBCOName: createEnrollment.MemberBCOName,
+
+		// The fund's next scheduled payout: no waiting period, but a real date
+		// rather than the instant they enrolled.
+		FirstPayoutDate: fund.NextPaymentAfter(time.Now()),
 	}
 
 	updatePaypal := UpdatePaypalEmail{

@@ -201,7 +201,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	memberService := members.NewMemberService(memberStore, donationStore, paypalService, logger)
 	authService := auth.NewAuthService(memberStore, authStore, authorizer, logger)
 	financeService := finance.NewFinanceService(donationStore, paypalService, documentStorage, fundEvents, runConfig.ReportTypes, logger)
-	enrollmentService := enrollments.NewEnrollmentsService(enrollmentStore, fundEvents, logger)
+	enrollmentService := enrollments.NewEnrollmentsService(enrollmentStore, donationStore, fundEvents, logger)
 
 	// No notifier yet: approval reminders are logged by the sweep until a delivery
 	// channel exists. The service tolerates a nil notifier.

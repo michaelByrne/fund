@@ -124,7 +124,7 @@ func (q *Queries) GetEnrollmentForFundByMemberId(ctx context.Context, arg GetEnr
 
 const insertEnrollment = `-- name: InsertEnrollment :one
 INSERT INTO fund_enrollment (id, fund_id, member_id, first_payout_date, member_bco_name, paypal_email, active)
-SELECT $1, $2, $3, now(), $4, $5, true
+SELECT $1, $2, $3, $6::timestamptz, $4, $5, true
 FROM fund
 WHERE fund.id = $2
 ON CONFLICT (fund_id, member_id) DO UPDATE
@@ -135,23 +135,24 @@ RETURNING id, fund_id, member_id, member_bco_name, first_payout_date, active, cr
 `
 
 type InsertEnrollmentParams struct {
-	ID            uuid.UUID
-	FundID        uuid.UUID
-	MemberID      uuid.UUID
-	MemberBcoName pgtype.Text
-	PaypalEmail   string
+	ID              uuid.UUID
+	FundID          uuid.UUID
+	MemberID        uuid.UUID
+	MemberBcoName   pgtype.Text
+	PaypalEmail     string
+	FirstPayoutDate pgtype.Timestamptz
 }
 
-// Enrollees are eligible immediately: first_payout_date is now(), so they are in
-// the next batch planned.
+// first_payout_date is the fund's next scheduled payout, passed in by the caller.
 //
 // It was fund.next_payment + 1 month, meaning "skip the upcoming payout, take the
-// one after". That waited between one and two months depending on where in the
-// cycle someone joined, and it read from a column nothing advances, so once that
-// fixed date passed the wait silently stopped applying to anyone.
+// one after" -- a wait of one to two months depending on where in the cycle
+// someone joined, computed from a column nothing advances.
 //
-// The column and the eligibility filter both stay. Reintroducing a waiting period
-// is a change to this expression and nothing else.
+// Not now() either: the column names the date of someone's first payout, and the
+// moment they signed up is not that. A fund paying on the 5th should say the 5th.
+// Computed in Go from the fund's schedule so the rolling-forward and month-end
+// clamping live in one place rather than being restated in SQL.
 func (q *Queries) InsertEnrollment(ctx context.Context, arg InsertEnrollmentParams) (FundEnrollment, error) {
 	row := q.db.QueryRow(ctx, insertEnrollment,
 		arg.ID,
@@ -159,6 +160,7 @@ func (q *Queries) InsertEnrollment(ctx context.Context, arg InsertEnrollmentPara
 		arg.MemberID,
 		arg.MemberBcoName,
 		arg.PaypalEmail,
+		arg.FirstPayoutDate,
 	)
 	var i FundEnrollment
 	err := row.Scan(

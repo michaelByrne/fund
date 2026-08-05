@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"boardfund/pg"
+	"boardfund/service/donations"
+	donationstore "boardfund/service/donations/store"
 	"boardfund/service/enrollments"
 	enrollmentstore "boardfund/service/enrollments/store"
 	"boardfund/service/fundevents"
@@ -63,13 +65,15 @@ func TestEnrolleesAreEligibleImmediately(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	svc := enrollments.NewEnrollmentsService(
 		enrollmentstore.NewEnrollmentStore(pool),
+		donationstore.NewDonationStore(pool),
 		fundevents.NewService(fundeventstore.NewEventStore(pool), logger),
 		logger,
 	)
 
-	// A fund whose next payment is a long way off is the case that used to push
-	// eligibility furthest out.
-	fundID := seedFund(t, ctx, pool, time.Now().Add(90*24*time.Hour))
+	// An anchor over a year in the past: the schedule has to roll forward to a
+	// real upcoming date rather than handing back something stale.
+	anchor := time.Now().AddDate(-1, 0, -3)
+	fundID := seedFund(t, ctx, pool, anchor)
 	memberID := seedMember(t, ctx, pool)
 
 	enrollment, err := svc.CreateEnrollment(ctx, enrollments.CreateEnrollment{
@@ -79,24 +83,15 @@ func TestEnrolleesAreEligibleImmediately(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Deliberately not compared against time.Now() at sub-second precision. The
-	// column is written by the database's clock and read by the application's,
-	// and those differ -- the container this test runs against sits about 90ms
-	// ahead of the host, which is enough to make "now" look like the future.
-	assert.WithinDuration(t, time.Now(), enrollment.FirstPayoutDate, time.Minute,
-		"a new enrollee should be dated at enrollment, not months out")
+	// The fund's next scheduled payout, not the moment of enrolment: the column
+	// names a payout date and should hold one. For an anchor three days before
+	// today's date a year ago, that is three days from now.
+	fund := donations.Fund{PayoutFrequency: donations.PayoutFrequencyMonthly, NextPayment: anchor}
+	assert.WithinDuration(t, fund.NextPaymentAfter(time.Now()), enrollment.FirstPayoutDate, time.Minute,
+		"first payout should be the fund's next scheduled payout")
 
-	assert.True(t, enrollment.Payable(time.Now().Add(time.Minute)),
-		"a new enrollee with a payout address belongs in the next batch")
-
-	// This is the assertion that matters: the eligibility query decides who is
-	// actually included, and it compares the column against the database's own
-	// clock, so it is immune to the skew above.
-	var eligible bool
-	err = pool.QueryRow(ctx,
-		`SELECT first_payout_date <= now() FROM fund_enrollment WHERE id = $1`,
-		enrollment.ID,
-	).Scan(&eligible)
-	require.NoError(t, err)
-	assert.True(t, eligible, "the payout query must include a member who just enrolled")
+	// No waiting period means at most one period away, never the two the old
+	// next_payment + 1 month rule could produce.
+	assert.True(t, enrollment.FirstPayoutDate.Before(time.Now().AddDate(0, 1, 1)),
+		"a new enrollee should not be waiting more than one period")
 }

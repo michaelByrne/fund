@@ -8,11 +8,12 @@ import (
 )
 
 type InsertEnrollment struct {
-	ID            uuid.UUID
-	MemberID      uuid.UUID
-	MemberBCOName string
-	FundID        uuid.UUID
-	PaypalEmail   string
+	ID              uuid.UUID
+	MemberID        uuid.UUID
+	MemberBCOName   string
+	FundID          uuid.UUID
+	PaypalEmail     string
+	FirstPayoutDate time.Time
 }
 
 type Enrollment struct {
