@@ -29,6 +29,12 @@ var (
 	// Deactivating a fund cancels its donations but leaves enrollments intact,
 	// so without this a fund that stopped taking money could still send it.
 	ErrFundInactive = errors.New("fund is not active")
+
+	// ErrFundNotFound is returned when the fund does not exist at all. Kept
+	// distinct from ErrFundInactive because a mistyped id and a closed fund need
+	// different things done about them, and distinct from the raw pgx error,
+	// which reaches a CLI user as "no rows in result set".
+	ErrFundNotFound = errors.New("fund not found")
 )
 
 // DefaultApprovalWindow is how long a treasurer has to approve a batch before it

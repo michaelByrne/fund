@@ -124,9 +124,11 @@ func (s DonationService) DeactivateFund(ctx context.Context, id, actorID uuid.UU
 			return errCancel
 		}
 
-		if len(cancelled) != len(toCancel) {
-			uncancelled := uncancelledSubscriptions(cancelled, toCancel)
-
+		// Compared by membership, not by count. Equal lengths would also be true
+		// of a provider that returned duplicates or a different set of ids, and
+		// the question here is whether anything we asked for is still running.
+		uncancelled := uncancelledSubscriptions(cancelled, toCancel)
+		if len(uncancelled) > 0 {
 			s.logger.Error("could not cancel every subscription, fund left active",
 				slog.String("fund_id", id.String()),
 				slog.String("uncancelled", fmt.Sprintf("%v", uncancelled)),

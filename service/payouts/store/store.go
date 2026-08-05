@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"boardfund/db"
@@ -9,6 +10,7 @@ import (
 	"boardfund/service/payouts"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -87,7 +89,20 @@ func (s PayoutStore) GetPayoutsForBatch(ctx context.Context, batchID uuid.UUID) 
 }
 
 func (s PayoutStore) IsFundActive(ctx context.Context, fundID uuid.UUID) (bool, error) {
-	return s.queries.IsFundActive(ctx, fundID)
+	active, err := s.queries.IsFundActive(ctx, fundID)
+	if err != nil {
+		// A missing fund is a distinct answer, not a query failure. Left raw it
+		// surfaced as "no rows in result set", and before this check existed the
+		// enrollment query turned it into "no eligible enrollments" -- neither of
+		// which tells someone they got the id wrong.
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, payouts.ErrFundNotFound
+		}
+
+		return false, err
+	}
+
+	return active, nil
 }
 
 func (s PayoutStore) GetEnrollmentsForPayout(ctx context.Context, fundID uuid.UUID) ([]payouts.PayoutEnrollment, error) {

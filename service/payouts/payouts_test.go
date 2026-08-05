@@ -343,6 +343,18 @@ func TestPayoutService(t *testing.T) {
 			"a closed fund should say so, not report that nobody is eligible")
 	})
 
+	// A mistyped id used to reach the caller as "no rows in result set", and
+	// before the active check existed it read as "no eligible enrollments" --
+	// neither of which says the fund is not there.
+	t.Run("a fund that does not exist says so", func(t *testing.T) {
+		svc := newService(t, pool, &stubProvider{})
+
+		_, err := svc.PlanBatch(ctx, payouts.PlanBatch{
+			FundID: uuid.New(), PayoutDate: time.Now(), AmountCents: 500, RequireApproval: true,
+		})
+		require.ErrorIs(t, err, payouts.ErrFundNotFound)
+	})
+
 	t.Run("a fund with no payable enrollees yields no batch", func(t *testing.T) {
 		svc := newService(t, pool, &stubProvider{})
 
