@@ -1,27 +1,37 @@
 package donations
 
 import (
+	"boardfund/service/fundevents"
 	"context"
 	"fmt"
 	"github.com/google/uuid"
 	"log/slog"
 )
 
+// eventRecorder writes the fund activity feed. Record does not return an error
+// on purpose: it runs after the operation it describes has committed, so there
+// is nothing a caller could usefully do about a failure.
+type eventRecorder interface {
+	Record(ctx context.Context, record fundevents.Record)
+}
+
 type DonationService struct {
 	donationStore    donationStore
 	documentStorage  documentStorage
 	paymentsProvider PaymentsProvider
+	events           eventRecorder
 
 	reportBuckets []string
 
 	logger *slog.Logger
 }
 
-func NewDonationService(donationStore donationStore, documentStorage documentStorage, provider PaymentsProvider, reportBuckets []string, logger *slog.Logger) *DonationService {
+func NewDonationService(donationStore donationStore, documentStorage documentStorage, provider PaymentsProvider, events eventRecorder, reportBuckets []string, logger *slog.Logger) *DonationService {
 	return &DonationService{
 		donationStore:    donationStore,
 		documentStorage:  documentStorage,
 		paymentsProvider: provider,
+		events:           events,
 		logger:           logger,
 		reportBuckets:    reportBuckets,
 	}
@@ -69,12 +79,23 @@ func (s DonationService) ListActiveFunds(ctx context.Context) ([]Fund, error) {
 	return funds, nil
 }
 
-func (s DonationService) DeactivateFund(ctx context.Context, id uuid.UUID) error {
+func (s DonationService) DeactivateFund(ctx context.Context, id, actorID uuid.UUID) error {
 	deactivated, err := s.donationStore.SetFundAndDonationsToInactive(ctx, id)
 	if err != nil {
 		s.logger.Error("failed to deactivate fund", slog.String("error", err.Error()))
 
 		return err
+	}
+
+	for _, cancelled := range deactivated {
+		s.events.Record(ctx, fundevents.Record{
+			FundID:          cancelled.FundID,
+			Kind:            fundevents.KindDonationCancelled,
+			ActorMemberID:   &actorID,
+			SubjectMemberID: &cancelled.DonorID,
+			Detail:          "fund deactivated",
+			ReferenceID:     &cancelled.ID,
+		})
 	}
 
 	toCancel := extractProviderSubscriptionIDs(deactivated)
@@ -103,7 +124,7 @@ func (s DonationService) DeactivateFund(ctx context.Context, id uuid.UUID) error
 	return nil
 }
 
-func (s DonationService) DeactivateDonation(ctx context.Context, id uuid.UUID, reason string) (*Donation, error) {
+func (s DonationService) DeactivateDonation(ctx context.Context, id, actorID uuid.UUID, reason string) (*Donation, error) {
 	donation, err := s.donationStore.SetDonationToInactive(ctx, DeactivateDonation{
 		ID:     id,
 		Reason: reason,
@@ -113,6 +134,15 @@ func (s DonationService) DeactivateDonation(ctx context.Context, id uuid.UUID, r
 
 		return nil, err
 	}
+
+	s.events.Record(ctx, fundevents.Record{
+		FundID:          donation.FundID,
+		Kind:            fundevents.KindDonationCancelled,
+		ActorMemberID:   &actorID,
+		SubjectMemberID: &donation.DonorID,
+		Detail:          reason,
+		ReferenceID:     &donation.ID,
+	})
 
 	return donation, nil
 }
@@ -195,6 +225,16 @@ func (s DonationService) CompleteRecurringDonation(ctx context.Context, memberID
 		return err
 	}
 
+	s.events.Record(ctx, fundevents.Record{
+		FundID:          completion.FundID,
+		Kind:            fundevents.KindDonationStarted,
+		ActorMemberID:   &memberID,
+		SubjectMemberID: &memberID,
+		AmountCents:     &completion.AmountCents,
+		Detail:          "recurring",
+		ReferenceID:     &insertDonation.ID,
+	})
+
 	return nil
 }
 
@@ -237,6 +277,25 @@ func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUI
 
 		return err
 	}
+
+	s.events.Record(ctx, fundevents.Record{
+		FundID:          completion.FundID,
+		Kind:            fundevents.KindDonationStarted,
+		ActorMemberID:   &memberID,
+		SubjectMemberID: &memberID,
+		AmountCents:     &completion.AmountCents,
+		Detail:          "one-time",
+		ReferenceID:     &insertDonation.ID,
+	})
+
+	s.events.Record(ctx, fundevents.Record{
+		FundID:          completion.FundID,
+		Kind:            fundevents.KindPaymentReceived,
+		ActorMemberID:   &memberID,
+		SubjectMemberID: &memberID,
+		AmountCents:     &completion.AmountCents,
+		ReferenceID:     &insertDonation.ID,
+	})
 
 	return nil
 }

@@ -8,6 +8,8 @@ import (
 	"boardfund/pg"
 	donationstore "boardfund/service/donations/store"
 	"boardfund/service/finance"
+	"boardfund/service/fundevents"
+	fundeventstore "boardfund/service/fundevents/store"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -52,7 +54,9 @@ func DonationsAuditCmd(runConfig *root.RunConfig) *cobra.Command {
 
 			donationStore := donationstore.NewDonationStore(pool)
 
-			financeService := finance.NewFinanceService(donationStore, paypalService, donationsPaymentsS3, runConfig.ReportTypes, logger)
+			fundEvents := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
+
+			financeService := finance.NewFinanceService(donationStore, paypalService, donationsPaymentsS3, fundEvents, runConfig.ReportTypes, logger)
 			err = financeService.RunRecurringDonationReconciliation(cmd.Context())
 			if err != nil {
 				return fmt.Errorf("failed to reconcile recurring donations: %w", err)

@@ -4,6 +4,8 @@ import (
 	"boardfund/pg"
 	"boardfund/service/donations"
 	donationsstore "boardfund/service/donations/store"
+	"boardfund/service/fundevents"
+	fundeventstore "boardfund/service/fundevents/store"
 	"boardfund/service/members"
 	membersstore "boardfund/service/members/store"
 	"boardfund/service/mocks"
@@ -53,7 +55,8 @@ func TestDonationService_DeactivateFund(t *testing.T) {
 		logger := slog.New(nopHandler)
 
 		donationTestStore := donationsstore.NewDonationStore(pool)
-		donationTestService := donations.NewDonationService(donationTestStore, stubDocumentStorage{}, &paymentsMock, []string{"payments"}, logger)
+		fundEvents := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
+		donationTestService := donations.NewDonationService(donationTestStore, stubDocumentStorage{}, &paymentsMock, fundEvents, []string{"payments"}, logger)
 
 		memberTestStore := membersstore.NewMemberStore(pool)
 		memberTestService := members.NewMemberService(memberTestStore, donationTestStore, &paymentsMock, logger)
@@ -116,7 +119,7 @@ func TestDonationService_DeactivateFund(t *testing.T) {
 		err = donationTestService.CompleteRecurringDonation(ctx, member.ID, completeDonationTwo)
 		require.NoError(t, err)
 
-		err = donationTestService.DeactivateFund(ctx, fund.ID)
+		err = donationTestService.DeactivateFund(ctx, fund.ID, member.ID)
 		require.NoError(t, err)
 
 		fund, err = donationTestService.GetFundByID(ctx, fund.ID)

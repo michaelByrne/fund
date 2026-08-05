@@ -1,7 +1,8 @@
 package donations
 
 import (
-	"boardfund/events"
+	"boardfund/messaging"
+	"boardfund/service/fundevents"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,13 +15,15 @@ import (
 
 type Handlers struct {
 	donationStore donationStore
+	events        eventRecorder
 
 	logger *slog.Logger
 }
 
-func NewHandlers(donationStore donationStore, logger *slog.Logger) *Handlers {
+func NewHandlers(donationStore donationStore, events eventRecorder, logger *slog.Logger) *Handlers {
 	return &Handlers{
 		donationStore: donationStore,
+		events:        events,
 		logger:        logger,
 	}
 }
@@ -28,16 +31,16 @@ func NewHandlers(donationStore donationStore, logger *slog.Logger) *Handlers {
 func (h *Handlers) Subscribe(subscriber subscriber) error {
 	var errResult error
 
-	if err := subscriber.Subscribe(events.PaymentCompleted, h.paymentSaleCompleted); err != nil {
-		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", events.PaymentCompleted, err))
+	if err := subscriber.Subscribe(messaging.PaymentCompleted, h.paymentSaleCompleted); err != nil {
+		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", messaging.PaymentCompleted, err))
 	}
 
-	if err := subscriber.Subscribe(events.SubscriptionExpired, h.subscriptionEnded); err != nil {
-		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", events.SubscriptionExpired, err))
+	if err := subscriber.Subscribe(messaging.SubscriptionExpired, h.subscriptionEnded); err != nil {
+		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", messaging.SubscriptionExpired, err))
 	}
 
-	if err := subscriber.Subscribe(events.SubscriptionCancelled, h.subscriptionEnded); err != nil {
-		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", events.SubscriptionCancelled, err))
+	if err := subscriber.Subscribe(messaging.SubscriptionCancelled, h.subscriptionEnded); err != nil {
+		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", messaging.SubscriptionCancelled, err))
 	}
 
 	return errResult
@@ -56,10 +59,24 @@ func (h *Handlers) subscriptionEnded(data []byte) {
 		Reason:         subscriptionEnded.Status,
 	}
 
-	_, err := h.donationStore.SetDonationToInactiveBySubscriptionID(context.Background(), deactivateSub)
+	donation, err := h.donationStore.SetDonationToInactiveBySubscriptionID(context.Background(), deactivateSub)
 	if err != nil {
 		h.logger.Error("failed to deactivate donation by subscription id", slog.String("error", err.Error()))
+
+		return
 	}
+
+	// No actor: the provider ended this, not a person. OccurredAt is the
+	// provider's own timestamp, so the feed reads in the order things actually
+	// happened rather than the order we heard about them.
+	h.events.Record(context.Background(), fundevents.Record{
+		FundID:          donation.FundID,
+		Kind:            fundevents.KindDonationCancelled,
+		OccurredAt:      subscriptionEnded.StatusUpdateTime,
+		SubjectMemberID: &donation.DonorID,
+		Detail:          "subscription " + strings.ToLower(subscriptionEnded.Status) + " at provider",
+		ReferenceID:     &donation.ID,
+	})
 }
 
 func (h *Handlers) paymentSaleCompleted(data []byte) {
@@ -108,7 +125,19 @@ func (h *Handlers) paymentSaleCompleted(data []byte) {
 	_, err = h.donationStore.InsertDonationPayment(context.Background(), insertPayment)
 	if err != nil {
 		h.logger.Error("failed to insert donation payment", slog.String("error", err.Error()))
+
+		return
 	}
+
+	h.events.Record(context.Background(), fundevents.Record{
+		FundID:          parentDonation.FundID,
+		Kind:            fundevents.KindPaymentReceived,
+		OccurredAt:      paymentSale.CreateTime,
+		SubjectMemberID: &parentDonation.DonorID,
+		AmountCents:     &amountCents,
+		Detail:          "recurring",
+		ReferenceID:     &parentDonation.ID,
+	})
 }
 
 func dollarStringToCents(dollarStr string) (int32, error) {

@@ -1,6 +1,6 @@
-package events
+package messaging
 
-// Paypal events
+// Paypal webhook event types, used as subjects on this bus.
 const (
 	PaymentCompleted          = "PAYMENT.SALE.COMPLETED"
 	SubscriptionExpired       = "BILLING.SUBSCRIPTION.EXPIRED"

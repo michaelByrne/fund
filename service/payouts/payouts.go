@@ -1,6 +1,7 @@
 package payouts
 
 import (
+	"boardfund/service/fundevents"
 	"context"
 	"errors"
 	"fmt"
@@ -61,6 +62,12 @@ type PayoutsProvider interface {
 	GetBatchStatus(ctx context.Context, providerBatchID string) (*ProviderBatchResult, error)
 }
 
+// eventRecorder writes the fund activity feed. Record does not return an error:
+// it runs after the operation it describes has committed.
+type eventRecorder interface {
+	Record(ctx context.Context, record fundevents.Record)
+}
+
 // approvalNotifier is told when a batch needs a treasurer's attention. Kept narrow
 // so the service does not depend on how the message is delivered.
 type approvalNotifier interface {
@@ -72,6 +79,7 @@ type PayoutService struct {
 	payoutStore payoutStore
 	provider    PayoutsProvider
 	notifier    approvalNotifier
+	events      eventRecorder
 
 	approvalWindow time.Duration
 	reminderWindow time.Duration
@@ -79,7 +87,7 @@ type PayoutService struct {
 	logger *slog.Logger
 }
 
-func NewPayoutService(payoutStore payoutStore, provider PayoutsProvider, notifier approvalNotifier, approvalWindow, reminderWindow time.Duration, logger *slog.Logger) *PayoutService {
+func NewPayoutService(payoutStore payoutStore, provider PayoutsProvider, notifier approvalNotifier, events eventRecorder, approvalWindow, reminderWindow time.Duration, logger *slog.Logger) *PayoutService {
 	if approvalWindow <= 0 {
 		approvalWindow = DefaultApprovalWindow
 	}
@@ -92,6 +100,7 @@ func NewPayoutService(payoutStore payoutStore, provider PayoutsProvider, notifie
 		payoutStore:    payoutStore,
 		provider:       provider,
 		notifier:       notifier,
+		events:         events,
 		approvalWindow: approvalWindow,
 		reminderWindow: reminderWindow,
 		logger:         logger,
@@ -181,6 +190,14 @@ func (s PayoutService) PlanBatch(ctx context.Context, req PlanBatch) (*Batch, er
 		return nil, err
 	}
 
+	s.events.Record(ctx, fundevents.Record{
+		FundID:      batch.FundID,
+		Kind:        fundevents.KindBatchPlanned,
+		AmountCents: &batch.AmountCents,
+		Detail:      fmt.Sprintf("%d payees", batch.NumEnrollments),
+		ReferenceID: &batch.ID,
+	})
+
 	logger.Info("planned payout batch",
 		slog.String("batch_id", batch.ID.String()),
 		slog.Int("num_enrollments", int(batch.NumEnrollments)),
@@ -216,6 +233,16 @@ func (s PayoutService) ApproveBatch(ctx context.Context, batchID, approvedBy uui
 		return nil, fmt.Errorf("%w: %w", ErrNotApprovable, err)
 	}
 
+	// The one event with a real actor throughout: a person authorised money to
+	// leave the fund, and the feed should say who.
+	s.events.Record(ctx, fundevents.Record{
+		FundID:        batch.FundID,
+		Kind:          fundevents.KindBatchApproved,
+		ActorMemberID: &approvedBy,
+		AmountCents:   &batch.AmountCents,
+		ReferenceID:   &batch.ID,
+	})
+
 	s.logger.Info("batch approved",
 		slog.String("batch_id", batch.ID.String()),
 		slog.String("approved_by", approvedBy.String()),
@@ -241,6 +268,14 @@ func (s PayoutService) RejectBatch(ctx context.Context, batchID uuid.UUID, reaso
 
 		return nil, fmt.Errorf("%w: %w", ErrNotApprovable, err)
 	}
+
+	s.events.Record(ctx, fundevents.Record{
+		FundID:      batch.FundID,
+		Kind:        fundevents.KindBatchRejected,
+		AmountCents: &batch.AmountCents,
+		Detail:      reason,
+		ReferenceID: &batch.ID,
+	})
 
 	s.logger.Info("batch rejected", slog.String("batch_id", batch.ID.String()), slog.String("reason", reason))
 
@@ -307,6 +342,14 @@ func (s PayoutService) SubmitBatch(ctx context.Context, batchID uuid.UUID) (*Bat
 	// Per-item IDs are deliberately not read here: PayPal's create-batch response
 	// carries only the batch header. Item IDs and their statuses arrive via
 	// ReconcileBatch, matched back through sender_item_id.
+	s.events.Record(ctx, fundevents.Record{
+		FundID:      batch.FundID,
+		Kind:        fundevents.KindBatchSubmitted,
+		AmountCents: &batch.AmountCents,
+		Detail:      fmt.Sprintf("%d payees", batch.NumEnrollments),
+		ReferenceID: &batch.ID,
+	})
+
 	logger.Info("batch submitted",
 		slog.String("provider_batch_id", result.ProviderBatchID),
 		slog.Int("num_items", len(providerItems)),
@@ -422,14 +465,28 @@ func (s PayoutService) ReconcileBatch(ctx context.Context, batchID uuid.UUID) er
 		}
 	}
 
+	settled := ProviderStatusToStatus(result.Status)
+
 	_, err = s.payoutStore.SetBatchStatus(ctx, SetBatchStatus{
 		BatchID: batch.ID,
-		Status:  ProviderStatusToStatus(result.Status),
+		Status:  settled,
 	})
 	if err != nil {
 		logger.Error("failed to update batch status", slog.String("error", err.Error()))
 
 		return err
+	}
+
+	// Only once it stops moving. Recording every poll would bury the feed under
+	// "still pending".
+	if settled.Terminal() && settled != batch.Status {
+		s.events.Record(ctx, fundevents.Record{
+			FundID:      batch.FundID,
+			Kind:        fundevents.KindBatchSettled,
+			AmountCents: &batch.AmountCents,
+			Detail:      string(settled),
+			ReferenceID: &batch.ID,
+		})
 	}
 
 	return nil

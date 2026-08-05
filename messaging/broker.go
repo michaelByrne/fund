@@ -1,4 +1,11 @@
-package events
+// Package messaging carries provider webhooks from the HTTP handler that receives
+// them to the services that act on them. It is transport, not a record.
+//
+// Not to be confused with service/fundevents, which is the audit trail of what
+// happened to a fund. This bus is in-process and has no persistence, so anything
+// published here can be lost on restart; anything that must survive gets written
+// to the database instead.
+package messaging
 
 import "github.com/nats-io/nats.go"
 

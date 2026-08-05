@@ -2,6 +2,7 @@ package finance
 
 import (
 	"boardfund/service/donations"
+	"boardfund/service/fundevents"
 	"bytes"
 	"context"
 	"encoding/csv"
@@ -83,21 +84,29 @@ type documentManager interface {
 	GetReport(ctx context.Context, reportType string, fundID uuid.UUID, date time.Time) (io.Reader, error)
 }
 
+// eventRecorder writes the fund activity feed. Record does not return an error:
+// it runs after the operation it describes has committed.
+type eventRecorder interface {
+	Record(ctx context.Context, record fundevents.Record)
+}
+
 type FinanceService struct {
 	donationStore    donationStore
 	paymentsProvider paymentsProvider
 	documentManager  documentManager
+	events           eventRecorder
 
 	reportPrefixes []string
 
 	logger *slog.Logger
 }
 
-func NewFinanceService(donationStore donationStore, paymentsProvider paymentsProvider, documentManager documentManager, reportPrefixes []string, logger *slog.Logger) *FinanceService {
+func NewFinanceService(donationStore donationStore, paymentsProvider paymentsProvider, documentManager documentManager, events eventRecorder, reportPrefixes []string, logger *slog.Logger) *FinanceService {
 	return &FinanceService{
 		donationStore:    donationStore,
 		paymentsProvider: paymentsProvider,
 		documentManager:  documentManager,
+		events:           events,
 		reportPrefixes:   reportPrefixes,
 		logger:           logger,
 	}
@@ -311,6 +320,15 @@ func (s FinanceService) reconcileRecurringDonationsForFund(ctx context.Context, 
 
 				return errInner
 			}
+
+			// No actor: reconciliation found the provider had already ended it.
+			s.events.Record(ctx, fundevents.Record{
+				FundID:          donation.FundID,
+				Kind:            fundevents.KindDonationCancelled,
+				SubjectMemberID: &donation.DonorID,
+				Detail:          "subscription " + strings.ToLower(status) + " at provider, found by reconciliation",
+				ReferenceID:     &donation.ID,
+			})
 		}
 
 		payments, errInner := s.donationStore.GetDonationPaymentsByDonationID(ctx, donation.ID)

@@ -1,6 +1,7 @@
 package enrollments
 
 import (
+	"boardfund/service/fundevents"
 	"context"
 	"github.com/google/uuid"
 	"log/slog"
@@ -15,15 +16,23 @@ type enrollmentStore interface {
 	DeactivateEnrollment(ctx context.Context, arg uuid.UUID) (*Enrollment, error)
 }
 
+// eventRecorder writes the fund activity feed. Record does not return an error:
+// it runs after the operation it describes has committed.
+type eventRecorder interface {
+	Record(ctx context.Context, record fundevents.Record)
+}
+
 type EnrollmentsService struct {
 	enrollmentStore enrollmentStore
+	events          eventRecorder
 
 	logger *slog.Logger
 }
 
-func NewEnrollmentsService(enrollmentStore enrollmentStore, logger *slog.Logger) *EnrollmentsService {
+func NewEnrollmentsService(enrollmentStore enrollmentStore, events eventRecorder, logger *slog.Logger) *EnrollmentsService {
 	return &EnrollmentsService{
 		enrollmentStore: enrollmentStore,
+		events:          events,
 		logger:          logger,
 	}
 }
@@ -35,6 +44,13 @@ func (s EnrollmentsService) DeactivateEnrollment(ctx context.Context, enrollment
 
 		return nil, err
 	}
+
+	s.events.Record(ctx, fundevents.Record{
+		FundID:          enrollment.FundID,
+		Kind:            fundevents.KindEnrollmentCancelled,
+		SubjectMemberID: &enrollment.MemberID,
+		ReferenceID:     &enrollment.ID,
+	})
 
 	return enrollment, nil
 }
@@ -59,6 +75,13 @@ func (s EnrollmentsService) CreateEnrollment(ctx context.Context, createEnrollme
 
 		return nil, err
 	}
+
+	s.events.Record(ctx, fundevents.Record{
+		FundID:          enrollment.FundID,
+		Kind:            fundevents.KindMemberEnrolled,
+		SubjectMemberID: &enrollment.MemberID,
+		ReferenceID:     &enrollment.ID,
+	})
 
 	return enrollment, nil
 }

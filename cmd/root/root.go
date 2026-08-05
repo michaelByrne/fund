@@ -2,9 +2,9 @@ package root
 
 import (
 	"boardfund/aws"
-	"boardfund/events"
 	"boardfund/jwtauth"
 	"boardfund/jwtauth/keyset"
+	"boardfund/messaging"
 	"boardfund/paypal"
 	"boardfund/paypal/token"
 	"boardfund/pg"
@@ -15,6 +15,8 @@ import (
 	"boardfund/service/enrollments"
 	enrollmentstore "boardfund/service/enrollments/store"
 	"boardfund/service/finance"
+	"boardfund/service/fundevents"
+	fundeventstore "boardfund/service/fundevents/store"
 	"boardfund/service/members"
 	memberstore "boardfund/service/members/store"
 	"boardfund/service/payouts"
@@ -156,6 +158,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	memberStore := memberstore.NewMemberStore(pool)
 	enrollmentStore := enrollmentstore.NewEnrollmentStore(pool)
 	payoutStore := payoutstore.NewPayoutStore(pool)
+	eventStore := fundeventstore.NewEventStore(pool)
 	authStore := store.NewAuthStore(pool)
 	sessionManager := scs.New()
 	sessionManager.IdleTimeout = 1 * time.Hour
@@ -180,18 +183,20 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	}
 	verifier := jwtauth.NewToken(kset)
 
-	messageBroker := events.NewNATSMessageBroker(nc)
+	messageBroker := messaging.NewNATSMessageBroker(nc)
 
-	donationService := donations.NewDonationService(donationStore, documentStorage, paypalService, runConfig.ReportTypes, logger)
+	fundEvents := fundevents.NewService(eventStore, logger)
+
+	donationService := donations.NewDonationService(donationStore, documentStorage, paypalService, fundEvents, runConfig.ReportTypes, logger)
 	memberService := members.NewMemberService(memberStore, donationStore, paypalService, logger)
 	authService := auth.NewAuthService(memberStore, authStore, authorizer, logger)
-	financeService := finance.NewFinanceService(donationStore, paypalService, documentStorage, runConfig.ReportTypes, logger)
-	enrollmentService := enrollments.NewEnrollmentsService(enrollmentStore, logger)
+	financeService := finance.NewFinanceService(donationStore, paypalService, documentStorage, fundEvents, runConfig.ReportTypes, logger)
+	enrollmentService := enrollments.NewEnrollmentsService(enrollmentStore, fundEvents, logger)
 
 	// No notifier yet: approval reminders are logged by the sweep until a delivery
 	// channel exists. The service tolerates a nil notifier.
 	payoutService := payouts.NewPayoutService(
-		payoutStore, paypalService, nil,
+		payoutStore, paypalService, nil, fundEvents,
 		runConfig.PayoutApprovalWindow, runConfig.PayoutReminderWindow, logger,
 	)
 
@@ -213,20 +218,20 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	)
 	authHandlers := authweb.NewAuthHandlers(authService, memberService, sessionManager, runConfig.PayPal.ClientID)
 	adminHandlers := adminweb.NewAdminHandlers(
-		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, payoutService, sessionManager, runConfig.PayPal.ClientID,
+		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, payoutService, fundEvents, sessionManager, runConfig.PayPal.ClientID,
 	)
 	webhooksHandlers := hooksweb.NewWebhooksHandlers(
 		donationService, memberService, &messageBroker, logger, runConfig.PayPal.WebhookID,
 	)
 
-	donationsEventHandlers := donations.NewHandlers(donationStore, logger)
-	err = donationsEventHandlers.Subscribe(&messageBroker)
+	donationWebhookHandlers := donations.NewHandlers(donationStore, fundEvents, logger)
+	err = donationWebhookHandlers.Subscribe(&messageBroker)
 	if err != nil {
 		return err
 	}
 
-	payoutEventHandlers := payouts.NewHandlers(payoutStore, logger)
-	err = payoutEventHandlers.Subscribe(&messageBroker)
+	payoutWebhookHandlers := payouts.NewHandlers(payoutStore, logger)
+	err = payoutWebhookHandlers.Subscribe(&messageBroker)
 	if err != nil {
 		return err
 	}
