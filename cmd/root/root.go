@@ -2,9 +2,9 @@ package root
 
 import (
 	"boardfund/aws"
-	"boardfund/events"
 	"boardfund/jwtauth"
 	"boardfund/jwtauth/keyset"
+	"boardfund/messaging"
 	"boardfund/paypal"
 	"boardfund/paypal/token"
 	"boardfund/pg"
@@ -183,7 +183,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	}
 	verifier := jwtauth.NewToken(kset)
 
-	messageBroker := events.NewNATSMessageBroker(nc)
+	messageBroker := messaging.NewNATSMessageBroker(nc)
 
 	fundEvents := fundevents.NewService(eventStore, logger)
 
@@ -224,14 +224,14 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		donationService, memberService, &messageBroker, logger, runConfig.PayPal.WebhookID,
 	)
 
-	donationsEventHandlers := donations.NewHandlers(donationStore, fundEvents, logger)
-	err = donationsEventHandlers.Subscribe(&messageBroker)
+	donationWebhookHandlers := donations.NewHandlers(donationStore, fundEvents, logger)
+	err = donationWebhookHandlers.Subscribe(&messageBroker)
 	if err != nil {
 		return err
 	}
 
-	payoutEventHandlers := payouts.NewHandlers(payoutStore, logger)
-	err = payoutEventHandlers.Subscribe(&messageBroker)
+	payoutWebhookHandlers := payouts.NewHandlers(payoutStore, logger)
+	err = payoutWebhookHandlers.Subscribe(&messageBroker)
 	if err != nil {
 		return err
 	}

@@ -1,7 +1,7 @@
 package donations
 
 import (
-	"boardfund/events"
+	"boardfund/messaging"
 	"boardfund/service/fundevents"
 	"context"
 	"encoding/json"
@@ -31,16 +31,16 @@ func NewHandlers(donationStore donationStore, events eventRecorder, logger *slog
 func (h *Handlers) Subscribe(subscriber subscriber) error {
 	var errResult error
 
-	if err := subscriber.Subscribe(events.PaymentCompleted, h.paymentSaleCompleted); err != nil {
-		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", events.PaymentCompleted, err))
+	if err := subscriber.Subscribe(messaging.PaymentCompleted, h.paymentSaleCompleted); err != nil {
+		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", messaging.PaymentCompleted, err))
 	}
 
-	if err := subscriber.Subscribe(events.SubscriptionExpired, h.subscriptionEnded); err != nil {
-		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", events.SubscriptionExpired, err))
+	if err := subscriber.Subscribe(messaging.SubscriptionExpired, h.subscriptionEnded); err != nil {
+		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", messaging.SubscriptionExpired, err))
 	}
 
-	if err := subscriber.Subscribe(events.SubscriptionCancelled, h.subscriptionEnded); err != nil {
-		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", events.SubscriptionCancelled, err))
+	if err := subscriber.Subscribe(messaging.SubscriptionCancelled, h.subscriptionEnded); err != nil {
+		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", messaging.SubscriptionCancelled, err))
 	}
 
 	return errResult

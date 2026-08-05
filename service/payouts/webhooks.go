@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"boardfund/events"
+	"boardfund/messaging"
 
 	"github.com/hashicorp/go-multierror"
 )
@@ -65,15 +65,15 @@ func (h *Handlers) Subscribe(sub subscriber) error {
 	var errResult error
 
 	itemEvents := []string{
-		events.PayoutsItemSucceeded,
-		events.PayoutsItemFailed,
-		events.PayoutsItemBlocked,
-		events.PayoutsItemCanceled,
-		events.PayoutsItemDenied,
-		events.PayoutsItemHeld,
-		events.PayoutsItemRefunded,
-		events.PayoutsItemReturned,
-		events.PayoutsItemUnclaimed,
+		messaging.PayoutsItemSucceeded,
+		messaging.PayoutsItemFailed,
+		messaging.PayoutsItemBlocked,
+		messaging.PayoutsItemCanceled,
+		messaging.PayoutsItemDenied,
+		messaging.PayoutsItemHeld,
+		messaging.PayoutsItemRefunded,
+		messaging.PayoutsItemReturned,
+		messaging.PayoutsItemUnclaimed,
 	}
 
 	for _, event := range itemEvents {
@@ -83,9 +83,9 @@ func (h *Handlers) Subscribe(sub subscriber) error {
 	}
 
 	batchEvents := []string{
-		events.PayoutsBatchSuccess,
-		events.PayoutsBatchDenied,
-		events.PayoutsBatchProcessing,
+		messaging.PayoutsBatchSuccess,
+		messaging.PayoutsBatchDenied,
+		messaging.PayoutsBatchProcessing,
 	}
 
 	for _, event := range batchEvents {

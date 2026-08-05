@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"boardfund/events"
+	"boardfund/messaging"
 	"boardfund/pg"
 	"boardfund/service/fundevents"
 	fundeventstore "boardfund/service/fundevents/store"
@@ -489,7 +489,7 @@ func TestPayoutItemWebhookMatchesBeforeReconcile(t *testing.T) {
 	handlers := payouts.NewHandlers(store, logger)
 	require.NoError(t, handlers.Subscribe(sub))
 
-	cb := sub.handlers[events.PayoutsItemSucceeded]
+	cb := sub.handlers[messaging.PayoutsItemSucceeded]
 	require.NotNil(t, cb, "handler must subscribe to PAYMENT.PAYOUTS-ITEM.SUCCEEDED")
 
 	payload := fmt.Sprintf(`{
