@@ -34,6 +34,7 @@ GO ?= go
 GOLANGCI_LINT ?= golangci-lint
 TEMPL ?= templ
 SQLC ?= sqlc
+TAILWIND ?= tailwindcss
 
 .PHONY: help
 help: ## List available targets
@@ -76,10 +77,15 @@ fmt: ## Format Go and templ sources
 vet: ## Run go vet
 	$(GO) vet ./...
 
+# public/styles.css is committed and served as-is: the Railway build only runs
+# `go build`, so whatever is in the repo is what ships. Tailwind purges unused
+# classes, which means a class added to a template and never rebuilt simply does
+# not exist in production -- silently, since the markup is still valid.
 .PHONY: generate
-generate: ## Regenerate templ components and sqlc queries
+generate: ## Regenerate templ components, sqlc queries and the stylesheet
 	$(TEMPL) generate
 	$(SQLC) generate
+	$(TAILWIND) -i tailwind.css -o public/styles.css --minify
 
 .PHONY: tidy
 tidy: ## Prune and verify module requirements
