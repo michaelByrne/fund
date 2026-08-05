@@ -239,6 +239,26 @@ func TestPayoutService(t *testing.T) {
 		assert.Equal(t, payouts.StatusCancelled, swept.Status)
 		assert.Equal(t, "approval window expired", swept.FailureReason)
 
+		// A batch that disappears between one glance at the admin page and the
+		// next has to leave a trace, and nobody decided it -- so no actor.
+		history, err := fundevents.NewService(
+			fundeventstore.NewEventStore(pool),
+			slog.New(slog.NewJSONHandler(io.Discard, nil)),
+		).GetFundEvents(ctx, fundID, fundevents.DefaultLimit)
+		require.NoError(t, err)
+
+		var expiredRecorded bool
+		for _, event := range history {
+			if event.Kind == fundevents.KindBatchExpired {
+				expiredRecorded = true
+
+				assert.True(t, event.ByProvider(), "nobody approved it, so nobody cancelled it either")
+				assert.Equal(t, "approval window expired", event.Detail)
+			}
+		}
+
+		assert.True(t, expiredRecorded, "the sweep must record why the batch vanished")
+
 		// A treasurer arriving late must not be able to revive a cancelled batch.
 		_, err = svc.ApproveBatch(ctx, batch.ID, approverID)
 		require.ErrorIs(t, err, payouts.ErrNotApprovable)

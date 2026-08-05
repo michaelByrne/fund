@@ -199,6 +199,8 @@ func eventLabel(kind fundevents.Kind) string {
 		return "payout batch approved"
 	case fundevents.KindBatchRejected:
 		return "payout batch rejected"
+	case fundevents.KindBatchExpired:
+		return "payout batch expired unapproved"
 	case fundevents.KindBatchSubmitted:
 		return "payout batch submitted"
 	case fundevents.KindBatchSettled:

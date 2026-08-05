@@ -9,10 +9,24 @@ DESKTOP_SOCK := $(HOME)/.docker/run/docker.sock
 ifeq ($(origin DOCKER_HOST), undefined)
   ifneq ($(wildcard $(COLIMA_SOCK)),)
     export DOCKER_HOST := unix://$(COLIMA_SOCK)
-    export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE := /var/run/docker.sock
   else ifneq ($(wildcard $(DESKTOP_SOCK)),)
     export DOCKER_HOST := unix://$(DESKTOP_SOCK)
-    export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE := /var/run/docker.sock
+  endif
+endif
+
+# Deliberately outside the block above, because it is needed whether the Makefile
+# set DOCKER_HOST or the caller did. Anyone who exports DOCKER_HOST in their
+# shell -- which Colima's own docs suggest -- would otherwise skip this and hit
+# testcontainers' reaper failing to mount the socket.
+#
+# The socket is at a per-user path on the host but always /var/run/docker.sock
+# inside the VM, and the reaper needs the latter. A default socket needs no
+# override, so this only applies to the non-default case.
+ifeq ($(origin TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE), undefined)
+  ifneq ($(DOCKER_HOST),)
+    ifneq ($(DOCKER_HOST),unix:///var/run/docker.sock)
+      export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE := /var/run/docker.sock
+    endif
   endif
 endif
 

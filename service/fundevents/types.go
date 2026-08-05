@@ -22,6 +22,7 @@ const (
 	KindBatchPlanned        Kind = "payout_batch_planned"
 	KindBatchApproved       Kind = "payout_batch_approved"
 	KindBatchRejected       Kind = "payout_batch_rejected"
+	KindBatchExpired        Kind = "payout_batch_expired"
 	KindBatchSubmitted      Kind = "payout_batch_submitted"
 	KindBatchSettled        Kind = "payout_batch_settled"
 )

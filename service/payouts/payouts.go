@@ -370,6 +370,17 @@ func (s PayoutService) RunApprovalSweep(ctx context.Context) error {
 	}
 
 	for _, batch := range expired {
+		// No actor: nobody decided this, which is the whole reason it is worth
+		// recording. A batch that quietly stopped existing between one glance at
+		// the admin page and the next is exactly what the feed is for.
+		s.events.Record(ctx, fundevents.Record{
+			FundID:      batch.FundID,
+			Kind:        fundevents.KindBatchExpired,
+			AmountCents: &batch.AmountCents,
+			Detail:      "approval window expired",
+			ReferenceID: &batch.ID,
+		})
+
 		s.logger.Warn("batch cancelled: approval window expired",
 			slog.String("batch_id", batch.ID.String()),
 			slog.String("fund_id", batch.FundID.String()),
