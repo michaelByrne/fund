@@ -11,17 +11,20 @@ import (
 	"github.com/google/uuid"
 )
 
-// The actor column exists to separate "a person did this" from "the provider or
-// a scheduled job did this". Rendering nothing for a third case would collapse
-// that distinction exactly where it matters.
-func TestEventActorAlwaysSaysSomething(t *testing.T) {
+// The actor is shown only when it tells the reader something. An automated
+// action must always say so, and a person who is also the subject is already
+// named on the row.
+func TestEventActor(t *testing.T) {
 	ctx := context.Background()
-	actor := uuid.New()
+
+	person := uuid.New()
+	other := uuid.New()
 
 	cases := []struct {
-		name  string
-		event fundevents.Event
-		want  string
+		name     string
+		event    fundevents.Event
+		want     string
+		wantNone bool
 	}{
 		{
 			name:  "no actor means automatic",
@@ -29,15 +32,29 @@ func TestEventActorAlwaysSaysSomething(t *testing.T) {
 			want:  "automatic",
 		},
 		{
-			name:  "a named actor is credited",
-			event: fundevents.Event{ActorMemberID: &actor, ActorName: "treasurer"},
-			want:  "by treasurer",
+			name: "an actor who is not the subject is credited",
+			event: fundevents.Event{
+				ActorMemberID: &person, ActorName: "treasurer",
+				SubjectMemberID: &other, SubjectName: "payee",
+			},
+			want: "by treasurer",
 		},
 		{
-			// member.bco_name is nullable, so this is reachable.
+			// member.bco_name is nullable, so this is reachable and must not be
+			// mistaken for an automated action.
 			name:  "an actor with no name is still a person",
-			event: fundevents.Event{ActorMemberID: &actor},
+			event: fundevents.Event{ActorMemberID: &person},
 			want:  "by unknown member",
+		},
+		{
+			// A donor starting their own donation. The row already says "tester";
+			// adding "by tester" was noise.
+			name: "an actor who is the subject is left out",
+			event: fundevents.Event{
+				ActorMemberID: &person, ActorName: "tester",
+				SubjectMemberID: &person, SubjectName: "tester",
+			},
+			wantNone: true,
 		},
 	}
 
@@ -48,14 +65,24 @@ func TestEventActorAlwaysSaysSomething(t *testing.T) {
 				t.Fatalf("render: %v", err)
 			}
 
-			got := out.String()
+			text := strings.TrimSpace(stripTags(out.String()))
 
-			if !strings.Contains(got, c.want) {
-				t.Errorf("rendered %q, want it to contain %q", got, c.want)
+			if c.wantNone {
+				if text != "" {
+					t.Errorf("rendered %q, want nothing", text)
+				}
+
+				return
 			}
 
-			if strings.TrimSpace(stripTags(got)) == "" {
-				t.Error("rendered nothing; the actor column must never be silently blank")
+			if !strings.Contains(out.String(), c.want) {
+				t.Errorf("rendered %q, want it to contain %q", out.String(), c.want)
+			}
+
+			// Silence is the failure mode for every case that should say
+			// something, and asserting on content alone would not catch it.
+			if text == "" {
+				t.Error("rendered nothing")
 			}
 		})
 	}
@@ -63,12 +90,28 @@ func TestEventActorAlwaysSaysSomething(t *testing.T) {
 
 func TestFundHistoryRenders(t *testing.T) {
 	ctx := context.Background()
-	actor := uuid.New()
+
+	donor := uuid.New()
+	treasurer := uuid.New()
 	amount := int32(2500)
 
 	events := []fundevents.Event{
-		{Kind: fundevents.KindDonationStarted, OccurredAt: time.Now(), ActorMemberID: &actor, ActorName: "donor", SubjectName: "donor", AmountCents: &amount, Detail: "recurring"},
-		{Kind: fundevents.KindDonationCancelled, OccurredAt: time.Now(), SubjectName: "donor", Detail: "subscription cancelled at provider"},
+		{
+			Kind: fundevents.KindDonationStarted, OccurredAt: time.Now(),
+			ActorMemberID: &donor, ActorName: "tester",
+			SubjectMemberID: &donor, SubjectName: "tester",
+			AmountCents: &amount, Detail: "recurring",
+		},
+		{
+			Kind: fundevents.KindDonationCancelled, OccurredAt: time.Now(),
+			SubjectMemberID: &donor, SubjectName: "tester",
+			Detail: "subscription cancelled at provider",
+		},
+		{
+			Kind: fundevents.KindBatchApproved, OccurredAt: time.Now(),
+			ActorMemberID: &treasurer, ActorName: "treasurer",
+			AmountCents: &amount,
+		},
 		// Every optional field absent.
 		{Kind: fundevents.KindBatchSettled, OccurredAt: time.Now()},
 	}
@@ -78,10 +121,21 @@ func TestFundHistoryRenders(t *testing.T) {
 		t.Fatalf("render: %v", err)
 	}
 
-	for _, want := range []string{"donation started", "donation cancelled", "payout batch settled", "$25.00", "automatic", "by donor"} {
-		if !strings.Contains(out.String(), want) {
+	rendered := out.String()
+
+	for _, want := range []string{
+		"donation started", "donation cancelled", "payout batch approved",
+		"payout batch settled", "$25.00", "automatic", "by treasurer",
+	} {
+		if !strings.Contains(rendered, want) {
 			t.Errorf("history missing %q", want)
 		}
+	}
+
+	// The donor started their own donation, so they are named once as the
+	// subject and not again as the actor.
+	if strings.Contains(rendered, "by tester") {
+		t.Error("the subject was repeated as the actor")
 	}
 
 	var empty strings.Builder
