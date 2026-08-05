@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"boardfund/service/enrollments"
 	"boardfund/service/fundevents"
 	"boardfund/service/members"
 
@@ -207,4 +208,42 @@ func eventLabel(kind fundevents.Kind) string {
 		// than as a blank row.
 		return strings.ReplaceAll(string(kind), "_", " ")
 	}
+}
+
+// payoutCoverage is how many of a fund's current enrollees a batch planned now
+// would actually reach.
+//
+// Computed once and passed around rather than recalculated: the notice needs the
+// count both to decide whether to appear and to say what it says, and deriving
+// those separately meant two passes over the slice against two different clock
+// reads, which could disagree across the eligibility boundary.
+type payoutCoverage struct {
+	Total     int
+	Unpayable int
+}
+
+// Incomplete reports whether anyone would be left out.
+func (c payoutCoverage) Incomplete() bool {
+	return c.Unpayable > 0
+}
+
+func (c payoutCoverage) Summary() string {
+	return fmt.Sprintf("a payout planned now would cover %d of %d enrollees",
+		c.Total-c.Unpayable, c.Total)
+}
+
+// coverageOf counts who a batch would leave out: no PayPal address, or a first
+// payout date still in the future. Both are silent exclusions in the payout
+// path, which is why the list surfaces them.
+func coverageOf(enrolled []enrollments.Enrollment) payoutCoverage {
+	now := time.Now()
+
+	coverage := payoutCoverage{Total: len(enrolled)}
+	for _, enrollment := range enrolled {
+		if !enrollment.Payable(now) {
+			coverage.Unpayable++
+		}
+	}
+
+	return coverage
 }

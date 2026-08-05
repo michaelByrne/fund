@@ -94,10 +94,22 @@ templ EventActor(event fundevents.Event) {
 
 templ CurrentEnrollments(enrollments []enrollments.Enrollment) {
 	@common.Section("current enrollments") {
+		@UnpayableNotice(coverageOf(enrollments))
 		<div class="flex-grow overflow-y-auto max-h-[300px] sm:max-h-[500px]">
 			<ul id="enrollments">
 				@EnrollmentsList(enrollments)
 			</ul>
+		</div>
+	}
+}
+
+// UnpayableNotice appears only when the next batch would cover fewer people than
+// are enrolled. Saying "5 of 5" every time would train the reader to skip the
+// line, which is the one time it matters that they do not.
+templ UnpayableNotice(coverage payoutCoverage) {
+	if coverage.Incomplete() {
+		<div class="mb-2 p-2 text-xs bg-odd-hover">
+			{ coverage.Summary() }
 		</div>
 	}
 }
@@ -108,22 +120,32 @@ templ EnrollmentsList(enrollments []enrollments.Enrollment) {
 	}
 }
 
+// A row answers the question this panel exists for: is this person going to be
+// paid in the next batch, and where would it go. Both answers were previously
+// invisible -- PlanBatch skips an enrollee with no PayPal address, and the
+// eligibility query skips one whose first payout date has not arrived, in both
+// cases without saying so anywhere.
 templ EnrollmentRow(enrollment enrollments.Enrollment) {
 	<li
-		class="enrollment-row p-2 flex flex-col md:flex-row md:items-center even:bg-even odd:bg-odd odd:hover:bg-odd-hover even:hover:bg-even-hover transition-opacity duration-300"
+		class="enrollment-row p-2 flex flex-col md:flex-row md:items-start gap-1 even:bg-even odd:bg-odd odd:hover:bg-odd-hover even:hover:bg-even-hover transition-opacity duration-300"
 	>
-		<div class="flex items-center w-full">
-			<div class="flex flex-col w-full md:flex-row md:items-center">
+		<div class="flex flex-col flex-1 min-w-0 gap-0.5">
+			<div class="flex flex-row items-baseline gap-2">
 				<span class="font-medium">{ enrollment.MemberBCOName }</span>
+				@EnrollmentStatus(enrollment)
 			</div>
-			<div
-				hx-post={ fmt.Sprintf("/admin/enrollment/cancel/%s", enrollment.ID.String()) }
-				hx-confirm={ fmt.Sprintf("deactivate enrollment for %s?", enrollment.MemberBCOName) }
-				hx-trigger="click consume"
-				class="clickable flex items-center justify-center h-8 w-8 text-gray-500 hover:text-red-500"
-			>
-				&#215;
+			<div class="flex flex-row flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs text-gray-600">
+				@EnrollmentPayee(enrollment)
+				<span>&#183; enrolled { enrollment.Created.Format("01-02-2006") }</span>
 			</div>
+		</div>
+		<div
+			hx-post={ fmt.Sprintf("/admin/enrollment/cancel/%s", enrollment.ID.String()) }
+			hx-confirm={ fmt.Sprintf("deactivate enrollment for %s?", enrollment.MemberBCOName) }
+			hx-trigger="click consume"
+			class="clickable flex items-center justify-center h-8 w-8 shrink-0 text-gray-500 hover:text-red-500"
+		>
+			&#215;
 		</div>
 		<script type="application/javascript">
             me().on("enrollmentDeactivated", (ev) => {
@@ -131,6 +153,27 @@ templ EnrollmentRow(enrollment enrollments.Enrollment) {
             });
         </script>
 	</li>
+}
+
+// EnrollmentStatus marks anyone the next batch would leave out. Silence means
+// they are payable, so the marker only appears when something is wrong or
+// pending -- a row of green ticks would be noise.
+templ EnrollmentStatus(enrollment enrollments.Enrollment) {
+	if enrollment.PaypalEmail == "" {
+		<span class="text-xs font-semibold text-red-700">no paypal address</span>
+	} else if !enrollment.Eligible(time.Now()) {
+		<span class="text-xs text-gray-600">
+			from { enrollment.FirstPayoutDate.Format("01-02-2006") }
+		</span>
+	}
+}
+
+templ EnrollmentPayee(enrollment enrollments.Enrollment) {
+	if enrollment.PaypalEmail == "" {
+		<span class="italic">payouts cannot be sent</span>
+	} else {
+		<span class="truncate">{ enrollment.PaypalEmail }</span>
+	}
 }
 
 templ MemberSearch(fund donations.Fund) {

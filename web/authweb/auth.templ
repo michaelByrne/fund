@@ -148,7 +148,11 @@ templ Login() {
 							class="w-[80%] max-w-xs text-sm border border-slate-300 shadow-sm px-3 py-2"
 						/>
 					</div>
-					<div class="flex flex-col items-center gap-5">
+					// gap-10 rather than something smaller because shadow-blue-boxy is
+					// 5px 5px with no blur: it extends 5px below the button and reads as
+					// part of it, so the visual gap is always 5px less than the declared
+					// one. 40px here is ~35px to the eye.
+					<div class="flex flex-col items-center gap-10">
 						<button
 							type="submit"
 							class="px-6 py-3 text-md font-medium bg-button text-black hover:shadow-blue-boxy-thin shadow-blue-boxy"
