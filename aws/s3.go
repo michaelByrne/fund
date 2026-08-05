@@ -169,15 +169,3 @@ func parseReportKey(key string) (*finance.ReportInfo, error) {
 		Type:   reportType,
 	}, nil
 }
-
-func toB64MD5(body io.Reader) (string, error) {
-	hasher := md5.New()
-
-	if _, err := io.Copy(hasher, body); err != nil {
-		return "", err
-	}
-
-	md5Hash := hasher.Sum(nil)
-
-	return base64.StdEncoding.EncodeToString(md5Hash), nil
-}

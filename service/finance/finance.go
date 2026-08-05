@@ -292,10 +292,14 @@ func (s FinanceService) reconcileRecurringDonationsForFund(ctx context.Context, 
 	for _, donation := range recurringDonations {
 		status, errInner := s.paymentsProvider.GetProviderDonationSubscriptionStatus(ctx, donation.ProviderSubscriptionID)
 		if errInner != nil {
-			logger.Error("failed to get donation status from provider", slog.String("error", errInner.Error()))
-		}
-
-		if !(strings.ToUpper(status) == "ACTIVE") {
+			// Leave the donation alone: an unreadable status is not evidence that the
+			// subscription ended, and deactivating here would cancel a live donation
+			// on nothing more than a transient provider error.
+			logger.Error("failed to get donation status from provider",
+				slog.String("error", errInner.Error()),
+				slog.String("donation_id", donation.ID.String()),
+			)
+		} else if strings.ToUpper(status) != "ACTIVE" {
 			logger.Info("donation is inactive at provider", slog.String("donation_id", donation.ID.String()))
 
 			_, errInner = s.donationStore.SetDonationToInactive(ctx, donations.DeactivateDonation{
