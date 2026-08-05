@@ -49,42 +49,46 @@ templ FundHistory(events []fundevents.Event) {
 	}
 }
 
+// One row is two lines: what happened and how much, then everything else muted
+// beneath it. The previous single line joined label, subject, amount and detail
+// with non-breaking spaces, so it wrapped mid-phrase and nothing aligned.
 templ FundHistoryRow(event fundevents.Event) {
-	<li class="p-2 flex flex-col md:flex-row md:items-baseline gap-1 md:gap-3 even:bg-even odd:bg-odd">
-		<div class="w-full md:w-36 text-xs text-gray-600 shrink-0">
-			{ event.OccurredAt.Format("01-02-2006 15:04") }
-		</div>
-		<div class="w-full md:flex-1">
+	<li class="px-3 py-2 even:bg-even odd:bg-odd">
+		<div class="flex flex-row items-baseline gap-2">
 			<span class="font-medium">{ eventLabel(event.Kind) }</span>
-			if event.SubjectName != "" {
-				<span>&nbsp;{ event.SubjectName }</span>
-			}
 			if event.AmountCents != nil {
-				<span>&nbsp;{ payoutAmount(*event.AmountCents) }</span>
+				<span class="ml-auto shrink-0 tabular-nums">{ payoutAmount(*event.AmountCents) }</span>
+			}
+		</div>
+		<div class="flex flex-row flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs text-gray-600">
+			<span class="tabular-nums">{ event.OccurredAt.Format("01-02-2006 15:04") }</span>
+			if event.SubjectName != "" {
+				<span>&#183; { event.SubjectName }</span>
 			}
 			if event.Detail != "" {
-				<span class="text-gray-600">&nbsp;({ event.Detail })</span>
+				<span>&#183; { event.Detail }</span>
 			}
-		</div>
-		<div class="w-full md:w-40 text-xs text-gray-600 shrink-0">
 			@EventActor(event)
 		</div>
 	</li>
 }
 
-// EventActor distinguishes "the provider or a scheduled job did this" from "a
-// person did this". Leaving both blank would make an automated cancellation look
-// like an unattributed human one.
+// EventActor names who acted, but only when that adds something.
+//
+// An automated action always says so: "nobody is listed" and "a person we cannot
+// name" must not look alike. A person who is also the subject is omitted, since
+// the subject is already on the row and "tester ... by tester" is noise rather
+// than attribution.
 templ EventActor(event fundevents.Event) {
 	if event.ByProvider() {
-		<span class="italic">automatic</span>
+		<span class="italic">&#183; automatic</span>
+	} else if event.ActorIsSubject() {
+		<!-- already named as the subject -->
 	} else if event.ActorName != "" {
-		<span>by { event.ActorName }</span>
+		<span>&#183; by { event.ActorName }</span>
 	} else {
-		// A person acted but has no name on record -- member.bco_name is
-		// nullable. Rendering nothing here would read as "automatic" with the
-		// label missing, which is the one confusion this column exists to avoid.
-		<span class="italic">by unknown member</span>
+		// member.bco_name is nullable, so an actor can exist with no name.
+		<span class="italic">&#183; by unknown member</span>
 	}
 }
 

@@ -76,3 +76,13 @@ type Event struct {
 func (e Event) ByProvider() bool {
 	return e.ActorMemberID == nil
 }
+
+// ActorIsSubject reports whether the person who acted is the person the event is
+// about: a donor starting their own donation, who is both. The feed already
+// names the subject, so repeating them as the actor reads as noise rather than
+// as attribution.
+func (e Event) ActorIsSubject() bool {
+	return e.ActorMemberID != nil &&
+		e.SubjectMemberID != nil &&
+		*e.ActorMemberID == *e.SubjectMemberID
+}
