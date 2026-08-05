@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
-    name: 'build, vet, lint, test'
+  build:
+    name: 'build'
     runs-on: ubuntu-latest
 
     steps:
@@ -25,31 +25,56 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          # Tracks go.mod, which is now on 1.26 -- both golangci-lint (needs
-          # 1.25) and sqlc (needs 1.26) refuse to build on anything older.
+          # Tracks go.mod, which is on 1.26 -- both golangci-lint (needs 1.25)
+          # and sqlc (needs 1.26) refuse to build on anything older.
           go-version-file: go.mod
           cache: true
 
-      - name: Install golangci-lint
-        # go install rather than the upstream install.sh, which failed checksum
-        # verification against its own release artifact. This path is verified
-        # through the Go checksum database instead, and pulls in no third-party
-        # shell script.
-        #
-        # Pinned: an unpinned linter turns an upstream release into a red build
-        # on an unrelated PR. Matches what .golangci.yml was written against.
-        run: |
-          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Build
+        run: make build
 
-      - name: Check
-        # The same target developers run locally, so CI cannot drift from it.
-        #
+  lint:
+    name: 'lint'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          # Pinned, and matching what .golangci.yml was written against. An
+          # unpinned linter turns an upstream release into a red build on an
+          # unrelated PR.
+          version: v2.12.2
+
+  test:
+    name: 'test'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
         # Integration tests start a Postgres container via testcontainers. The
-        # runner has Docker on the default socket, so the Makefile's Colima and
-        # Docker Desktop detection finds nothing and correctly leaves DOCKER_HOST
-        # alone.
-        run: make check
+        # runner exposes Docker on the default socket, so the Makefile's Colima
+        # and Docker Desktop detection finds neither and correctly leaves
+        # DOCKER_HOST alone.
+        run: make test
 
   generated:
     name: 'generated code is current'
