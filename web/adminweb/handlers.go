@@ -5,6 +5,7 @@ import (
 	"boardfund/service/donations"
 	"boardfund/service/enrollments"
 	"boardfund/service/finance"
+	"boardfund/service/fundevents"
 	"boardfund/service/members"
 	"boardfund/service/payouts"
 	"boardfund/web/common"
@@ -25,6 +26,7 @@ type AdminHandlers struct {
 	authService       *auth.AuthService
 	financeService    *finance.FinanceService
 	payoutService     *payouts.PayoutService
+	fundEventsService *fundevents.Service
 	sessionManager    *scs.SessionManager
 	clientID          string
 }
@@ -37,6 +39,7 @@ func NewAdminHandlers(
 	financeService *finance.FinanceService,
 	enrollmentsService *enrollments.EnrollmentsService,
 	payoutService *payouts.PayoutService,
+	fundEventsService *fundevents.Service,
 	sessionManager *scs.SessionManager,
 	clientID string,
 ) *AdminHandlers {
@@ -48,6 +51,7 @@ func NewAdminHandlers(
 		financeService:    financeService,
 		enrollmentService: enrollmentsService,
 		payoutService:     payoutService,
+		fundEventsService: fundEventsService,
 		sessionManager:    sessionManager,
 		clientID:          clientID,
 	}
@@ -395,8 +399,15 @@ func (h *AdminHandlers) fundPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A failed history read must not take the page down with it: the enrollments
+	// and fund status above are the reason someone opened this.
+	events, err := h.fundEventsService.GetFundEvents(ctx, fundID, fundevents.DefaultLimit)
+	if err != nil {
+		events = nil
+	}
+
 	w.Header().Add("HX-Redirect", r.URL.String())
-	Enrollments(*fund, activeEnrollments, &member, r.URL.Path).Render(ctx, w)
+	Enrollments(*fund, activeEnrollments, events, &member, r.URL.Path).Render(ctx, w)
 }
 
 func (h *AdminHandlers) fundAudit(w http.ResponseWriter, r *http.Request) {

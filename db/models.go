@@ -13,6 +13,56 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type FundEventKind string
+
+const (
+	FundEventKindDonationStarted      FundEventKind = "donation_started"
+	FundEventKindDonationCancelled    FundEventKind = "donation_cancelled"
+	FundEventKindPaymentReceived      FundEventKind = "payment_received"
+	FundEventKindMemberEnrolled       FundEventKind = "member_enrolled"
+	FundEventKindEnrollmentCancelled  FundEventKind = "enrollment_cancelled"
+	FundEventKindPayoutBatchPlanned   FundEventKind = "payout_batch_planned"
+	FundEventKindPayoutBatchApproved  FundEventKind = "payout_batch_approved"
+	FundEventKindPayoutBatchRejected  FundEventKind = "payout_batch_rejected"
+	FundEventKindPayoutBatchSubmitted FundEventKind = "payout_batch_submitted"
+	FundEventKindPayoutBatchSettled   FundEventKind = "payout_batch_settled"
+)
+
+func (e *FundEventKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = FundEventKind(s)
+	case string:
+		*e = FundEventKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for FundEventKind: %T", src)
+	}
+	return nil
+}
+
+type NullFundEventKind struct {
+	FundEventKind FundEventKind
+	Valid         bool // Valid is true if FundEventKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullFundEventKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.FundEventKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.FundEventKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullFundEventKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.FundEventKind), nil
+}
+
 type IntervalUnit string
 
 const (
@@ -282,6 +332,19 @@ type FundEnrollment struct {
 	Created         pgtype.Timestamptz
 	Updated         pgtype.Timestamptz
 	PaypalEmail     string
+}
+
+type FundEvent struct {
+	ID              uuid.UUID
+	FundID          uuid.UUID
+	Kind            FundEventKind
+	OccurredAt      pgtype.Timestamptz
+	ActorMemberID   uuid.NullUUID
+	SubjectMemberID uuid.NullUUID
+	AmountCents     pgtype.Int4
+	Detail          pgtype.Text
+	ReferenceID     uuid.NullUUID
+	Created         pgtype.Timestamptz
 }
 
 type Member struct {

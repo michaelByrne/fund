@@ -3,8 +3,10 @@ package adminweb
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
+	"boardfund/service/fundevents"
 	"boardfund/service/members"
 
 	"github.com/google/uuid"
@@ -174,4 +176,35 @@ func (h *AdminHandlers) renderBatchActions(w http.ResponseWriter, r *http.Reques
 	}
 
 	BatchActions(*batch).Render(ctx, w)
+}
+
+// eventLabel renders an event kind as something a treasurer reads rather than a
+// database enum.
+func eventLabel(kind fundevents.Kind) string {
+	switch kind {
+	case fundevents.KindDonationStarted:
+		return "donation started"
+	case fundevents.KindDonationCancelled:
+		return "donation cancelled"
+	case fundevents.KindPaymentReceived:
+		return "payment received"
+	case fundevents.KindMemberEnrolled:
+		return "member enrolled"
+	case fundevents.KindEnrollmentCancelled:
+		return "enrollment cancelled"
+	case fundevents.KindBatchPlanned:
+		return "payout batch planned"
+	case fundevents.KindBatchApproved:
+		return "payout batch approved"
+	case fundevents.KindBatchRejected:
+		return "payout batch rejected"
+	case fundevents.KindBatchSubmitted:
+		return "payout batch submitted"
+	case fundevents.KindBatchSettled:
+		return "payout batch settled"
+	default:
+		// A kind added to the enum but not here still renders legibly rather
+		// than as a blank row.
+		return strings.ReplaceAll(string(kind), "_", " ")
+	}
 }

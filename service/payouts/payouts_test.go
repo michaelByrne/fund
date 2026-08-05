@@ -10,6 +10,8 @@ import (
 
 	"boardfund/events"
 	"boardfund/pg"
+	"boardfund/service/fundevents"
+	fundeventstore "boardfund/service/fundevents/store"
 	"boardfund/service/payouts"
 	payoutstore "boardfund/service/payouts/store"
 
@@ -49,7 +51,9 @@ func newService(t *testing.T, pool *pgxpool.Pool, provider payouts.PayoutsProvid
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 
-	return payouts.NewPayoutService(payoutstore.NewPayoutStore(pool), provider, nil, 72*time.Hour, 24*time.Hour, logger)
+	fundEvents := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
+
+	return payouts.NewPayoutService(payoutstore.NewPayoutStore(pool), provider, nil, fundEvents, 72*time.Hour, 24*time.Hour, logger)
 }
 
 // seedMember creates an active member. bco_name is unique per member because the
@@ -457,7 +461,8 @@ func TestPayoutItemWebhookMatchesBeforeReconcile(t *testing.T) {
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	store := payoutstore.NewPayoutStore(pool)
-	svc := payouts.NewPayoutService(store, &stubProvider{batchID: "PAYPAL-WEBHOOK"}, nil, 72*time.Hour, 24*time.Hour, logger)
+	fundEvents := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
+	svc := payouts.NewPayoutService(store, &stubProvider{batchID: "PAYPAL-WEBHOOK"}, nil, fundEvents, 72*time.Hour, 24*time.Hour, logger)
 
 	fundID := seedFundWithEnrollees(t, ctx, pool, 1)
 	approverID := seedMember(t, ctx, pool)

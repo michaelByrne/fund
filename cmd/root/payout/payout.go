@@ -9,6 +9,8 @@ import (
 	"boardfund/paypal"
 	"boardfund/paypal/token"
 	"boardfund/pg"
+	"boardfund/service/fundevents"
+	fundeventstore "boardfund/service/fundevents/store"
 	"boardfund/service/payouts"
 	payoutstore "boardfund/service/payouts/store"
 
@@ -71,6 +73,7 @@ func build(runConfig *root.RunConfig) (*deps, error) {
 	paypalService := paypal.NewPaypal(paypalClient, runConfig.PayPal.ProductID)
 
 	store := payoutstore.NewPayoutStore(pool)
+	fundEvents := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
 
 	// No notifier wired yet: reminders are logged by the sweep until a delivery
 	// channel exists. A nil notifier is handled by the service.
@@ -78,6 +81,7 @@ func build(runConfig *root.RunConfig) (*deps, error) {
 		store,
 		paypalService,
 		nil,
+		fundEvents,
 		runConfig.PayoutApprovalWindow,
 		runConfig.PayoutReminderWindow,
 		logger,
