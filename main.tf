@@ -7,7 +7,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket  = "tf-fund"
+    bucket  = "fund-tf-state"
     key     = "fund-tfstate"
     region  = "us-west-2"
     encrypt = true
@@ -20,14 +20,6 @@ provider "aws" {
   region = "us-west-2"
 }
 
-variable "paypal_email" {
-  type = string
-}
-
-variable "paypal_pass" {
-  type = string
-}
-
 variable "fund_pass_url" {
   type = string
 }
@@ -37,11 +29,13 @@ variable "domain" {
 }
 
 variable "mail_bucket" {
-  type = string
+  type    = string
+  default = "fund-mail-bucket"
 }
 
 variable "donations_reports_bucket" {
-  type = string
+  type    = string
+  default = "fund-reports-bucket"
 }
 
 resource "aws_cognito_user_pool" "bco_fund_pool" {
@@ -51,15 +45,23 @@ resource "aws_cognito_user_pool" "bco_fund_pool" {
     allow_admin_create_user_only = true
 
     invite_message_template {
-      email_message = "Hello {username}!\nYou're invited to test the BCO Mutual Aid app. Your temporary password is {####}.\nFirst thing, you'll need to set a permanent password. Please visit ${var.fund_pass_url} to do that.\nThe app is wired up to a sandbox Paypal account. You can use the following credentials to log into fake Paypal:\nEmail: ${var.paypal_email}\nPassword: ${var.paypal_pass}"
+      email_message = "Hello {username}!\nYou're invited to the BCO Mutual Aid app. Your temporary password is {####}.\nFirst thing, you'll need to set a permanent password. Please visit ${var.fund_pass_url} to do that."
       email_subject = "help test bcofund.org"
       sms_message   = "Hello {username}! Your temporary password is {####}. You'll be prompted to change your password at login."
     }
   }
 
+  # Cognito sends from its own default address. Pointing source_arn at
+  # aws_ses_email_identity.welcome_email requires that identity to be verified
+  # first -- which needs the domain's DNS records published and mail deliverable to
+  # welcome@ -- and the pool cannot be created until it is.
+  #
+  # It would not buy throughput either: under COGNITO_DEFAULT, source_arn only
+  # changes the From address and the 50 emails/day cap still applies. Raising that
+  # means email_sending_account = "DEVELOPER", which needs the verified identity
+  # plus an IAM role for Cognito. Worth revisiting once SES is out of the sandbox.
   email_configuration {
     email_sending_account = "COGNITO_DEFAULT"
-    source_arn            = aws_ses_email_identity.welcome_email.arn
   }
 
   schema {
@@ -84,7 +86,7 @@ resource "aws_cognito_user_pool_client" "bco_pool_client" {
   user_pool_id                         = aws_cognito_user_pool.bco_fund_pool.id
   generate_secret                      = false
   allowed_oauth_flows_user_pool_client = false
-  supported_identity_providers = ["COGNITO"]
+  supported_identity_providers         = ["COGNITO"]
 
   refresh_token_validity = 1
   access_token_validity  = 60
@@ -175,7 +177,7 @@ data "aws_iam_policy_document" "actions" {
       "iam:PassRole",
       "ec2:RunInstances",
     ]
-    effect = "Allow"
+    effect    = "Allow"
     resources = ["*"]
   }
 }
@@ -255,4 +257,113 @@ resource "aws_ses_receipt_rule" "store" {
 
 resource "aws_s3_bucket" "donations_reports" {
   bucket = var.donations_reports_bucket
+}
+
+# The application reads these three values as COGNITO_USER_POOL_ID,
+# COGNITO_CLIENT_ID and JWK_URL. They change whenever the pool is recreated -- a new
+# AWS account, or a destroy/apply -- so they are surfaced here rather than being
+# copied out of the console.
+output "cognito_user_pool_id" {
+  description = "Set as COGNITO_USER_POOL_ID in the application environment."
+  value       = aws_cognito_user_pool.bco_fund_pool.id
+}
+
+output "cognito_client_id" {
+  description = "Set as COGNITO_CLIENT_ID in the application environment."
+  value       = aws_cognito_user_pool_client.bco_pool_client.id
+}
+
+# Built from the pool's own endpoint rather than a hardcoded region, so it stays
+# correct if the provider region ever changes.
+output "jwk_url" {
+  description = "Set as JWK_URL in the application environment."
+  value       = "https://${aws_cognito_user_pool.bco_fund_pool.endpoint}/.well-known/jwks.json"
+}
+
+// application IAM
+
+# The report buckets the app creates at runtime are named "<report type>.<fund uuid>",
+# so the S3 grants below are scoped by prefix rather than to fixed bucket names.
+# This must stay in sync with the app's ENABLED_REPORT_TYPES: a type listed there but
+# missing here fails at CreateBucket when a fund is created.
+variable "report_bucket_prefixes" {
+  type        = list(string)
+  default     = ["payments"]
+  description = "Report types the app creates per-fund buckets for. Mirrors ENABLED_REPORT_TYPES."
+}
+
+# Railway has no instance role, so the application authenticates with a static key.
+# Its permissions are deliberately narrower than the CI role's: no IAM, no ability to
+# reach the Terraform state bucket, and no access to buckets outside the report
+# prefixes.
+resource "aws_iam_user" "fund_app" {
+  name = "fund-app"
+}
+
+resource "aws_iam_access_key" "fund_app" {
+  user = aws_iam_user.fund_app.name
+}
+
+data "aws_iam_policy_document" "fund_app" {
+  # Registration, password reset and login. Scoped to this pool: the app has no
+  # reason to touch another, and AdminDeleteUser is destructive enough to bound.
+  statement {
+    sid = "CognitoUserAdministration"
+
+    actions = [
+      "cognito-idp:AdminCreateUser",
+      "cognito-idp:AdminSetUserPassword",
+      "cognito-idp:AdminDeleteUser",
+      "cognito-idp:AdminGetUser",
+      "cognito-idp:InitiateAuth",
+    ]
+
+    effect    = "Allow"
+    resources = [aws_cognito_user_pool.bco_fund_pool.arn]
+  }
+
+  # Creating and listing the per-fund report buckets.
+  statement {
+    sid = "ReportBucketAdministration"
+
+    actions = [
+      "s3:CreateBucket",
+      "s3:ListBucket",
+      "s3:GetBucketLocation",
+    ]
+
+    effect    = "Allow"
+    resources = [for prefix in var.report_bucket_prefixes : "arn:aws:s3:::${prefix}.*"]
+  }
+
+  # Reading and writing the reconciliation CSVs inside those buckets.
+  statement {
+    sid = "ReportObjectAccess"
+
+    actions = [
+      "s3:PutObject",
+      "s3:GetObject",
+    ]
+
+    effect    = "Allow"
+    resources = [for prefix in var.report_bucket_prefixes : "arn:aws:s3:::${prefix}.*/*"]
+  }
+}
+
+resource "aws_iam_user_policy" "fund_app" {
+  name   = "fund-app-runtime"
+  user   = aws_iam_user.fund_app.name
+  policy = data.aws_iam_policy_document.fund_app.json
+}
+
+output "fund_app_access_key_id" {
+  description = "Set as AWS_ACCESS_KEY_ID in the application environment."
+  value       = aws_iam_access_key.fund_app.id
+}
+
+# Read with: terraform output -raw fund_app_secret_access_key
+output "fund_app_secret_access_key" {
+  description = "Set as AWS_SECRET_ACCESS_KEY in the application environment."
+  value       = aws_iam_access_key.fund_app.secret
+  sensitive   = true
 }
