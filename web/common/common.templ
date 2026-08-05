@@ -55,6 +55,12 @@ templ Links(member *members.Member, currentPath string) {
 				</span>
 			}
 			<span class="text-xs hover:text-gray-500 text-links order-3 ml-1"><a href="/logout">logout</a></span>
+		} else {
+			// Public pages otherwise offered no way in: / redirects to /login, but
+			// /about and the auth pages themselves are reachable while logged out.
+			<span class="text-xs order-3 ml-1">
+				<a href="/login" class={ "hover:text-gray-500 text-links", templ.KV("link-disabled", currentPath == "/login") }>login</a>
+			</span>
 		}
 	</span>
 }
