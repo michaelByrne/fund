@@ -141,12 +141,24 @@ SET status           = $2,
 WHERE provider_payout_item_id = $1
 RETURNING *;
 
+-- The fund's own active flag is checked here as well as by the service, because
+-- deactivating a fund stops donations but leaves enrollments alone -- so without
+-- it a closed fund still has payable enrollees and can still send money.
 -- name: GetActiveEnrollmentsForPayout :many
 SELECT fund_enrollment.*
 FROM fund_enrollment
          JOIN member ON member.id = fund_enrollment.member_id
+         JOIN fund ON fund.id = fund_enrollment.fund_id
 WHERE fund_enrollment.fund_id = $1
+  AND fund.active = true
   AND fund_enrollment.active = true
   AND member.active = true
   AND fund_enrollment.first_payout_date <= now()
 ORDER BY fund_enrollment.created;
+
+-- Lets the service say "that fund is closed" rather than "nobody is eligible",
+-- which are very different things to read on a payout you expected to run.
+-- name: IsFundActive :one
+SELECT active
+FROM fund
+WHERE id = $1;

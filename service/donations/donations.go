@@ -3,6 +3,7 @@ package donations
 import (
 	"boardfund/service/fundevents"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/google/uuid"
 	"log/slog"
@@ -79,7 +80,65 @@ func (s DonationService) ListActiveFunds(ctx context.Context) ([]Fund, error) {
 	return funds, nil
 }
 
+// ErrSubscriptionsNotCancelled means the provider would not cancel every
+// subscription, so the fund was left open.
+var ErrSubscriptionsNotCancelled = errors.New("could not cancel all subscriptions at the provider")
+
+// DeactivateFund closes a fund: no more donations, and every recurring
+// subscription cancelled at the provider.
+//
+// The provider is called before anything is written, and a failure leaves the
+// fund open. The previous order committed first, so a PayPal outage produced a
+// fund that was closed locally while donors carried on being charged, with
+// nothing to retry it -- the reconciler only pushes the other way, marking
+// donations inactive once the provider says they are gone.
+//
+// Reversing it means the surviving failure mode is subscriptions cancelled and
+// the local commit lost, which that same reconciler already repairs.
+//
+// Partial cancellation is refused rather than half-applied. Closing a fund while
+// some donors keep paying into it is worse than not closing it, and "nothing
+// happened, try again" is a state an admin can act on.
 func (s DonationService) DeactivateFund(ctx context.Context, id, actorID uuid.UUID) error {
+	recurring, err := s.donationStore.GetRecurringDonationsForFund(ctx, GetRecurringDonationsForFundRequest{
+		FundID: id,
+		Active: true,
+	})
+	if err != nil {
+		s.logger.Error("failed to read recurring donations before deactivating fund",
+			slog.String("error", err.Error()))
+
+		return err
+	}
+
+	toCancel := extractProviderSubscriptionIDs(recurring)
+
+	if len(toCancel) > 0 {
+		cancelled, errCancel := s.paymentsProvider.CancelSubscriptions(ctx, toCancel)
+		if errCancel != nil {
+			s.logger.Error("failed to cancel subscriptions, fund left active",
+				slog.String("error", errCancel.Error()),
+				slog.String("fund_id", id.String()),
+			)
+
+			return errCancel
+		}
+
+		// Compared by membership, not by count. Equal lengths would also be true
+		// of a provider that returned duplicates or a different set of ids, and
+		// the question here is whether anything we asked for is still running.
+		uncancelled := uncancelledSubscriptions(cancelled, toCancel)
+		if len(uncancelled) > 0 {
+			s.logger.Error("could not cancel every subscription, fund left active",
+				slog.String("fund_id", id.String()),
+				slog.String("uncancelled", fmt.Sprintf("%v", uncancelled)),
+			)
+
+			return fmt.Errorf("%w: %d of %d remain", ErrSubscriptionsNotCancelled,
+				len(uncancelled), len(toCancel))
+		}
+	}
+
 	deactivated, err := s.donationStore.SetFundAndDonationsToInactive(ctx, id)
 	if err != nil {
 		s.logger.Error("failed to deactivate fund", slog.String("error", err.Error()))
@@ -87,6 +146,10 @@ func (s DonationService) DeactivateFund(ctx context.Context, id, actorID uuid.UU
 		return err
 	}
 
+	// Recorded only once everything has actually happened. They used to be
+	// written before the provider was called, so a cancellation that failed and
+	// was rolled back left the history asserting a donation had been cancelled
+	// while it was still running.
 	for _, cancelled := range deactivated {
 		s.events.Record(ctx, fundevents.Record{
 			FundID:          cancelled.FundID,
@@ -96,29 +159,6 @@ func (s DonationService) DeactivateFund(ctx context.Context, id, actorID uuid.UU
 			Detail:          "fund deactivated",
 			ReferenceID:     &cancelled.ID,
 		})
-	}
-
-	toCancel := extractProviderSubscriptionIDs(deactivated)
-
-	cancelled, err := s.paymentsProvider.CancelSubscriptions(ctx, toCancel)
-	if err != nil {
-		s.logger.Error("failed to cancel subscriptions", slog.String("error", err.Error()))
-
-		return err
-	}
-
-	if len(cancelled) != len(toCancel) {
-		uncancelled := uncancelledSubscriptions(cancelled, toCancel)
-		s.logger.Error("failed to cancel all subscriptions", slog.String("uncancelled", fmt.Sprintf("%v", uncancelled)))
-
-		for _, sub := range uncancelled {
-			_, err = s.donationStore.SetDonationToActiveBySubscriptionID(ctx, sub)
-			if err != nil {
-				s.logger.Error("failed to reactivate donation", slog.String("error", err.Error()))
-
-				return err
-			}
-		}
 	}
 
 	return nil

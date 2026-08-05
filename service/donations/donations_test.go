@@ -59,7 +59,7 @@ func TestDonationService_DeactivateFund(t *testing.T) {
 		donationTestService := donations.NewDonationService(donationTestStore, stubDocumentStorage{}, &paymentsMock, fundEvents, []string{"payments"}, logger)
 
 		memberTestStore := membersstore.NewMemberStore(pool)
-		memberTestService := members.NewMemberService(memberTestStore, donationTestStore, &paymentsMock, logger)
+		memberTestService := members.NewMemberService(memberTestStore, donationTestStore, &paymentsMock, fundEvents, logger)
 
 		createFund := donations.Fund{
 			Name:            "Test Fund",
@@ -139,4 +139,220 @@ func TestDonationService_DeactivateFund(t *testing.T) {
 
 		assert.Equal(t, completeDonationTwo.ProviderSubscriptionID, argIDs[0])
 	})
+}
+
+// The provider is called before anything is written, so a cancellation that
+// fails leaves the fund open rather than closed-but-still-billing. The previous
+// order committed first, and nothing retried the cancellation afterwards.
+func TestDeactivateFundLeavesTheFundOpenIfCancellationFails(t *testing.T) {
+	ctx := context.Background()
+
+	container, pool, err := pg.SetupTestDatabase()
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = container.Terminate(ctx) })
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	paymentsMock := mocks.PaymentsProviderMock{}
+	paymentsMock.CreateFundFunc = func(ctx context.Context, name, description string) (string, error) {
+		return "provider-fund-id", nil
+	}
+	paymentsMock.CreatePlanFunc = func(ctx context.Context, plan donations.CreatePlan) (string, error) {
+		return "provider-plan-id", nil
+	}
+
+	donationStore := donationsstore.NewDonationStore(pool)
+	fundEvents := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
+	svc := donations.NewDonationService(donationStore, stubDocumentStorage{}, &paymentsMock, fundEvents, []string{"payments"}, logger)
+
+	memberStore := membersstore.NewMemberStore(pool)
+	memberSvc := members.NewMemberService(memberStore, donationStore, &paymentsMock, fundEvents, logger)
+
+	fund, err := svc.CreateFund(ctx, donations.Fund{
+		Name: "Test Fund", Description: "d",
+		PayoutFrequency: donations.PayoutFrequencyMonthly, Active: true,
+	})
+	require.NoError(t, err)
+
+	member, err := memberSvc.CreateMember(ctx, members.CreateMember{
+		FirstName: "Test", LastName: "User", Email: "cancelfail@test.org", BCOName: "cancelfail",
+	})
+	require.NoError(t, err)
+
+	plan, err := svc.CreateDonationPlan(ctx, donations.CreatePlan{
+		Name: "Plan", AmountCents: 1000, ProviderFundID: "pf",
+		IntervalUnit: donations.IntervalUnitMonth, IntervalCount: 1, FundID: fund.ID,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, svc.CompleteRecurringDonation(ctx, member.ID, donations.RecurringCompletion{
+		PlanID:                 uuid.NullUUID{UUID: plan.ID, Valid: true},
+		ProviderOrderID:        "order",
+		ProviderSubscriptionID: "sub-that-will-not-cancel",
+		AmountCents:            1000,
+		FundID:                 fund.ID,
+	}))
+
+	// The provider refuses: nothing comes back cancelled.
+	paymentsMock.CancelSubscriptionsFunc = func(ctx context.Context, ids []string) ([]string, error) {
+		return nil, nil
+	}
+
+	err = svc.DeactivateFund(ctx, fund.ID, member.ID)
+	require.Error(t, err, "a fund must not close while its subscriptions are still live")
+
+	after, err := svc.GetFundByID(ctx, fund.ID)
+	require.NoError(t, err)
+	assert.True(t, after.Active, "the fund should still be open")
+
+	// And the donation is still running, so the donor is not paying into a fund
+	// the admin believes is closed.
+	withDonations, err := memberSvc.GetMemberWithDonations(ctx, member.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, withDonations.Donations)
+
+	for _, donation := range withDonations.Donations {
+		assert.True(t, donation.Active, "donations should be untouched when cancellation fails")
+	}
+}
+
+// The partial-cancellation path used to return an error having already closed
+// the member and their donations, leaving some subscriptions live at the
+// provider and still charging someone whose account was shut.
+func TestDeactivateMemberLeavesTheMemberActiveIfCancellationFails(t *testing.T) {
+	ctx := context.Background()
+
+	container, pool, err := pg.SetupTestDatabase()
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = container.Terminate(ctx) })
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	paymentsMock := mocks.PaymentsProviderMock{}
+	paymentsMock.CreateFundFunc = func(ctx context.Context, name, description string) (string, error) {
+		return "provider-fund-id", nil
+	}
+	paymentsMock.CreatePlanFunc = func(ctx context.Context, plan donations.CreatePlan) (string, error) {
+		return "provider-plan-id", nil
+	}
+
+	donationStore := donationsstore.NewDonationStore(pool)
+	fundEvents := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
+	svc := donations.NewDonationService(donationStore, stubDocumentStorage{}, &paymentsMock, fundEvents, []string{"payments"}, logger)
+
+	memberStore := membersstore.NewMemberStore(pool)
+	memberSvc := members.NewMemberService(memberStore, donationStore, &paymentsMock, fundEvents, logger)
+
+	fund, err := svc.CreateFund(ctx, donations.Fund{
+		Name: "Test Fund", Description: "d",
+		PayoutFrequency: donations.PayoutFrequencyMonthly, Active: true,
+	})
+	require.NoError(t, err)
+
+	member, err := memberSvc.CreateMember(ctx, members.CreateMember{
+		FirstName: "Test", LastName: "User", Email: "membercancel@test.org", BCOName: "membercancel",
+	})
+	require.NoError(t, err)
+
+	plan, err := svc.CreateDonationPlan(ctx, donations.CreatePlan{
+		Name: "Plan", AmountCents: 1000, ProviderFundID: "pf",
+		IntervalUnit: donations.IntervalUnitMonth, IntervalCount: 1, FundID: fund.ID,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, svc.CompleteRecurringDonation(ctx, member.ID, donations.RecurringCompletion{
+		PlanID:                 uuid.NullUUID{UUID: plan.ID, Valid: true},
+		ProviderOrderID:        "order",
+		ProviderSubscriptionID: "sub-that-will-not-cancel",
+		AmountCents:            1000,
+		FundID:                 fund.ID,
+	}))
+
+	paymentsMock.CancelSubscriptionsFunc = func(ctx context.Context, ids []string) ([]string, error) {
+		return nil, nil
+	}
+
+	_, err = memberSvc.DeactivateMember(ctx, member.ID)
+	require.Error(t, err, "a member must not be closed while their subscriptions are still live")
+
+	after, err := memberSvc.GetMemberWithDonations(ctx, member.ID)
+	require.NoError(t, err)
+
+	assert.True(t, after.Active, "the member should still be active")
+	require.NotEmpty(t, after.Donations)
+
+	for _, donation := range after.Donations {
+		assert.True(t, donation.Active, "donations should be untouched when cancellation fails")
+	}
+}
+
+// A provider that reports the right number of cancellations but not the right
+// ones must not be treated as having cancelled everything. Comparing counts
+// would accept this and close the fund with a live subscription behind it.
+func TestDeactivateFundRejectsMismatchedCancellations(t *testing.T) {
+	ctx := context.Background()
+
+	container, pool, err := pg.SetupTestDatabase()
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = container.Terminate(ctx) })
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	paymentsMock := mocks.PaymentsProviderMock{}
+	paymentsMock.CreateFundFunc = func(ctx context.Context, name, description string) (string, error) {
+		return "provider-fund-id", nil
+	}
+	paymentsMock.CreatePlanFunc = func(ctx context.Context, plan donations.CreatePlan) (string, error) {
+		return "provider-plan-id", nil
+	}
+
+	donationStore := donationsstore.NewDonationStore(pool)
+	fundEvents := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
+	svc := donations.NewDonationService(donationStore, stubDocumentStorage{}, &paymentsMock, fundEvents, []string{"payments"}, logger)
+
+	memberStore := membersstore.NewMemberStore(pool)
+	memberSvc := members.NewMemberService(memberStore, donationStore, &paymentsMock, fundEvents, logger)
+
+	fund, err := svc.CreateFund(ctx, donations.Fund{
+		Name: "Test Fund", Description: "d",
+		PayoutFrequency: donations.PayoutFrequencyMonthly, Active: true,
+	})
+	require.NoError(t, err)
+
+	member, err := memberSvc.CreateMember(ctx, members.CreateMember{
+		FirstName: "Test", LastName: "User", Email: "mismatch@test.org", BCOName: "mismatch",
+	})
+	require.NoError(t, err)
+
+	plan, err := svc.CreateDonationPlan(ctx, donations.CreatePlan{
+		Name: "Plan", AmountCents: 1000, ProviderFundID: "pf",
+		IntervalUnit: donations.IntervalUnitMonth, IntervalCount: 1, FundID: fund.ID,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, svc.CompleteRecurringDonation(ctx, member.ID, donations.RecurringCompletion{
+		PlanID:                 uuid.NullUUID{UUID: plan.ID, Valid: true},
+		ProviderOrderID:        "order",
+		ProviderSubscriptionID: "sub-real",
+		AmountCents:            1000,
+		FundID:                 fund.ID,
+	}))
+
+	// One id back for one asked for, but not the one asked for.
+	paymentsMock.CancelSubscriptionsFunc = func(ctx context.Context, ids []string) ([]string, error) {
+		return []string{"sub-something-else"}, nil
+	}
+
+	_, err = svc.GetFundByID(ctx, fund.ID)
+	require.NoError(t, err)
+
+	err = svc.DeactivateFund(ctx, fund.ID, member.ID)
+	require.ErrorIs(t, err, donations.ErrSubscriptionsNotCancelled)
+
+	after, err := svc.GetFundByID(ctx, fund.ID)
+	require.NoError(t, err)
+	assert.True(t, after.Active, "the fund should still be open")
 }

@@ -91,20 +91,29 @@ jobs:
           cache: true
 
       - name: Install generators
-        # Both tools stamp their version into the files they emit, so these have
-        # to match what produced the committed output exactly -- otherwise this
-        # job fails on the version comment alone. templ also matches the library
-        # version in go.mod.
+        # Both Go tools stamp their version into the files they emit, so these
+        # have to match what produced the committed output exactly -- otherwise
+        # this job fails on the version comment alone. templ also matches the
+        # library version in go.mod.
+        #
+        # Tailwind is pinned to v3 because tailwind.css uses the v3 directives
+        # (@tailwind base/components/utilities) and tailwind.config.js the v3
+        # format; v4 would rewrite the whole stylesheet.
         run: |
           go install github.com/a-h/templ/cmd/templ@v0.2.793
           CGO_ENABLED=0 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1
+          curl -sSfL -o /usr/local/bin/tailwindcss \
+            https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.17/tailwindcss-linux-x64
+          chmod +x /usr/local/bin/tailwindcss
 
       - name: Regenerate
         run: make generate
 
       - name: Verify nothing changed
-        # templ and sqlc output is committed, so editing a .templ or a .sql
-        # without regenerating leaves the build passing against stale code.
+        # templ, sqlc and tailwind output is all committed, so editing a
+        # .templ, a .sql or a class name without regenerating leaves the build
+        # passing against stale artifacts. The stylesheet is the worst of the
+        # three: an unbuilt class does not error, it just has no effect.
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             echo "::error::Generated code is out of date. Run 'make generate' and commit the result."

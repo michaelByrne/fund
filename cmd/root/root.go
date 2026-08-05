@@ -198,7 +198,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	fundEvents := fundevents.NewService(eventStore, logger)
 
 	donationService := donations.NewDonationService(donationStore, documentStorage, paypalService, fundEvents, runConfig.ReportTypes, logger)
-	memberService := members.NewMemberService(memberStore, donationStore, paypalService, logger)
+	memberService := members.NewMemberService(memberStore, donationStore, paypalService, fundEvents, logger)
 	authService := auth.NewAuthService(memberStore, authStore, authorizer, logger)
 	financeService := finance.NewFinanceService(donationStore, paypalService, documentStorage, fundEvents, runConfig.ReportTypes, logger)
 	enrollmentService := enrollments.NewEnrollmentsService(enrollmentStore, donationStore, fundEvents, logger)

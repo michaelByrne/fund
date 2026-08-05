@@ -22,6 +22,7 @@ type MemberDonation struct {
 	FundID                 uuid.UUID           `json:"fund_id"`
 	FundName               string              `json:"fund_name"`
 	Recurring              bool                `json:"recurring"`
+	Active                 bool                `json:"active"`
 	ProviderOrderID        string              `json:"provider_order_id"`
 	ProviderSubscriptionID string              `json:"provider_subscription_id"`
 	Payments               []MemberPayment     `json:"payments"`

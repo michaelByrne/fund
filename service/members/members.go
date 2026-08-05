@@ -2,8 +2,10 @@ package members
 
 import (
 	"boardfund/service/donations"
+	"boardfund/service/fundevents"
 	"context"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"github.com/google/uuid"
 	"log/slog"
@@ -22,8 +24,14 @@ type memberStore interface {
 }
 
 type donationStore interface {
+	GetDonationsByDonorID(ctx context.Context, donorID uuid.UUID) ([]donations.Donation, error)
 	SetDonationsToInactiveByDonorID(ctx context.Context, id uuid.UUID) ([]donations.Donation, error)
-	SetDonationsToActive(ctx context.Context, ids []uuid.UUID) ([]donations.Donation, error)
+}
+
+// eventRecorder writes the fund activity feed. Record does not return an error:
+// it runs after the operation it describes has committed.
+type eventRecorder interface {
+	Record(ctx context.Context, record fundevents.Record)
 }
 
 type paymentsProvider interface {
@@ -34,17 +42,19 @@ type MemberService struct {
 	memberStore      memberStore
 	donationStore    donationStore
 	paymentsProvider paymentsProvider
+	events           eventRecorder
 
 	logger *slog.Logger
 }
 
-func NewMemberService(memberStore memberStore, donationStore donationStore, paymentsProvider paymentsProvider, logger *slog.Logger) *MemberService {
+func NewMemberService(memberStore memberStore, donationStore donationStore, paymentsProvider paymentsProvider, events eventRecorder, logger *slog.Logger) *MemberService {
 	gob.Register(Member{})
 
 	return &MemberService{
 		memberStore:      memberStore,
 		donationStore:    donationStore,
 		paymentsProvider: paymentsProvider,
+		events:           events,
 		logger:           logger,
 	}
 }
@@ -60,7 +70,65 @@ func (s MemberService) GetMemberWithDonations(ctx context.Context, id uuid.UUID)
 	return member, nil
 }
 
+// ErrSubscriptionsNotCancelled means the provider would not cancel every
+// subscription, so the member was left active.
+var ErrSubscriptionsNotCancelled = errors.New("could not cancel all subscriptions at the provider")
+
+// DeactivateMember closes a member's account and cancels their recurring
+// donations at the provider.
+//
+// The provider is called before anything is written. The previous order
+// deactivated the member and their donations first, then cancelled; on a partial
+// cancellation it returned an error and reactivated nothing, leaving a member
+// and their donations closed locally while some subscriptions carried on
+// charging them. Nothing retried it.
+//
+// Partial cancellation is now refused with everything left as it was, which is a
+// state an admin can act on by trying again.
 func (s MemberService) DeactivateMember(ctx context.Context, id uuid.UUID) (*Member, error) {
+	existing, err := s.donationStore.GetDonationsByDonorID(ctx, id)
+	if err != nil {
+		s.logger.Error("failed to read donations before deactivating member",
+			slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	var active []donations.Donation
+	for _, donation := range existing {
+		if donation.Active {
+			active = append(active, donation)
+		}
+	}
+
+	toCancel := extractProviderSubscriptionIDs(active)
+
+	if len(toCancel) > 0 {
+		cancelled, errCancel := s.paymentsProvider.CancelSubscriptions(ctx, toCancel)
+		if errCancel != nil {
+			s.logger.Error("failed to cancel subscriptions, member left active",
+				slog.String("error", errCancel.Error()),
+				slog.String("member_id", id.String()),
+			)
+
+			return nil, errCancel
+		}
+
+		// Compared by membership, not by count. Equal lengths would also be true
+		// of a provider that returned duplicates or a different set of ids, and
+		// the question here is whether anything we asked for is still running.
+		uncancelled := uncancelledSubscriptions(cancelled, toCancel)
+		if len(uncancelled) > 0 {
+			s.logger.Error("could not cancel every subscription, member left active",
+				slog.String("member_id", id.String()),
+				slog.String("uncancelled", fmt.Sprintf("%v", uncancelled)),
+			)
+
+			return nil, fmt.Errorf("%w: %d of %d remain", ErrSubscriptionsNotCancelled,
+				len(uncancelled), len(toCancel))
+		}
+	}
+
 	member, err := s.memberStore.SetMemberToInactive(ctx, id)
 	if err != nil {
 		s.logger.Error("failed to deactivate member", slog.String("error", err.Error()))
@@ -68,48 +136,31 @@ func (s MemberService) DeactivateMember(ctx context.Context, id uuid.UUID) (*Mem
 		return nil, err
 	}
 
-	deactivatedDonations, err := s.donationStore.SetDonationsToInactiveByDonorID(ctx, id)
+	deactivated, err := s.donationStore.SetDonationsToInactiveByDonorID(ctx, id)
 	if err != nil {
 		s.logger.Error("failed to deactivate donations", slog.String("error", err.Error()))
 
-		_, err = s.memberStore.SetMemberToActive(ctx, id)
-		if err != nil {
-			s.logger.Error("failed to reactivate member", slog.String("error", err.Error()))
-
-			return nil, err
+		// The subscriptions are already cancelled, so leaving the member closed
+		// would strand donations that look active but can never be charged. Put
+		// the member back and report the failure.
+		if _, errRestore := s.memberStore.SetMemberToActive(ctx, id); errRestore != nil {
+			s.logger.Error("failed to reactivate member after donations failed",
+				slog.String("error", errRestore.Error()))
 		}
 
 		return nil, err
 	}
 
-	subscriptionIDs := extractProviderSubscriptionIDs(deactivatedDonations)
-
-	cancelled, err := s.paymentsProvider.CancelSubscriptions(ctx, subscriptionIDs)
-	if err != nil {
-		s.logger.Error("failed to cancel subscriptions", slog.String("error", err.Error()))
-
-		_, err = s.memberStore.SetMemberToActive(ctx, id)
-		if err != nil {
-			s.logger.Error("failed to reactivate member", slog.String("error", err.Error()))
-
-			return nil, err
-		}
-
-		_, err = s.donationStore.SetDonationsToActive(ctx, extractDonationIDs(deactivatedDonations))
-		if err != nil {
-			s.logger.Error("failed to reactivate donations", slog.String("error", err.Error()))
-
-			return nil, err
-		}
-
-		return nil, err
-	}
-
-	if len(cancelled) != len(subscriptionIDs) {
-		uncancelled := uncancelledSubscriptions(cancelled, subscriptionIDs)
-		s.logger.Error("failed to cancel all subscriptions", slog.String("uncancelled", fmt.Sprintf("%v", uncancelled)))
-
-		return nil, fmt.Errorf("failed to cancel all subscriptions")
+	// Their donations belong to funds, and those funds' histories should say why
+	// they stopped. Nothing recorded this before.
+	for _, cancelled := range deactivated {
+		s.events.Record(ctx, fundevents.Record{
+			FundID:          cancelled.FundID,
+			Kind:            fundevents.KindDonationCancelled,
+			SubjectMemberID: &cancelled.DonorID,
+			Detail:          "member deactivated",
+			ReferenceID:     &cancelled.ID,
+		})
 	}
 
 	return member, nil
@@ -199,16 +250,6 @@ func extractProviderSubscriptionIDs(donations []donations.Donation) []string {
 	}
 
 	return subscriptionIDs
-}
-
-func extractDonationIDs(donations []donations.Donation) []uuid.UUID {
-	var ids []uuid.UUID
-
-	for _, donation := range donations {
-		ids = append(ids, donation.ID)
-	}
-
-	return ids
 }
 
 func uncancelledSubscriptions(cancelled []string, all []string) []string {

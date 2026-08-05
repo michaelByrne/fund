@@ -127,6 +127,7 @@ SELECT m.id, m.first_name, m.last_name, m.bco_name, m.roles, m.email, m.ip_addre
                                    'fund_id', d.fund_id,
                                    'fund_name', f.name,
                                    'recurring', d.recurring,
+                                   'active', d.active,
                                    'provider_order_id', d.provider_order_id,
                                    'provider_subscription_id', d.provider_subscription_id,
                                    'created', d.created,
