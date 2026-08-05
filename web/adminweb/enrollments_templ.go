@@ -388,7 +388,7 @@ func CurrentEnrollments(enrollments []enrollments.Enrollment) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = UnpayableNotice(enrollments).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = UnpayableNotice(coverageOf(enrollments)).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -417,7 +417,7 @@ func CurrentEnrollments(enrollments []enrollments.Enrollment) templ.Component {
 // UnpayableNotice appears only when the next batch would cover fewer people than
 // are enrolled. Saying "5 of 5" every time would train the reader to skip the
 // line, which is the one time it matters that they do not.
-func UnpayableNotice(enrollments []enrollments.Enrollment) templ.Component {
+func UnpayableNotice(coverage payoutCoverage) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -438,15 +438,15 @@ func UnpayableNotice(enrollments []enrollments.Enrollment) templ.Component {
 			templ_7745c5c3_Var15 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		if unpayableCount(enrollments) > 0 {
+		if coverage.Incomplete() {
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"mb-2 p-2 text-xs bg-odd-hover\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var16 string
-			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(unpayableSummary(enrollments))
+			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(coverage.Summary())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 112, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 112, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {

@@ -90,7 +90,7 @@ func TestUnpayableNoticeOnlyWhenSomethingIsWrong(t *testing.T) {
 	}
 
 	var quiet strings.Builder
-	if err := UnpayableNotice(allPayable).Render(ctx, &quiet); err != nil {
+	if err := UnpayableNotice(coverageOf(allPayable)).Render(ctx, &quiet); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 
@@ -105,12 +105,48 @@ func TestUnpayableNoticeOnlyWhenSomethingIsWrong(t *testing.T) {
 	)
 
 	var loud strings.Builder
-	if err := UnpayableNotice(mixed).Render(ctx, &loud); err != nil {
+	if err := UnpayableNotice(coverageOf(mixed)).Render(ctx, &loud); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 
 	if !strings.Contains(loud.String(), "cover 2 of 4 enrollees") {
 		t.Errorf("expected a 2-of-4 summary, got %q", loud.String())
+	}
+}
+
+// The notice's condition and its message must come from the same count. They
+// were derived separately, each taking its own time.Now(), so across the
+// eligibility boundary one could say nothing is wrong while the other named a
+// shortfall.
+func TestPayoutCoverageIsOneSnapshot(t *testing.T) {
+	past := time.Now().Add(-24 * time.Hour)
+	future := time.Now().Add(30 * 24 * time.Hour)
+
+	coverage := coverageOf([]enrollments.Enrollment{
+		enrollment("a", "a@paypal.test", past),
+		enrollment("b", "", past),
+		enrollment("c", "c@paypal.test", future),
+	})
+
+	if coverage.Total != 3 {
+		t.Errorf("Total = %d, want 3", coverage.Total)
+	}
+
+	if coverage.Unpayable != 2 {
+		t.Errorf("Unpayable = %d, want 2", coverage.Unpayable)
+	}
+
+	if !coverage.Incomplete() {
+		t.Error("Incomplete() should be true when anyone is left out")
+	}
+
+	if !strings.Contains(coverage.Summary(), "cover 1 of 3 enrollees") {
+		t.Errorf("Summary() = %q", coverage.Summary())
+	}
+
+	empty := coverageOf(nil)
+	if empty.Incomplete() {
+		t.Error("no enrollees means nothing is missing, not a shortfall")
 	}
 }
 

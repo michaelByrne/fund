@@ -94,7 +94,7 @@ templ EventActor(event fundevents.Event) {
 
 templ CurrentEnrollments(enrollments []enrollments.Enrollment) {
 	@common.Section("current enrollments") {
-		@UnpayableNotice(enrollments)
+		@UnpayableNotice(coverageOf(enrollments))
 		<div class="flex-grow overflow-y-auto max-h-[300px] sm:max-h-[500px]">
 			<ul id="enrollments">
 				@EnrollmentsList(enrollments)
@@ -106,10 +106,10 @@ templ CurrentEnrollments(enrollments []enrollments.Enrollment) {
 // UnpayableNotice appears only when the next batch would cover fewer people than
 // are enrolled. Saying "5 of 5" every time would train the reader to skip the
 // line, which is the one time it matters that they do not.
-templ UnpayableNotice(enrollments []enrollments.Enrollment) {
-	if unpayableCount(enrollments) > 0 {
+templ UnpayableNotice(coverage payoutCoverage) {
+	if coverage.Incomplete() {
 		<div class="mb-2 p-2 text-xs bg-odd-hover">
-			{ unpayableSummary(enrollments) }
+			{ coverage.Summary() }
 		</div>
 	}
 }
