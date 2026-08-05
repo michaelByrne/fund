@@ -5,9 +5,10 @@ import (
 	"boardfund/service/members"
 	"context"
 	"errors"
-	"fmt"
 	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"log/slog"
 )
@@ -110,7 +111,7 @@ func (s AuthService) GetApprovedEmail(ctx context.Context, email string) (*Appro
 		s.logger.Error("failed to get approved email", slog.String("error", err.Error()))
 
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("email not approved")
+			return nil, ErrEmailNotApproved
 		}
 
 		return nil, err
@@ -133,6 +134,13 @@ func (s AuthService) MarkEmailAsUsed(ctx context.Context, email string) (*Approv
 func (s AuthService) InsertApprovedEmail(ctx context.Context, email string) (*ApprovedEmail, error) {
 	approvedEmail, err := s.authStore.InsertApprovedEmail(ctx, email)
 	if err != nil {
+		// approved_email.email is the primary key, so re-adding an address is a
+		// unique violation. That is an operator repeating themselves, not a fault.
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return nil, ErrEmailAlreadyApproved
+		}
+
 		s.logger.Error("failed to insert approved email", slog.String("error", err.Error()))
 
 		return nil, err

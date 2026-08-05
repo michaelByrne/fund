@@ -6,8 +6,10 @@ import (
 	"boardfund/web/common"
 	"boardfund/web/mux"
 	"encoding/json"
+	"errors"
 	"github.com/alexedwards/scs/v2"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -48,13 +50,21 @@ func (h AuthHandlers) register(w http.ResponseWriter, r *http.Request) {
 
 	approvedEmail, err := h.authService.GetApprovedEmail(ctx, email)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		// Being turned away is not a server fault. Answering 500 here made a routine
+		// rejection look like an outage, both to the user and in the logs.
+		if errors.Is(err, auth.ErrEmailNotApproved) {
+			errRedirect(w, r, "that email has not been approved for registration. ask an admin to add it.", "/register")
+
+			return
+		}
+
+		errRedirect(w, r, "could not check that email. please try again.", "/register")
 
 		return
 	}
 
 	if approvedEmail.Used {
-		http.Error(w, "email is already in use", http.StatusBadRequest)
+		errRedirect(w, r, "an account has already been registered with that email.", "/register")
 
 		return
 	}
@@ -197,8 +207,20 @@ func jsonResponse(w http.ResponseWriter, status int, data any) {
 	json.NewEncoder(w).Encode(data)
 }
 
+// errRedirect sends the user to the error page with a message to display.
+//
+// Both values are escaped: they were concatenated raw, so any message containing
+// an ampersand truncated itself into a second query parameter, and one containing
+// a space produced a malformed URL.
 func errRedirect(w http.ResponseWriter, r *http.Request, msg, link string) {
-	http.Redirect(w, r, "/auth/error?msg="+msg+"&link="+link, http.StatusFound)
+	target := url.URL{Path: "/auth/error"}
+
+	query := target.Query()
+	query.Set("msg", msg)
+	query.Set("link", link)
+	target.RawQuery = query.Encode()
+
+	http.Redirect(w, r, target.String(), http.StatusFound)
 }
 
 func isHx(r *http.Request) bool {

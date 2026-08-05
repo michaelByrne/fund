@@ -10,7 +10,11 @@ import (
 templ Admin(member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div class="h-[130vh] sm:h-[90vh] overflow-auto flex flex-col">
-			<div class="mt-2 p-4 max-w-screen-lg flex-grow" hx-ext="response-targets">
+			// hx-target-error inherits, so every admin request below this point has
+			// somewhere to put a failure. Without it htmx's default response handling
+			// ({code:"[45]..", swap:false}) discards error responses silently and a
+			// failed action is indistinguishable from a successful one.
+			<div class="mt-2 p-4 max-w-screen-lg flex-grow" hx-ext="response-targets" hx-target-error="#admin-error">
 				<div class="mb-6 inline-flex items-center shadow-blue-boxy-thin bg-high p-2 pr-4">
 					<h2 class="text-lg pl-2 font-semibold">admin operations</h2>
 					<span class="text-xs ml-4">
@@ -19,6 +23,7 @@ templ Admin(member *members.Member, path string) {
 						<a href="/admin/payouts" class={ "hover:underline text-gray-800", templ.KV("text-stone-900 font-medium underline disabled", path == "/admin/payouts") }>payouts</a>
 					</span>
 				</div>
+				<div id="admin-error"></div>
 				<div class="flex flex-col flex-grow">
 					{ children... }
 				</div>
@@ -49,4 +54,27 @@ func centsToDecimalString(cents int32) string {
 	}
 
 	return integerPart + "." + decimalPart
+}
+
+// AdminError is swapped into #admin-error when an admin action fails. It is
+// dismissible so a stale message cannot be mistaken for a fresh one.
+templ AdminError(message string) {
+	<div class="mb-4 p-3 bg-odd-hover shadow-blue-boxy-thin flex flex-row items-center gap-4">
+		<span class="text-sm text-gray-900">{ message }</span>
+		<button
+			type="button"
+			class="ml-auto text-xs text-gray-700 hover:text-gray-900"
+			onclick="document.getElementById('admin-error').innerHTML = ''"
+		>
+			dismiss
+		</button>
+	</div>
+}
+
+// AdminErrorPage is the whole-page equivalent, for a failed navigation rather
+// than a failed action -- there is no target to swap into on a full page load.
+templ AdminErrorPage(message string, member *members.Member, path string) {
+	@Admin(member, path) {
+		@AdminError(message)
+	}
 }

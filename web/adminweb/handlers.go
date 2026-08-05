@@ -10,6 +10,7 @@ import (
 	"boardfund/web/common"
 	"boardfund/web/mux"
 	"encoding/json"
+	"errors"
 	"github.com/alexedwards/scs/v2"
 	"github.com/google/uuid"
 	"net/http"
@@ -87,21 +88,21 @@ func (h *AdminHandlers) deactivateEnrollment(w http.ResponseWriter, r *http.Requ
 
 	id := r.PathValue("id")
 	if id == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	idUUID, err := uuid.Parse(id)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	_, err = h.enrollmentService.DeactivateEnrollment(ctx, idUUID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
@@ -122,28 +123,34 @@ func (h *AdminHandlers) addApprovedEmail(w http.ResponseWriter, r *http.Request)
 
 	err := r.ParseForm()
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	email := r.FormValue("email")
 	if email == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	_, err = h.authService.InsertApprovedEmail(ctx, email)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		if errors.Is(err, auth.ErrEmailAlreadyApproved) {
+			h.badRequest(w, r, "that email is already approved.")
+
+			return
+		}
+
+		h.internalError(w, r)
 
 		return
 	}
 
 	approvedEmails, err := h.authService.GetApprovedEmails(ctx)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
@@ -163,21 +170,21 @@ func (h *AdminHandlers) deleteApprovedEmail(w http.ResponseWriter, r *http.Reque
 
 	email := r.PathValue("email")
 	if email == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	_, err := h.authService.DeleteApprovedEmail(ctx, email)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
 
 	approvedEmails, err := h.authService.GetApprovedEmails(ctx)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
@@ -197,49 +204,49 @@ func (h *AdminHandlers) confirmEnrollment(w http.ResponseWriter, r *http.Request
 
 	memberIDStr := r.URL.Query().Get("member")
 	if memberIDStr == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	memberUUID, err := uuid.Parse(memberIDStr)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	fundIDStr := r.URL.Query().Get("fund")
 	if fundIDStr == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	fundUUID, err := uuid.Parse(fundIDStr)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	member, err := h.memberService.GetMemberByID(ctx, memberUUID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
 
 	fund, err := h.donationService.GetFundByID(ctx, fundUUID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
 
 	enrollment, err := h.enrollmentService.FundEnrollmentExists(ctx, fundUUID, memberUUID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
@@ -265,49 +272,49 @@ func (h *AdminHandlers) createEnrollment(w http.ResponseWriter, r *http.Request)
 
 	err := r.ParseForm()
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	fundIDStr := r.FormValue("fund")
 	if fundIDStr == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	fundID, err := uuid.Parse(fundIDStr)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	memberIDStr := r.FormValue("member")
 	if memberIDStr == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	memberID, err := uuid.Parse(memberIDStr)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	paypalEmail := r.FormValue("paypal")
 	if paypalEmail == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	username := r.FormValue("username")
 	if username == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
@@ -321,14 +328,14 @@ func (h *AdminHandlers) createEnrollment(w http.ResponseWriter, r *http.Request)
 
 	enrollment, err := h.enrollmentService.CreateEnrollment(ctx, createEnrollment)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
 
 	member, err := h.memberService.GetMemberByID(ctx, memberID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
@@ -343,7 +350,7 @@ func (h *AdminHandlers) searchMembers(w http.ResponseWriter, r *http.Request) {
 
 	membersByUsername, err := h.memberService.SearchMembersByUsername(ctx, query)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
@@ -363,28 +370,28 @@ func (h *AdminHandlers) fundPage(w http.ResponseWriter, r *http.Request) {
 
 	fundIDStr := r.URL.Query().Get("fund")
 	if fundIDStr == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	fundID, err := uuid.Parse(fundIDStr)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	fund, err := h.donationService.GetFundByID(ctx, fundID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
 
 	activeEnrollments, err := h.enrollmentService.GetActiveEnrollmentsForFund(ctx, fundID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
@@ -408,21 +415,21 @@ func (h *AdminHandlers) fundAudit(w http.ResponseWriter, r *http.Request) {
 	reportType := r.URL.Query().Get("type")
 
 	if fundID == "" || dateStr == "" || reportType == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	date, err := time.Parse("01-02-2006", dateStr)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	fundUUID, err := uuid.Parse(fundID)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
@@ -435,7 +442,7 @@ func (h *AdminHandlers) fundAudit(w http.ResponseWriter, r *http.Request) {
 
 	audit, err := h.financeService.GetAudit(ctx, req)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
@@ -456,21 +463,21 @@ func (h *AdminHandlers) availableAudits(w http.ResponseWriter, r *http.Request) 
 
 	id := r.PathValue("id")
 	if id == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	idUUID, err := uuid.Parse(id)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	availAudits, err := h.financeService.GetAvailableAudits(ctx, idUUID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
@@ -490,14 +497,14 @@ func (h *AdminHandlers) memberPage(w http.ResponseWriter, r *http.Request) {
 
 	id := r.PathValue("id")
 	if id == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	idUUID, err := uuid.Parse(id)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
@@ -564,7 +571,7 @@ func (h *AdminHandlers) createFund(w http.ResponseWriter, r *http.Request) {
 
 	err := r.ParseForm()
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
@@ -608,7 +615,7 @@ func (h *AdminHandlers) createFund(w http.ResponseWriter, r *http.Request) {
 
 	newFund, err := h.donationService.CreateFund(ctx, createFund)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
@@ -649,21 +656,21 @@ func (h *AdminHandlers) deactivateMember(w http.ResponseWriter, r *http.Request)
 
 	id := r.PathValue("id")
 	if id == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	idUUID, err := uuid.Parse(id)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "")
 
 		return
 	}
 
 	_, err = h.memberService.DeactivateMember(ctx, idUUID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
@@ -692,7 +699,7 @@ func (h *AdminHandlers) adminPage(w http.ResponseWriter, r *http.Request) {
 
 	emails, err := h.authService.GetApprovedEmails(ctx)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
@@ -709,7 +716,14 @@ func dollarStringToCents(dollars string) (int32, error) {
 	return int32(amount * 100), nil
 }
 
-func sendFormValidationErrJSON(w http.ResponseWriter, r *http.Request, fieldErrs []fieldError) {
+// sendFormValidationErrJSON emits the 422 payload that the htmx:responseError
+// listener in shared.js maps onto form fields via setCustomValidity.
+//
+// It currently has no callers -- no handler builds a fieldError, so nothing has
+// ever returned 422 and that listener has never fired. Kept as the server half of
+// per-field validation, which is a better fit for forms than the whole-page banner
+// renderError produces. Wiring it up is its own pass, form by form.
+func (h *AdminHandlers) sendFormValidationErrJSON(w http.ResponseWriter, r *http.Request, fieldErrs []fieldError) {
 	errs := make(map[string]string)
 	for _, err := range fieldErrs {
 		errs[err.Field] = err.Error
@@ -717,7 +731,7 @@ func sendFormValidationErrJSON(w http.ResponseWriter, r *http.Request, fieldErrs
 
 	targetID := r.Header.Get("HX-Trigger")
 	if targetID == "" {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
@@ -728,7 +742,7 @@ func sendFormValidationErrJSON(w http.ResponseWriter, r *http.Request, fieldErrs
 
 	payloadBytes, err := json.Marshal(validationPayload)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}

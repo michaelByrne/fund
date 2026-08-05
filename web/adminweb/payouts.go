@@ -57,7 +57,7 @@ func (h *AdminHandlers) payoutsPage(w http.ResponseWriter, r *http.Request) {
 
 	batches, err := h.payoutService.GetBatchesAwaitingApproval(ctx)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.renderError(w, r, http.StatusInternalServerError, msgUnavailable)
 
 		return
 	}
@@ -77,21 +77,21 @@ func (h *AdminHandlers) payoutPage(w http.ResponseWriter, r *http.Request) {
 
 	batchID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "that is not a valid batch id.")
 
 		return
 	}
 
 	batch, err := h.payoutService.GetBatchByID(ctx, batchID)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
+		h.notFound(w, r)
 
 		return
 	}
 
 	items, err := h.payoutService.GetPayoutsForBatch(ctx, batchID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
@@ -115,7 +115,7 @@ func (h *AdminHandlers) approvePayout(w http.ResponseWriter, r *http.Request) {
 
 	batchID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "that is not a valid batch id.")
 
 		return
 	}
@@ -144,7 +144,7 @@ func (h *AdminHandlers) rejectPayout(w http.ResponseWriter, r *http.Request) {
 
 	batchID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.badRequest(w, r, "that is not a valid batch id.")
 
 		return
 	}
@@ -168,7 +168,7 @@ func (h *AdminHandlers) renderBatchActions(w http.ResponseWriter, r *http.Reques
 
 	batch, err := h.payoutService.GetBatchByID(ctx, batchID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.internalError(w, r)
 
 		return
 	}
