@@ -315,30 +315,25 @@ templ EnrollmentSuccess(enrollment enrollments.Enrollment, member members.Member
 	</div>
 }
 
+// This screen used to promise a first payout of next_payment + 1 month, which
+// was the old waiting period. Enrollees are eligible immediately now, and the
+// honest answer to "when do they get paid" is "the next time a batch is planned"
+// -- which is a person running a command, not a date this page can know.
+//
+// fund.next_payment is deliberately not shown as that date. Nothing advances it,
+// so it is stale for every fund old enough to have passed it, and promising a
+// date that has already gone by is worse than not promising one.
 templ EnrollmentDates(fund donations.Fund) {
-	if fund.PayoutFrequency == "monthly" {
-		<div class="flex flex-col gap-2 my-2">
-			<div class="flex">
-				<div class="w-48">first day of enrollment:</div>
-				<div>{ fund.NextPayment.Format("01-02-2006") }</div>
-			</div>
-			<div class="flex">
-				<div class="w-48">first payout:</div>
-				<div>{ fund.NextPayment.AddDate(0,1,0).Format("01-02-2006") }</div>
-			</div>
+	<div class="flex flex-col gap-2 my-2">
+		<div class="flex">
+			<div class="w-48">enrolled from:</div>
+			<div>{ time.Now().Format("01-02-2006") }</div>
 		</div>
-	} else {
-		<div class="flex flex-col gap-2 my-2">
-			<div class="flex">
-				<div class="w-48">first day of enrollment:</div>
-				<div>{ time.Now().Format("01-02-2006") }</div>
-			</div>
-			<div class="flex">
-				<div class="w-48">payout:</div>
-				<div>{ fund.NextPayment.Format("01-02-2006") }</div>
-			</div>
+		<div class="flex">
+			<div class="w-48">first payout:</div>
+			<div>included in the next payout for this fund</div>
 		</div>
-	}
+	</div>
 }
 
 templ AddEnrollment(fund donations.Fund) {
