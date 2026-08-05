@@ -1,0 +1,188 @@
+package adminweb
+
+import (
+	"boardfund/service/members"
+	"boardfund/service/payouts"
+	"boardfund/web/common"
+	"fmt"
+	"time"
+)
+
+templ Payouts(batches []payouts.Batch, member *members.Member, path string) {
+	@Admin(member, path) {
+		<div class="grid grid-cols-1 gap-6 overflow-visible">
+			<div class="flex flex-col overflow-visible">
+				@AwaitingApproval(batches)
+			</div>
+		</div>
+	}
+}
+
+templ AwaitingApproval(batches []payouts.Batch) {
+	@common.Section("batches awaiting approval") {
+		<div class="flex-grow overflow-y-auto max-h-[300px] sm:max-h-[500px]">
+			<ul id="batches">
+				@BatchList(batches)
+			</ul>
+		</div>
+	}
+}
+
+templ BatchList(batches []payouts.Batch) {
+	if len(batches) == 0 {
+		<li class="p-2 text-gray-600">nothing awaiting approval</li>
+	} else {
+		for _, batch := range batches {
+			@BatchRow(batch)
+		}
+	}
+}
+
+templ BatchRow(batch payouts.Batch) {
+	<li
+		id={ "batch-" + batch.ID.String() }
+		class="batch-row p-2 flex flex-col even:bg-even odd:bg-odd odd:hover:bg-odd-hover even:hover:bg-even-hover transition-opacity duration-300"
+	>
+		<div class="flex flex-col w-full md:flex-row md:items-center">
+			<div class="w-full md:w-64 font-medium">
+				<a href={ templ.SafeURL("/admin/payout/" + batch.ID.String()) } class="hover:underline">
+					{ payoutAmount(batch.AmountCents) }
+				</a>
+			</div>
+			<div class="w-full md:w-48">{ fmt.Sprintf("%d payees", batch.NumEnrollments) }</div>
+			<div class="w-full md:w-48">{ batch.PayoutDate.Format("01-02-2006") }</div>
+			<div class="w-full md:flex-1">
+				@ApprovalDeadline(batch)
+			</div>
+		</div>
+		<div id={ "batch-actions-" + batch.ID.String() } class="mt-2">
+			@BatchActions(batch)
+		</div>
+	</li>
+}
+
+// ApprovalDeadline is the one thing a treasurer needs at a glance: an expired batch
+// cannot be approved, only re-planned, so the remaining time is what decides whether
+// to act now.
+templ ApprovalDeadline(batch payouts.Batch) {
+	if batch.ApprovalDeadline == nil {
+		<span class="text-xs text-gray-600">no deadline</span>
+	} else if batch.ApprovalExpired(time.Now()) {
+		<span class="text-xs font-semibold text-red-700">expired { batch.ApprovalDeadline.Format("01-02 15:04") }</span>
+	} else {
+		<span class="text-xs">
+			{ fmt.Sprintf("%s left", remaining(*batch.ApprovalDeadline)) }
+			<span class="text-gray-600">({ batch.ApprovalDeadline.Format("01-02 15:04") })</span>
+		</span>
+	}
+}
+
+templ BatchActions(batch payouts.Batch) {
+	if batch.Status == payouts.StatusAwaitingApproval && !batch.ApprovalExpired(time.Now()) {
+		<div class="flex flex-row gap-2 items-center">
+			<button
+				class="bg-high px-3 py-1 text-xs font-semibold shadow-blue-boxy-thin hover:bg-odd-hover"
+				hx-post={ "/admin/payout/approve/" + batch.ID.String() }
+				hx-target={ "#batch-actions-" + batch.ID.String() }
+				hx-swap="innerHTML"
+				hx-confirm={ fmt.Sprintf("Approve %s to %d payees? This clears it for submission.", payoutAmount(batch.AmountCents), batch.NumEnrollments) }
+			>
+				approve
+			</button>
+			<button
+				class="bg-even px-3 py-1 text-xs shadow-blue-boxy-thin hover:bg-even-hover"
+				hx-post={ "/admin/payout/reject/" + batch.ID.String() }
+				hx-target={ "#batch-actions-" + batch.ID.String() }
+				hx-swap="innerHTML"
+				hx-confirm="Reject this batch? It cannot be approved afterwards."
+			>
+				reject
+			</button>
+		</div>
+	} else {
+		@BatchStatus(batch)
+	}
+}
+
+templ BatchStatus(batch payouts.Batch) {
+	<div class="flex flex-row gap-4 items-center text-xs">
+		<span class="font-semibold">{ string(batch.Status) }</span>
+		if batch.ApprovedAt != nil {
+			<span class="text-gray-600">approved { batch.ApprovedAt.Format("01-02 15:04") }</span>
+		}
+		if batch.FailureReason != "" {
+			<span class="text-gray-600">{ batch.FailureReason }</span>
+		}
+	</div>
+}
+
+templ PayoutDetail(batch payouts.Batch, items []payouts.Payout, member *members.Member, path string) {
+	@Admin(member, path) {
+		<div class="grid grid-cols-1 gap-6 overflow-visible">
+			<div class="flex flex-col overflow-visible">
+				@BatchSummary(batch)
+			</div>
+			<div class="flex flex-col overflow-visible">
+				@BatchItems(items)
+			</div>
+		</div>
+	}
+}
+
+templ BatchSummary(batch payouts.Batch) {
+	@common.Section("batch") {
+		<div class="flex flex-col gap-1">
+			@detailRow("amount", payoutAmount(batch.AmountCents)+fmt.Sprintf(" across %d payees", batch.NumEnrollments))
+			@detailRow("status", string(batch.Status))
+			@detailRow("payout date", batch.PayoutDate.Format("01-02-2006"))
+			if batch.ApprovalDeadline != nil {
+				<div class="flex flex-row">
+					<div class="w-48 text-gray-600">approval deadline</div>
+					<div>
+						@ApprovalDeadline(batch)
+					</div>
+				</div>
+			}
+			if batch.ApprovedBy != nil && batch.ApprovedAt != nil {
+				@detailRow("approved", batch.ApprovedAt.Format("01-02-2006 15:04")+" by "+batch.ApprovedBy.String())
+			}
+			if batch.ProviderBatchID != "" {
+				@detailRow("provider batch", batch.ProviderBatchID)
+			}
+			if batch.FailureReason != "" {
+				@detailRow("failure reason", batch.FailureReason)
+			}
+		</div>
+		<div id={ "batch-actions-" + batch.ID.String() } class="mt-4">
+			@BatchActions(batch)
+		</div>
+	}
+}
+
+templ BatchItems(items []payouts.Payout) {
+	@common.Section("payouts") {
+		<div class="flex-grow overflow-y-auto max-h-[300px] sm:max-h-[500px]">
+			<ul>
+				for _, item := range items {
+					<li class="p-2 flex flex-col md:flex-row md:items-center even:bg-even odd:bg-odd">
+						<div class="w-full md:w-32 font-medium">{ payoutAmount(item.AmountCents) }</div>
+						<div class="w-full md:w-32">{ string(item.Status) }</div>
+						<div class="w-full md:flex-1 break-all">{ item.DestinationEmail }</div>
+						if item.ProviderFeeCents != 0 {
+							<div class="w-full md:w-24 text-xs text-gray-600">
+								{ fmt.Sprintf("fee %s", payoutAmount(item.ProviderFeeCents)) }
+							</div>
+						}
+					</li>
+				}
+			</ul>
+		</div>
+	}
+}
+
+templ detailRow(label, value string) {
+	<div class="flex flex-row">
+		<div class="w-48 text-gray-600">{ label }</div>
+		<div class="break-all">{ value }</div>
+	</div>
+}

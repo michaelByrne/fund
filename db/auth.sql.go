@@ -79,46 +79,6 @@ func (q *Queries) GetApprovedEmails(ctx context.Context) ([]ApprovedEmail, error
 	return items, nil
 }
 
-const getPasskeyUser = `-- name: GetPasskeyUser :one
-SELECT id, email, bco_name, creds, created, updated
-FROM passkey_user
-WHERE bco_name = $1
-`
-
-func (q *Queries) GetPasskeyUser(ctx context.Context, bcoName string) (PasskeyUser, error) {
-	row := q.db.QueryRow(ctx, getPasskeyUser, bcoName)
-	var i PasskeyUser
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.BcoName,
-		&i.Creds,
-		&i.Created,
-		&i.Updated,
-	)
-	return i, err
-}
-
-const getPasskeyUserById = `-- name: GetPasskeyUserById :one
-SELECT id, email, bco_name, creds, created, updated
-FROM passkey_user
-WHERE id = $1
-`
-
-func (q *Queries) GetPasskeyUserById(ctx context.Context, id []byte) (PasskeyUser, error) {
-	row := q.db.QueryRow(ctx, getPasskeyUserById, id)
-	var i PasskeyUser
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.BcoName,
-		&i.Creds,
-		&i.Created,
-		&i.Updated,
-	)
-	return i, err
-}
-
 const insertApprovedEmail = `-- name: InsertApprovedEmail :one
 INSERT INTO approved_email (email)
 VALUES ($1)
@@ -132,38 +92,6 @@ func (q *Queries) InsertApprovedEmail(ctx context.Context, email string) (Approv
 		&i.Email,
 		&i.Used,
 		&i.UsedAt,
-		&i.Created,
-		&i.Updated,
-	)
-	return i, err
-}
-
-const insertPasskeyUser = `-- name: InsertPasskeyUser :one
-INSERT INTO passkey_user (id, bco_name, email, creds)
-VALUES ($1, $2, $3, $4)
-RETURNING id, email, bco_name, creds, created, updated
-`
-
-type InsertPasskeyUserParams struct {
-	ID      []byte
-	BcoName string
-	Email   string
-	Creds   []byte
-}
-
-func (q *Queries) InsertPasskeyUser(ctx context.Context, arg InsertPasskeyUserParams) (PasskeyUser, error) {
-	row := q.db.QueryRow(ctx, insertPasskeyUser,
-		arg.ID,
-		arg.BcoName,
-		arg.Email,
-		arg.Creds,
-	)
-	var i PasskeyUser
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.BcoName,
-		&i.Creds,
 		&i.Created,
 		&i.Updated,
 	)
@@ -185,58 +113,6 @@ func (q *Queries) MarkApprovedEmailUsed(ctx context.Context, email string) (Appr
 		&i.Email,
 		&i.Used,
 		&i.UsedAt,
-		&i.Created,
-		&i.Updated,
-	)
-	return i, err
-}
-
-const passkeyUserEmailExists = `-- name: PasskeyUserEmailExists :one
-SELECT EXISTS(SELECT 1
-              FROM passkey_user
-              WHERE email = $1)
-`
-
-func (q *Queries) PasskeyUserEmailExists(ctx context.Context, email string) (bool, error) {
-	row := q.db.QueryRow(ctx, passkeyUserEmailExists, email)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
-const passkeyUsernameExists = `-- name: PasskeyUsernameExists :one
-SELECT EXISTS(SELECT 1
-              FROM passkey_user
-              WHERE bco_name = $1)
-`
-
-func (q *Queries) PasskeyUsernameExists(ctx context.Context, bcoName string) (bool, error) {
-	row := q.db.QueryRow(ctx, passkeyUsernameExists, bcoName)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
-const updatePasskeyUserCredentials = `-- name: UpdatePasskeyUserCredentials :one
-UPDATE passkey_user
-SET creds = $2
-WHERE bco_name = $1
-RETURNING id, email, bco_name, creds, created, updated
-`
-
-type UpdatePasskeyUserCredentialsParams struct {
-	BcoName string
-	Creds   []byte
-}
-
-func (q *Queries) UpdatePasskeyUserCredentials(ctx context.Context, arg UpdatePasskeyUserCredentialsParams) (PasskeyUser, error) {
-	row := q.db.QueryRow(ctx, updatePasskeyUserCredentials, arg.BcoName, arg.Creds)
-	var i PasskeyUser
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.BcoName,
-		&i.Creds,
 		&i.Created,
 		&i.Updated,
 	)

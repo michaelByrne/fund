@@ -33,7 +33,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	cognito "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/golang-migrate/migrate/v4"
 	pgxmigrate "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -163,15 +162,6 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	sessionManager.Lifetime = 2 * time.Hour
 
 	sessionManager.Store = pgxstore.New(pool)
-	webAuthn, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: "BCO Mutual Aid",
-		RPID:          runConfig.Host,
-		RPOrigins:     []string{"http://localhost:8080", "https://bcofund.org"},
-	})
-	if err != nil {
-		return err
-	}
-
 	defaultConfig, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-west-2"))
 	if err != nil {
 		return err
@@ -198,6 +188,13 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	financeService := finance.NewFinanceService(donationStore, paypalService, documentStorage, runConfig.ReportTypes, logger)
 	enrollmentService := enrollments.NewEnrollmentsService(enrollmentStore, logger)
 
+	// No notifier yet: approval reminders are logged by the sweep until a delivery
+	// channel exists. The service tolerates a nil notifier.
+	payoutService := payouts.NewPayoutService(
+		payoutStore, paypalService, nil,
+		runConfig.PayoutApprovalWindow, runConfig.PayoutReminderWindow, logger,
+	)
+
 	authMiddleware := middlewares.Verify(
 		verifier.Verify,
 		middlewares.TokenFromCookie,
@@ -214,9 +211,9 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		donationService, sessionManager, authMiddleware, logger,
 		runConfig.PayPal.ProductID, runConfig.PayPal.ClientID,
 	)
-	authHandlers := authweb.NewAuthHandlers(authService, memberService, webAuthn, sessionManager, runConfig.PayPal.ClientID)
+	authHandlers := authweb.NewAuthHandlers(authService, memberService, sessionManager, runConfig.PayPal.ClientID)
 	adminHandlers := adminweb.NewAdminHandlers(
-		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, sessionManager, runConfig.PayPal.ClientID,
+		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, payoutService, sessionManager, runConfig.PayPal.ClientID,
 	)
 	webhooksHandlers := hooksweb.NewWebhooksHandlers(
 		donationService, memberService, &messageBroker, logger, runConfig.PayPal.WebhookID,

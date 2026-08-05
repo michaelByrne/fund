@@ -1,12 +1,14 @@
 package auth
 
 import (
+	"boardfund/jwtauth"
 	"boardfund/service/members"
 	"context"
 	"errors"
-	"fmt"
 	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"log/slog"
 )
@@ -17,15 +19,9 @@ type memberStore interface {
 }
 
 type authStore interface {
-	GetPasskeyUser(ctx context.Context, arg string) (*PasskeyUser, error)
-	InsertPasskeyUser(ctx context.Context, arg InsertPasskeyUser) (*PasskeyUser, error)
-	UpdatePasskeyUserCredentials(ctx context.Context, credentials UpdatePasskeyUserCredentials) (*PasskeyUser, error)
-	GetPasskeyUserByID(ctx context.Context, arg uuid.UUID) (*PasskeyUser, error)
 	InsertApprovedEmail(ctx context.Context, arg string) (*ApprovedEmail, error)
 	GetApprovedEmail(ctx context.Context, arg string) (*ApprovedEmail, error)
 	MarkEmailAsUsed(ctx context.Context, email string) (*ApprovedEmail, error)
-	PasskeyEmailExists(ctx context.Context, email string) (bool, error)
-	PasskeyUsernameExists(ctx context.Context, bcoName string) (bool, error)
 	GetApprovedEmails(ctx context.Context) ([]ApprovedEmail, error)
 	DeleteApprovedEmail(ctx context.Context, email string) (*ApprovedEmail, error)
 }
@@ -109,84 +105,13 @@ func (s AuthService) GetApprovedEmails(ctx context.Context) ([]ApprovedEmail, er
 	return emails, nil
 }
 
-func (s AuthService) CreatePasskeyUser(ctx context.Context, bcoName, email string) (*PasskeyUser, error) {
-	insert := InsertPasskeyUser{
-		BCOName: bcoName,
-		Email:   email,
-		ID:      []byte(uuid.New().String()),
-	}
-
-	user, err := s.authStore.InsertPasskeyUser(ctx, insert)
-	if err != nil {
-		s.logger.Error("failed to insert passkey user", slog.String("error", err.Error()))
-
-		return nil, err
-	}
-
-	return user, nil
-}
-
-func (s AuthService) GetOrCreatePasskeyUser(ctx context.Context, bcoName string) (*PasskeyUser, error) {
-	user, err := s.authStore.GetPasskeyUser(ctx, bcoName)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			insert := InsertPasskeyUser{
-				BCOName: bcoName,
-				ID:      []byte(uuid.New().String()),
-			}
-
-			user, err = s.authStore.InsertPasskeyUser(ctx, insert)
-			if err != nil {
-				s.logger.Error("failed to insert passkey user", slog.String("error", err.Error()))
-
-				return nil, err
-			}
-
-			return user, nil
-		}
-
-		s.logger.Error("failed to get passkey user", slog.String("error", err.Error()))
-
-		return nil, err
-	}
-
-	return user, nil
-}
-
-func (s AuthService) GetPasskeyUserByID(ctx context.Context, id uuid.UUID) (*PasskeyUser, error) {
-	user, err := s.authStore.GetPasskeyUserByID(ctx, id)
-	if err != nil {
-		s.logger.Error("failed to get passkey user by id", slog.String("error", err.Error()))
-
-		return nil, err
-	}
-
-	return user, nil
-}
-
-func (s AuthService) UpdatePasskeyUserCredentials(ctx context.Context, bcoName string, creds []byte) (*PasskeyUser, error) {
-	credentials := UpdatePasskeyUserCredentials{
-		BCOName: bcoName,
-		Creds:   creds,
-	}
-
-	user, err := s.authStore.UpdatePasskeyUserCredentials(ctx, credentials)
-	if err != nil {
-		s.logger.Error("failed to update passkey user credentials", slog.String("error", err.Error()))
-
-		return nil, err
-	}
-
-	return user, nil
-}
-
 func (s AuthService) GetApprovedEmail(ctx context.Context, email string) (*ApprovedEmail, error) {
 	approvedEmail, err := s.authStore.GetApprovedEmail(ctx, email)
 	if err != nil {
 		s.logger.Error("failed to get approved email", slog.String("error", err.Error()))
 
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("email not approved")
+			return nil, ErrEmailNotApproved
 		}
 
 		return nil, err
@@ -209,28 +134,19 @@ func (s AuthService) MarkEmailAsUsed(ctx context.Context, email string) (*Approv
 func (s AuthService) InsertApprovedEmail(ctx context.Context, email string) (*ApprovedEmail, error) {
 	approvedEmail, err := s.authStore.InsertApprovedEmail(ctx, email)
 	if err != nil {
+		// approved_email.email is the primary key, so re-adding an address is a
+		// unique violation. That is an operator repeating themselves, not a fault.
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return nil, ErrEmailAlreadyApproved
+		}
+
 		s.logger.Error("failed to insert approved email", slog.String("error", err.Error()))
 
 		return nil, err
 	}
 
 	return approvedEmail, nil
-}
-
-func (s AuthService) ValidateNewPasskeyUser(ctx context.Context, bcoName, email string) error {
-	if exists, err := s.authStore.PasskeyUsernameExists(ctx, bcoName); err != nil {
-		return err
-	} else if exists {
-		return fmt.Errorf("username already exists")
-	}
-
-	if exists, err := s.authStore.PasskeyEmailExists(ctx, email); err != nil {
-		return err
-	} else if exists {
-		return fmt.Errorf("email already exists")
-	}
-
-	return nil
 }
 
 func (s AuthService) DeleteApprovedEmail(ctx context.Context, email string) (*ApprovedEmail, error) {
@@ -278,6 +194,17 @@ func (s AuthService) Authenticate(ctx context.Context, username, password string
 		s.logger.Error("failed to get member by id", slog.String("error", err.Error()))
 
 		return nil, nil, err
+	}
+
+	// Admin routes are gated on the token's Cognito group, but the navigation asks
+	// member.IsAdmin(), which reads member.roles -- a column nothing ever writes
+	// ADMIN to. Left alone, the admin section is invisible to every admin.
+	//
+	// Reconcile them here rather than in the database: the token is what actually
+	// authorises the request, so deriving the session's view from it means the menu
+	// cannot disagree with what the middleware will allow.
+	if jwtauth.HasGroup(claims, jwtauth.AdminGroup) && !member.IsAdmin() {
+		member.Roles = append(member.Roles, members.AdminRole)
 	}
 
 	return member, resp, nil

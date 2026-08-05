@@ -1,0 +1,115 @@
+name: 'go'
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A new push supersedes whatever was running for the same ref.
+  group: go-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 'build'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          # Tracks go.mod, which is on 1.26 -- both golangci-lint (needs 1.25)
+          # and sqlc (needs 1.26) refuse to build on anything older.
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        run: make build
+
+  lint:
+    name: 'lint'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          # Pinned, and matching what .golangci.yml was written against. An
+          # unpinned linter turns an upstream release into a red build on an
+          # unrelated PR.
+          version: v2.12.2
+
+  test:
+    name: 'test'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        # Integration tests start a Postgres container via testcontainers. The
+        # runner exposes Docker on the default socket, so the Makefile's Colima
+        # and Docker Desktop detection finds neither and correctly leaves
+        # DOCKER_HOST alone.
+        run: make test
+
+  generated:
+    name: 'generated code is current'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install generators
+        # Both tools stamp their version into the files they emit, so these have
+        # to match what produced the committed output exactly -- otherwise this
+        # job fails on the version comment alone. templ also matches the library
+        # version in go.mod.
+        run: |
+          go install github.com/a-h/templ/cmd/templ@v0.2.793
+          CGO_ENABLED=0 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1
+
+      - name: Regenerate
+        run: make generate
+
+      - name: Verify nothing changed
+        # templ and sqlc output is committed, so editing a .templ or a .sql
+        # without regenerating leaves the build passing against stale code.
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Generated code is out of date. Run 'make generate' and commit the result."
+            git --no-pager diff
+            git status --porcelain
+            exit 1
+          fi
+          echo "Generated code is current."
