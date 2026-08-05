@@ -16,6 +16,14 @@ import (
 	"testing"
 )
 
+// stubDocumentStorage satisfies the donations documentStorage interface without
+// reaching S3, so bucket creation is a no-op during tests.
+type stubDocumentStorage struct{}
+
+func (stubDocumentStorage) CreateFundBucket(ctx context.Context, prefix string, fundID uuid.UUID) error {
+	return nil
+}
+
 func TestDonationService_DeactivateFund(t *testing.T) {
 	providerFundID := "fund-id"
 
@@ -41,20 +49,14 @@ func TestDonationService_DeactivateFund(t *testing.T) {
 			return "provider-plan-id", nil
 		}
 
-		authMock := mocks.AuthProviderMock{}
-
-		authMock.CreateUserFunc = func(ctx context.Context, username, email string, memberID uuid.UUID) (string, error) {
-			return "cognito-id", nil
-		}
-
 		nopHandler := slog.NewJSONHandler(io.Discard, nil)
 		logger := slog.New(nopHandler)
 
 		donationTestStore := donationsstore.NewDonationStore(pool)
-		donationTestService := donations.NewDonationService(donationTestStore, &paymentsMock, logger)
+		donationTestService := donations.NewDonationService(donationTestStore, stubDocumentStorage{}, &paymentsMock, []string{"payments"}, logger)
 
 		memberTestStore := membersstore.NewMemberStore(pool)
-		memberTestService := members.NewMemberService(memberTestStore, donationTestStore, &authMock, &paymentsMock, logger)
+		memberTestService := members.NewMemberService(memberTestStore, donationTestStore, &paymentsMock, logger)
 
 		createFund := donations.Fund{
 			Name:            "Test Fund",

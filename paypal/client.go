@@ -53,6 +53,8 @@ func (c Client) post(ctx context.Context, path string, payload any) error {
 		return err
 	}
 
+	defer resp.Body.Close()
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		var paypalErr ErrPaypal
 		err = json.NewDecoder(resp.Body).Decode(&paypalErr)
@@ -64,8 +66,6 @@ func (c Client) post(ctx context.Context, path string, payload any) error {
 
 		return paypalErr
 	}
-
-	defer resp.Body.Close()
 
 	return nil
 }
@@ -169,8 +169,6 @@ func (c Client) patch(ctx context.Context, path string, payload any) error {
 		return err
 	}
 
-	fmt.Printf("payloadBytes: %+v\n", string(payloadBytes))
-
 	payloadReader := bytes.NewReader(payloadBytes)
 
 	req, err := http.NewRequestWithContext(ctx, "PATCH", c.baseURL+path, payloadReader)
@@ -194,46 +192,6 @@ func (c Client) patch(ctx context.Context, path string, payload any) error {
 	}
 
 	if resp.StatusCode != http.StatusNoContent {
-		var paypalErr ErrPaypal
-		err = json.Unmarshal(body, &paypalErr)
-		if err != nil {
-			return fmt.Errorf("error unmarshalling error response: %w", err)
-		}
-
-		c.logger.Error("error from paypal", slog.Any("details", paypalErr.Details), slog.String("message", paypalErr.Message))
-
-		return paypalErr
-	}
-
-	return nil
-}
-
-func (c Client) delete(ctx context.Context, path string) error {
-	token, err := c.paypalAuth.GetToken(ctx)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "DELETE", c.baseURL+path, nil)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Add("Authorization", token.TokenType+" "+token.AccessToken)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusCreated {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-
 		var paypalErr ErrPaypal
 		err = json.Unmarshal(body, &paypalErr)
 		if err != nil {

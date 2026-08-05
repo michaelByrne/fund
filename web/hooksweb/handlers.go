@@ -5,7 +5,6 @@ import (
 	"boardfund/service/members"
 	"boardfund/web/mux"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 )
@@ -48,8 +47,6 @@ func (h WebhooksHandlers) webhooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("Webhook event: %s\n", bodyBytes)
-
 	var event webhookEvent
 	err = json.Unmarshal(bodyBytes, &event)
 	if err != nil {
@@ -60,11 +57,21 @@ func (h WebhooksHandlers) webhooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("Webhook event type: %s\n", event.EventType)
 	err = h.publisher.Publish(event.EventType, []byte(event.Resource))
 	if err != nil {
-		h.logger.Error("failed to publish event", slog.String("error", err.Error()))
+		// Fail loudly so the provider redelivers. Answering 200 here drops the event
+		// permanently, and nothing replays it.
+		h.logger.Error("failed to publish event",
+			slog.String("error", err.Error()),
+			slog.String("event_type", event.EventType),
+		)
+
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return
 	}
+
+	h.logger.Info("received webhook event", slog.String("event_type", event.EventType))
 
 	w.WriteHeader(http.StatusOK)
 }

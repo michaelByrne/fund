@@ -145,33 +145,42 @@ func GetDBPool(dbURI string) (*pgxpool.Pool, error) {
 		return nil, err
 	}
 
-	dbpool, err := pgxpool.NewWithConfig(context.Background(), config)
+	// A throwaway pool, used only to read the OIDs of the custom enum types that
+	// AfterConnect must register on every subsequent connection.
+	probePool, err := pgxpool.NewWithConfig(context.Background(), config)
+	if err != nil {
+		return nil, err
+	}
 
-	customTypes, err := getCustomDataTypes(context.Background(), dbpool)
+	customTypes, err := getCustomDataTypes(context.Background(), probePool)
+	probePool.Close()
+	if err != nil {
+		return nil, err
+	}
+
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		for _, t := range customTypes {
 			conn.TypeMap().RegisterType(t)
-			conn.TypeMap().RegisterDefaultPgType(&db.DBTime{}, "timestamptz")
-			conn.TypeMap().RegisterDefaultPgType(&db.NullDBTime{}, "timestamptz")
-			conn.TypeMap().RegisterDefaultPgType(db.DBTime{}, "timestamptz")
-			conn.TypeMap().RegisterDefaultPgType(db.NullDBTime{}, "timestamptz")
 		}
+
+		conn.TypeMap().RegisterDefaultPgType(&db.DBTime{}, "timestamptz")
+		conn.TypeMap().RegisterDefaultPgType(&db.NullDBTime{}, "timestamptz")
+		conn.TypeMap().RegisterDefaultPgType(db.DBTime{}, "timestamptz")
+		conn.TypeMap().RegisterDefaultPgType(db.NullDBTime{}, "timestamptz")
+
 		return nil
 	}
 
-	dbpool.Close()
-	dbpool, err = pgxpool.NewWithConfig(context.Background(), config)
-
-	return dbpool, err
+	return pgxpool.NewWithConfig(context.Background(), config)
 }
 
 func getCustomDataTypes(ctx context.Context, pool *pgxpool.Pool) ([]*pgtype.Type, error) {
 	// Get a single connection just to load type information.
 	conn, err := pool.Acquire(ctx)
-	defer conn.Release()
 	if err != nil {
 		return nil, err
 	}
+	defer conn.Release()
 
 	dataTypeNames := []string{
 		"role",

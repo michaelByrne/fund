@@ -4,7 +4,9 @@ SELECT $1, $2, $3, fund.next_payment + INTERVAL '1 month', $4, $5, true
 FROM fund
 WHERE fund.id = $2
 ON CONFLICT (fund_id, member_id) DO UPDATE
-    SET active = true
+    SET active          = true,
+        member_bco_name = EXCLUDED.member_bco_name,
+        paypal_email    = EXCLUDED.paypal_email
 RETURNING *;
 
 -- name: UpdatePaypalEmail :one

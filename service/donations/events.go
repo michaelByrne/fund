@@ -97,8 +97,6 @@ func (h *Handlers) paymentSaleCompleted(data []byte) {
 		return
 	}
 
-	fmt.Printf("Fee amount: %d\n", feeAmountCents)
-
 	insertPayment := InsertDonationPayment{
 		ID:                uuid.New(),
 		DonationID:        parentDonation.ID,
