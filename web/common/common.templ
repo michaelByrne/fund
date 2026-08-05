@@ -85,7 +85,7 @@ templ FundStatus(fund donations.Fund, fundStats donations.FundStats) {
 			@StatusItem(USD(fundStats.TotalDonated), "raised")
 			@StatusItem(Date(&fund.Created), "start")
 			@StatusItem(EndDate(fund.Expires), "end")
-			@StatusItem(NextPayment(&fund.NextPayment), "next payment")
+			@StatusItem(NextPayment(fund), "next payment")
 		</ul>
 	}
 }
@@ -105,13 +105,18 @@ templ StatusItem(content templ.Component, title string) {
 	</li>
 }
 
-templ NextPayment(date *time.Time) {
-	if date == nil {
+// Takes the fund rather than a date because a monthly fund's next payout is
+// computed from its anchor. Given the stored date directly, this said "paid" for
+// every fund whose anchor had passed -- which, since nothing advanced it, was
+// every fund more than a month old.
+templ NextPayment(fund donations.Fund) {
+	if next := fund.NextPaymentAfter(time.Now()); next.IsZero() {
 		<span>&#8734;</span>
-	} else if date.Before(time.Now()) {
+	} else if next.Before(time.Now()) {
+		// Only reachable for a one-off fund whose single payout date has passed.
 		<span>paid</span>
 	} else {
-		<span>{ date.Format("01-02-2006") }</span>
+		<span>{ next.Format("01-02-2006") }</span>
 	}
 }
 

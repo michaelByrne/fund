@@ -9,10 +9,11 @@ import (
 
 func toDBEnrollmentParams(arg enrollments.InsertEnrollment) db.InsertEnrollmentParams {
 	return db.InsertEnrollmentParams{
-		ID:          arg.ID,
-		MemberID:    arg.MemberID,
-		FundID:      arg.FundID,
-		PaypalEmail: arg.PaypalEmail,
+		ID:              arg.ID,
+		MemberID:        arg.MemberID,
+		FundID:          arg.FundID,
+		PaypalEmail:     arg.PaypalEmail,
+		FirstPayoutDate: pgtype.Timestamptz{Time: arg.FirstPayoutDate, Valid: !arg.FirstPayoutDate.IsZero()},
 		MemberBcoName: pgtype.Text{
 			String: arg.MemberBCOName,
 			Valid:  true,
