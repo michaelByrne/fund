@@ -476,7 +476,14 @@ func (s PayoutService) ReconcileBatch(ctx context.Context, batchID uuid.UUID) er
 		}
 	}
 
-	settled := ProviderStatusToStatus(result.Status)
+	items, err := s.payoutStore.GetPayoutsForBatch(ctx, batch.ID)
+	if err != nil {
+		logger.Error("failed to read back payouts for batch", slog.String("error", err.Error()))
+
+		return err
+	}
+
+	settled := batchStatusFrom(ProviderStatusToStatus(result.Status), items)
 
 	_, err = s.payoutStore.SetBatchStatus(ctx, SetBatchStatus{
 		BatchID: batch.ID,
@@ -501,6 +508,53 @@ func (s PayoutService) ReconcileBatch(ctx context.Context, batchID uuid.UUID) er
 	}
 
 	return nil
+}
+
+// batchStatusFrom decides a batch's status from what happened to its items, not
+// from what the provider says about the batch.
+//
+// PayPal reports SUCCESS on a batch it has accepted and processed, which is not
+// the same as everyone having been paid: a batch of one UNCLAIMED item reports
+// SUCCESS while the money sits undelivered and auto-returns after 30 days.
+// Taking the provider's word produced a batch reading "paid" that had paid
+// nobody, which is the one thing this page must not get wrong.
+//
+// The provider's own verdict still wins when it rejected the batch outright,
+// since then there are no item outcomes to reason about.
+func batchStatusFrom(providerStatus Status, items []Payout) Status {
+	switch providerStatus {
+	case StatusFailed, StatusCancelled, StatusBlocked:
+		return providerStatus
+	}
+
+	if len(items) == 0 {
+		return providerStatus
+	}
+
+	allPaid := true
+	anyUnresolved := false
+
+	for _, item := range items {
+		if item.Status != StatusPaid {
+			allPaid = false
+		}
+
+		if !item.Status.Terminal() {
+			anyUnresolved = true
+		}
+	}
+
+	switch {
+	case anyUnresolved:
+		// Something is still in flight, including anything unclaimed -- money
+		// nobody has taken has not finished moving.
+		return StatusPending
+	case allPaid:
+		return StatusPaid
+	default:
+		// Everything has stopped, and not all of it arrived.
+		return StatusFailed
+	}
 }
 
 func (s PayoutService) GetBatchesForFund(ctx context.Context, fundID uuid.UUID) ([]Batch, error) {
