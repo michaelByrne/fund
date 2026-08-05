@@ -37,7 +37,7 @@ func Head() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<head><title>BCO Mutual Aid</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><script defer src=\"https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js\"></script><script src=\"https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js\"></script><link rel=\"icon\" type=\"image/x-icon\" href=\"/static/favicon.ico\"><link rel=\"stylesheet\" href=\"/static/styles.css\"><script type=\"application/javascript\" src=\"/static/htmx.min.js\"></script><script type=\"application/javascript\" src=\"/static/responsetargets.js\"></script><script src=\"https://cdn.jsdelivr.net/npm/sweetalert2@11\"></script><script type=\"application/javascript\" src=\"/static/surreal.js\"></script><script src=\"https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js\"></script><script type=\"application/javascript\" src=\"/static/shared.js\"></script><script type=\"application/javascript\" src=\"/static/auth.js\"></script></head>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<head><title>BCO Mutual Aid</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><script defer src=\"https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js\"></script><link rel=\"icon\" type=\"image/x-icon\" href=\"/static/favicon.ico\"><link rel=\"stylesheet\" href=\"/static/styles.css\"><script type=\"application/javascript\" src=\"/static/htmx.min.js\"></script><script type=\"application/javascript\" src=\"/static/responsetargets.js\"></script><script src=\"https://cdn.jsdelivr.net/npm/sweetalert2@11\"></script><script type=\"application/javascript\" src=\"/static/surreal.js\"></script><script src=\"https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js\"></script><script type=\"application/javascript\" src=\"/static/shared.js\"></script></head>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -74,7 +74,7 @@ func Layout(member *members.Member, path string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<body class=\"bg-back font-bco text-sm\" x-data=\"auth\"><div class=\"flex flex-col min-h-[75%]\"><div class=\"flex flex-row justify-between items-center w-[90%] mx-auto my-2\"><h1 class=\"text-xl font-bold text-title/90 text-shadow shadow-[#788f99]\"><a href=\"/\">elitism. secrecy. redistribution.</a></h1>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<body class=\"bg-back font-bco text-sm\"><div class=\"flex flex-col min-h-[75%]\"><div class=\"flex flex-row justify-between items-center w-[90%] mx-auto my-2\"><h1 class=\"text-xl font-bold text-title/90 text-shadow shadow-[#788f99]\"><a href=\"/\">elitism. secrecy. redistribution.</a></h1>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -242,7 +242,7 @@ func SectionTitle(title string) templ.Component {
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 69, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 67, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -296,7 +296,7 @@ func ErrorMessage(member *members.Member, message, link, currentPath string) tem
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(message)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 75, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 73, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -434,7 +434,7 @@ func USD(amountCents int32) templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDecimalString(amountCents))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 96, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 94, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -472,7 +472,7 @@ func StatusItem(content templ.Component, title string) templ.Component {
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 102, Col: 10}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 100, Col: 10}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
@@ -533,7 +533,7 @@ func NextPayment(date *time.Time) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(date.Format("01-02-2006"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 116, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 114, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {
@@ -576,7 +576,7 @@ func Donors(count int32) templ.Component {
 		var templ_7745c5c3_Var25 string
 		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", count))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 121, Col: 33}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 119, Col: 33}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 		if templ_7745c5c3_Err != nil {
@@ -624,7 +624,7 @@ func EndDate(date *time.Time) templ.Component {
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(date.Format("01-02-2006"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 128, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 126, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {
@@ -642,7 +642,7 @@ func EndDate(date *time.Time) templ.Component {
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(date.Format("01-02-2006"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 130, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 128, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 			if templ_7745c5c3_Err != nil {
@@ -691,7 +691,7 @@ func Date(date *time.Time) templ.Component {
 			var templ_7745c5c3_Var30 string
 			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(date.Format("01-02-2006"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 138, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 136, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 			if templ_7745c5c3_Err != nil {
@@ -740,7 +740,7 @@ func AmountOrInfinity(amount int32) templ.Component {
 			var templ_7745c5c3_Var32 string
 			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDecimalString(amount))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 146, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 144, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 			if templ_7745c5c3_Err != nil {
@@ -783,7 +783,7 @@ func Section(title string) templ.Component {
 		var templ_7745c5c3_Var34 string
 		templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 153, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/common/common.templ`, Line: 151, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 		if templ_7745c5c3_Err != nil {

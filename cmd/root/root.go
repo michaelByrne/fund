@@ -33,7 +33,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	cognito "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/golang-migrate/migrate/v4"
 	pgxmigrate "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -163,15 +162,6 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	sessionManager.Lifetime = 2 * time.Hour
 
 	sessionManager.Store = pgxstore.New(pool)
-	webAuthn, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: "BCO Mutual Aid",
-		RPID:          runConfig.Host,
-		RPOrigins:     []string{"http://localhost:8080", "https://bcofund.org"},
-	})
-	if err != nil {
-		return err
-	}
-
 	defaultConfig, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-west-2"))
 	if err != nil {
 		return err
@@ -221,7 +211,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		donationService, sessionManager, authMiddleware, logger,
 		runConfig.PayPal.ProductID, runConfig.PayPal.ClientID,
 	)
-	authHandlers := authweb.NewAuthHandlers(authService, memberService, webAuthn, sessionManager, runConfig.PayPal.ClientID)
+	authHandlers := authweb.NewAuthHandlers(authService, memberService, sessionManager, runConfig.PayPal.ClientID)
 	adminHandlers := adminweb.NewAdminHandlers(
 		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, payoutService, sessionManager, runConfig.PayPal.ClientID,
 	)

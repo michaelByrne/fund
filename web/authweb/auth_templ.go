@@ -133,7 +133,7 @@ func RegistrationSuccess() templ.Component {
 	})
 }
 
-func Registration() templ.Component {
+func Login() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -166,107 +166,13 @@ func Registration() templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"md:w-[50%] w-[75%] mx-auto mt-4 pt-4 flex bg-high shadow-blue-boxy\"><form @submit.prevent=\"onSignUp()\" class=\"w-full flex flex-col items-center gap-4\"><div class=\"flex flex-col items-center gap-2\"><div class=\"flex flex-col items-center gap-2\"><label for=\"username\" class=\"text-md font-semibold\">username</label> <input x-model=\"username\" type=\"text\" name=\"username\" id=\"username\" required class=\"w-[80%] max-w-xs text-sm border border-slate-300 shadow-sm px-3 py-2\"> <label for=\"email\" class=\"text-md font-semibold\">email</label> <input x-model=\"email\" type=\"text\" name=\"email\" id=\"email\" required class=\"w-[80%] max-w-xs text-sm border border-slate-300 shadow-sm px-3 py-2\"></div><button type=\"submit\" class=\"px-6 py-3 text-md font-medium bg-button text-black hover:shadow-blue-boxy-thin shadow-blue-boxy\">register</button></div></form></div>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			return templ_7745c5c3_Err
-		})
-		templ_7745c5c3_Err = common.Layout(nil, "/auth/register").Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		return templ_7745c5c3_Err
-	})
-}
-
-func PasskeyLogin() templ.Component {
-	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
-			return templ_7745c5c3_CtxErr
-		}
-		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-		if !templ_7745c5c3_IsBuffer {
-			defer func() {
-				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err == nil {
-					templ_7745c5c3_Err = templ_7745c5c3_BufErr
-				}
-			}()
-		}
-		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var8 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var8 == nil {
-			templ_7745c5c3_Var8 = templ.NopComponent
-		}
-		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Var9 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-			if !templ_7745c5c3_IsBuffer {
-				defer func() {
-					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err == nil {
-						templ_7745c5c3_Err = templ_7745c5c3_BufErr
-					}
-				}()
-			}
-			ctx = templ.InitializeContext(ctx)
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"md:w-[50%] w-[75%] mx-auto mt-4 pt-4 flex bg-high shadow-blue-boxy\"><form @submit.prevent=\"onSignIn()\" class=\"w-full flex flex-col items-center gap-4\"><div class=\"flex flex-col items-center gap-2\"><label for=\"username\" class=\"text-md font-semibold\">username</label> <input x-model=\"username\" type=\"text\" name=\"username\" id=\"username\" required class=\"w-[80%] max-w-xs text-sm border border-slate-300 shadow-sm px-3 py-2\"></div><button type=\"submit\" class=\"px-6 py-3 text-md font-medium bg-button text-black hover:shadow-blue-boxy-thin shadow-blue-boxy\">login</button></form></div>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			return templ_7745c5c3_Err
-		})
-		templ_7745c5c3_Err = common.Layout(nil, "/auth/login").Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		return templ_7745c5c3_Err
-	})
-}
-
-func Login() templ.Component {
-	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
-			return templ_7745c5c3_CtxErr
-		}
-		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-		if !templ_7745c5c3_IsBuffer {
-			defer func() {
-				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err == nil {
-					templ_7745c5c3_Err = templ_7745c5c3_BufErr
-				}
-			}()
-		}
-		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var10 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var10 == nil {
-			templ_7745c5c3_Var10 = templ.NopComponent
-		}
-		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Var11 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-			if !templ_7745c5c3_IsBuffer {
-				defer func() {
-					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err == nil {
-						templ_7745c5c3_Err = templ_7745c5c3_BufErr
-					}
-				}()
-			}
-			ctx = templ.InitializeContext(ctx)
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"md:w-[50%] w-[75%] mx-auto mt-4 pt-4 flex bg-high shadow-blue-boxy items-center\"><form action=\"/login\" target=\"_self\" method=\"post\" class=\"w-full\"><div class=\"flex flex-col gap-6\"><div class=\"flex flex-col items-center gap-2\"><label for=\"username\" class=\"text-md font-semibold\">username</label> <input type=\"text\" name=\"username\" id=\"username\" required class=\"w-[80%] max-w-xs text-sm border border-slate-300 shadow-sm px-3 py-2\"></div><div class=\"flex flex-col items-center gap-2\"><label for=\"password\" class=\"text-md font-semibold\">password</label> <input type=\"password\" name=\"password\" id=\"password\" required class=\"w-[80%] max-w-xs text-sm border border-slate-300 shadow-sm px-3 py-2\"></div><div class=\"flex flex-col items-center gap-3 pb-4\"><button type=\"submit\" class=\"px-6 py-3 text-md font-medium bg-button text-black hover:shadow-blue-boxy-thin shadow-blue-boxy\">login</button><div class=\"flex flex-row gap-4 text-xs\"><a href=\"/register\" class=\"text-blue-400 hover:text-blue-800\">register</a> <a href=\"/password\" class=\"text-blue-400 hover:text-blue-800\">set a new password</a></div></div></div></form></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return templ_7745c5c3_Err
 		})
-		templ_7745c5c3_Err = common.Layout(nil, "/login").Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = common.Layout(nil, "/login").Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
