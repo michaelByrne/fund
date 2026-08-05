@@ -7,8 +7,37 @@ import (
 	"time"
 )
 
+// AdminGroup is the Cognito group that grants admin access. It is the single
+// source of truth for that decision: the member.roles column plays no part, and
+// nothing in the application ever writes ADMIN to it.
+const AdminGroup = "bco-admin-group"
+
+// GroupsClaim is where Cognito puts group membership on the ID token.
+const GroupsClaim = "cognito:groups"
+
 type Token struct {
 	keyset jwk.Set
+}
+
+// HasGroup reports whether a parsed token carries the given Cognito group.
+func HasGroup(claims map[string]any, group string) bool {
+	raw, ok := claims[GroupsClaim]
+	if !ok {
+		return false
+	}
+
+	groups, ok := raw.([]any)
+	if !ok {
+		return false
+	}
+
+	for _, g := range groups {
+		if name, ok := g.(string); ok && name == group {
+			return true
+		}
+	}
+
+	return false
 }
 
 func NewToken(keyset jwk.Set) *Token {
@@ -40,26 +69,9 @@ func (t *Token) VerifyAdmin(tokenStr string) (jwt.Token, error) {
 		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
 
-	claims := parsedToken.PrivateClaims()
-	if claims["cognito:groups"] == nil {
-		return nil, fmt.Errorf("no groups claim found")
+	if !HasGroup(parsedToken.PrivateClaims(), AdminGroup) {
+		return nil, fmt.Errorf("not an admin")
 	}
 
-	groups := claims["cognito:groups"].([]interface{})
-	if len(groups) == 0 {
-		return nil, fmt.Errorf("no groups found")
-	}
-
-	for _, group := range groups {
-		groupStr, ok := group.(string)
-		if !ok {
-			continue
-		}
-
-		if groupStr == "bco-admin-group" {
-			return parsedToken, nil
-		}
-	}
-
-	return nil, fmt.Errorf("not an admin")
+	return parsedToken, nil
 }

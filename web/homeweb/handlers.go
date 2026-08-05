@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"github.com/alexedwards/scs/v2"
 	"github.com/google/uuid"
-	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -45,7 +44,6 @@ func NewFundHandlers(
 }
 
 func (h *FundHandlers) Register(r *mux.Router) {
-	r.HandleFunc("/fund", h.fund)
 	r.HandleFunc("/donation/plan", h.withAuth(h.createDonationPlan))
 	r.HandleFunc("/donation/once", h.withAuth(h.createOneTimeDonation))
 	r.HandleFunc("/donation/plan/complete", h.withAuth(h.completeRecurringDonation))
@@ -597,48 +595,6 @@ func (h *FundHandlers) home(w http.ResponseWriter, r *http.Request) {
 	}
 
 	Funds(funds, &member, r.URL.Path).Render(ctx, w)
-}
-
-func (h *FundHandlers) fund(w http.ResponseWriter, r *http.Request) {
-	body := r.Body
-	bodyBytes, err := io.ReadAll(body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
-		return
-	}
-
-	var req donations.Fund
-	err = json.Unmarshal(bodyBytes, &req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-
-		return
-	}
-
-	var fund *donations.Fund
-
-	if r.Method == http.MethodPost {
-		fund, err = h.donationService.CreateFund(r.Context(), req)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(fund.ProviderID))
-	} else if r.Method == http.MethodPut {
-		fund, err = h.donationService.UpdateFund(r.Context(), req)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(fund.ProviderID))
-	}
 }
 
 func sendJSON(w http.ResponseWriter, status int, v any) {

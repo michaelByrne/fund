@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"boardfund/jwtauth"
 	"boardfund/service/members"
 	"context"
 	"errors"
@@ -278,6 +279,17 @@ func (s AuthService) Authenticate(ctx context.Context, username, password string
 		s.logger.Error("failed to get member by id", slog.String("error", err.Error()))
 
 		return nil, nil, err
+	}
+
+	// Admin routes are gated on the token's Cognito group, but the navigation asks
+	// member.IsAdmin(), which reads member.roles -- a column nothing ever writes
+	// ADMIN to. Left alone, the admin section is invisible to every admin.
+	//
+	// Reconcile them here rather than in the database: the token is what actually
+	// authorises the request, so deriving the session's view from it means the menu
+	// cannot disagree with what the middleware will allow.
+	if jwtauth.HasGroup(claims, jwtauth.AdminGroup) && !member.IsAdmin() {
+		member.Roles = append(member.Roles, members.AdminRole)
 	}
 
 	return member, resp, nil
