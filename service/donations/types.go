@@ -32,6 +32,66 @@ type Fund struct {
 	Stats           FundStats       `json:"stats"`
 }
 
+// NextPaymentAfter is when this fund next pays out.
+//
+// next_payment is the schedule's anchor -- the first payout date, set at fund
+// creation -- not a pointer that something moves. Nothing ever advanced it, so a
+// stored value went stale the moment it passed and the fund page told donors
+// "next payment: paid" for the rest of the fund's life.
+//
+// Rolling it forward on read instead means the answer is right whether or not a
+// payout actually ran, and there is no scheduled job to forget to wire up.
+func (f Fund) NextPaymentAfter(now time.Time) time.Time {
+	if f.NextPayment.IsZero() {
+		return time.Time{}
+	}
+
+	// A one-off fund has a single payout date. There is nothing to roll forward
+	// to, and a date in the past means it has been and gone.
+	if f.PayoutFrequency != PayoutFrequencyMonthly {
+		return f.NextPayment
+	}
+
+	if !f.NextPayment.Before(now) {
+		return f.NextPayment
+	}
+
+	// Computed in one step from the anchor rather than by repeated addition,
+	// which would accumulate the clamping below into real drift.
+	months := (now.Year()-f.NextPayment.Year())*12 + int(now.Month()) - int(f.NextPayment.Month())
+
+	next := addMonths(f.NextPayment, months)
+	if next.Before(now) {
+		next = addMonths(f.NextPayment, months+1)
+	}
+
+	return next
+}
+
+// addMonths keeps the day of the month where the target month has one, and
+// clamps to its last day where it does not.
+//
+// time.AddDate normalises instead: 31 January plus one month is 3 March, which
+// would walk a fund paying on the 31st steadily later every month.
+func addMonths(t time.Time, months int) time.Time {
+	year, month, day := t.Date()
+
+	firstOfTarget := time.Date(year, month+time.Month(months), 1,
+		t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
+
+	if last := lastDayOfMonth(firstOfTarget); day > last {
+		day = last
+	}
+
+	return time.Date(firstOfTarget.Year(), firstOfTarget.Month(), day,
+		t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
+}
+
+func lastDayOfMonth(t time.Time) int {
+	// Day zero of the following month is the last day of this one.
+	return time.Date(t.Year(), t.Month()+1, 0, 0, 0, 0, 0, t.Location()).Day()
+}
+
 type InsertFund struct {
 	ID              uuid.UUID
 	Name            string

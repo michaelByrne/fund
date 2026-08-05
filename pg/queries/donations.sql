@@ -125,12 +125,6 @@ SET (name, description, active, payout_frequency, goal_cents, expires, principal
 WHERE id = $1
 RETURNING *;
 
--- name: UpdateFundNextPayment :one
-UPDATE fund
-SET (next_payment, updated) = ((SELECT now() + INTERVAL '1 month'), now())
-WHERE id = $1
-RETURNING *;
-
 -- name: GetFunds :many
 SELECT *
 FROM fund

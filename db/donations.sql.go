@@ -1362,34 +1362,6 @@ func (q *Queries) UpdateFund(ctx context.Context, arg UpdateFundParams) (Fund, e
 	return i, err
 }
 
-const updateFundNextPayment = `-- name: UpdateFundNextPayment :one
-UPDATE fund
-SET (next_payment, updated) = ((SELECT now() + INTERVAL '1 month'), now())
-WHERE id = $1
-RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated
-`
-
-func (q *Queries) UpdateFundNextPayment(ctx context.Context, id uuid.UUID) (Fund, error) {
-	row := q.db.QueryRow(ctx, updateFundNextPayment, id)
-	var i Fund
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Description,
-		&i.ProviderID,
-		&i.ProviderName,
-		&i.GoalCents,
-		&i.PayoutFrequency,
-		&i.Active,
-		&i.Principal,
-		&i.Expires,
-		&i.NextPayment,
-		&i.Created,
-		&i.Updated,
-	)
-	return i, err
-}
-
 const upsertDonationPlan = `-- name: UpsertDonationPlan :one
 INSERT INTO donation_plan (id, name, amount_cents, interval_unit, interval_count, active, paypal_plan_id, fund_id,
                            updated)
