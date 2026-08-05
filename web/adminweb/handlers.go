@@ -6,6 +6,7 @@ import (
 	"boardfund/service/enrollments"
 	"boardfund/service/finance"
 	"boardfund/service/members"
+	"boardfund/service/payouts"
 	"boardfund/web/common"
 	"boardfund/web/mux"
 	"encoding/json"
@@ -23,6 +24,7 @@ type AdminHandlers struct {
 	enrollmentService *enrollments.EnrollmentsService
 	authService       *auth.AuthService
 	financeService    *finance.FinanceService
+	payoutService     *payouts.PayoutService
 	sessionManager    *scs.SessionManager
 	clientID          string
 }
@@ -34,6 +36,7 @@ func NewAdminHandlers(
 	authService *auth.AuthService,
 	financeService *finance.FinanceService,
 	enrollmentsService *enrollments.EnrollmentsService,
+	payoutService *payouts.PayoutService,
 	sessionManager *scs.SessionManager,
 	clientID string,
 ) *AdminHandlers {
@@ -44,6 +47,7 @@ func NewAdminHandlers(
 		authService:       authService,
 		financeService:    financeService,
 		enrollmentService: enrollmentsService,
+		payoutService:     payoutService,
 		sessionManager:    sessionManager,
 		clientID:          clientID,
 	}
@@ -63,6 +67,10 @@ func (h *AdminHandlers) Register(r *mux.Router) {
 	r.HandleFunc("POST /admin/enrollment", h.withAdmin(h.createEnrollment))
 	r.HandleFunc("GET /admin/enrollment/confirm", h.withAdmin(h.confirmEnrollment))
 	r.HandleFunc("POST /admin/enrollment/cancel/{id}", h.withAdmin(h.deactivateEnrollment))
+	r.HandleFunc("GET /admin/payouts", h.withAdmin(h.payoutsPage))
+	r.HandleFunc("GET /admin/payout/{id}", h.withAdmin(h.payoutPage))
+	r.HandleFunc("POST /admin/payout/approve/{id}", h.withAdmin(h.approvePayout))
+	r.HandleFunc("POST /admin/payout/reject/{id}", h.withAdmin(h.rejectPayout))
 	r.HandleFunc("DELETE /admin/approved/{email}", h.withAdmin(h.deleteApprovedEmail))
 	r.HandleFunc("POST /admin/approved", h.withAdmin(h.addApprovedEmail))
 }

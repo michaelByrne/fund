@@ -198,6 +198,13 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	financeService := finance.NewFinanceService(donationStore, paypalService, documentStorage, runConfig.ReportTypes, logger)
 	enrollmentService := enrollments.NewEnrollmentsService(enrollmentStore, logger)
 
+	// No notifier yet: approval reminders are logged by the sweep until a delivery
+	// channel exists. The service tolerates a nil notifier.
+	payoutService := payouts.NewPayoutService(
+		payoutStore, paypalService, nil,
+		runConfig.PayoutApprovalWindow, runConfig.PayoutReminderWindow, logger,
+	)
+
 	authMiddleware := middlewares.Verify(
 		verifier.Verify,
 		middlewares.TokenFromCookie,
@@ -216,7 +223,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	)
 	authHandlers := authweb.NewAuthHandlers(authService, memberService, webAuthn, sessionManager, runConfig.PayPal.ClientID)
 	adminHandlers := adminweb.NewAdminHandlers(
-		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, sessionManager, runConfig.PayPal.ClientID,
+		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, payoutService, sessionManager, runConfig.PayPal.ClientID,
 	)
 	webhooksHandlers := hooksweb.NewWebhooksHandlers(
 		donationService, memberService, &messageBroker, logger, runConfig.PayPal.WebhookID,
