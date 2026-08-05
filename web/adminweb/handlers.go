@@ -9,7 +9,6 @@ import (
 	"boardfund/service/payouts"
 	"boardfund/web/common"
 	"boardfund/web/mux"
-	"encoding/json"
 	"errors"
 	"github.com/alexedwards/scs/v2"
 	"github.com/google/uuid"
@@ -716,50 +715,6 @@ func dollarStringToCents(dollars string) (int32, error) {
 	return int32(amount * 100), nil
 }
 
-// sendFormValidationErrJSON emits the 422 payload that the htmx:responseError
-// listener in shared.js maps onto form fields via setCustomValidity.
-//
-// It currently has no callers -- no handler builds a fieldError, so nothing has
-// ever returned 422 and that listener has never fired. Kept as the server half of
-// per-field validation, which is a better fit for forms than the whole-page banner
-// renderError produces. Wiring it up is its own pass, form by form.
-func (h *AdminHandlers) sendFormValidationErrJSON(w http.ResponseWriter, r *http.Request, fieldErrs []fieldError) {
-	errs := make(map[string]string)
-	for _, err := range fieldErrs {
-		errs[err.Field] = err.Error
-	}
-
-	targetID := r.Header.Get("HX-Trigger")
-	if targetID == "" {
-		h.internalError(w, r)
-
-		return
-	}
-
-	validationPayload := map[string]map[string]string{
-		targetID: errs,
-	}
-
-	payloadBytes, err := json.Marshal(validationPayload)
-	if err != nil {
-		h.internalError(w, r)
-
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusUnprocessableEntity)
-	w.Write(payloadBytes)
-}
-
-type fieldError struct {
-	Field string
-	Error string
-}
-
-type menuTarget struct {
-	ShowMessage ShowMessage `json:"showMenu"`
-}
 type ShowMessage struct {
 	Target string `json:"target"`
 }

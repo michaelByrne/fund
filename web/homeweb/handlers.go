@@ -337,16 +337,9 @@ func (h *FundHandlers) completeOneTimeDonation(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	ipAddress := r.RemoteAddr
-	if strings.Contains(ipAddress, "[::1]") {
-		ipAddress = "127.0.0.1"
-	}
-
-	splitIP := strings.Split(ipAddress, ":")
-	if len(splitIP) > 1 {
-		ipAddress = splitIP[0]
-	}
-
+	// The caller's IP was normalised here and then dropped on the floor:
+	// OneTimeCompletion.IPAddress was never assigned, and CompleteDonation does
+	// not read it. Removed rather than wired up, since nothing stores it.
 	completion := donations.OneTimeCompletion{
 		AmountCents:       amountCents,
 		FundID:            fundUUID,
@@ -629,8 +622,4 @@ func dollarStringToCents(dollars string) (int32, error) {
 	}
 
 	return int32(amountInCents), nil
-}
-
-func isHx(r *http.Request) bool {
-	return r.Header.Get("HX-Request") == "true"
 }

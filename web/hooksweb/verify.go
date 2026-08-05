@@ -1,6 +1,7 @@
 package hooksweb
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -10,9 +11,15 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 )
 
-func downloadAndCache(url, cacheKey string) (string, error) {
+// certFetchClient bounds the PayPal certificate download. Without a timeout a
+// stalled connection holds the webhook handler open indefinitely, and PayPal
+// gives up and redelivers while we are still waiting.
+var certFetchClient = &http.Client{Timeout: 10 * time.Second}
+
+func downloadAndCache(ctx context.Context, url, cacheKey string) (string, error) {
 	filePath := filepath.Join("tmp", cacheKey)
 
 	var data []byte
@@ -31,11 +38,20 @@ func downloadAndCache(url, cacheKey string) (string, error) {
 		return "", fmt.Errorf("failed to create tmp directory: %w", err)
 	}
 
-	resp, err := http.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to build certificate request: %w", err)
+	}
+
+	resp, err := certFetchClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to download from URL: %w", err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("certificate download returned %d", resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -71,7 +87,7 @@ func verifySignature(r *http.Request, webhookID string) ([]byte, error) {
 
 	message := fmt.Sprintf("%s|%s|%s|%d", transmissionID, timestamp, webhookID, crc)
 
-	certPem, err := downloadAndCache(certURL, "pp-cert.pem")
+	certPem, err := downloadAndCache(r.Context(), certURL, "pp-cert.pem")
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch certificate: %w", err)
 	}

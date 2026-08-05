@@ -62,7 +62,7 @@ func TokenFromCookie(r *http.Request) string {
 	return cookie.Value
 }
 
-// TokenFromHeader tries to retreive the token string from the
+// TokenFromHeader tries to retrieve the token string from the
 // "Authorization" reqeust header: "Authorization: BEARER T".
 func TokenFromHeader(r *http.Request) string {
 	// Get token from authorization header.

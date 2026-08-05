@@ -5,7 +5,6 @@ import (
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"boardfund/web/mux"
-	"encoding/json"
 	"errors"
 	"github.com/alexedwards/scs/v2"
 	"net/http"
@@ -199,12 +198,6 @@ func setTokenCookie(name, token string, expiration time.Time, w http.ResponseWri
 	cookie.HttpOnly = true
 
 	http.SetCookie(w, cookie)
-}
-
-func jsonResponse(w http.ResponseWriter, status int, data any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
 }
 
 // errRedirect sends the user to the error page with a message to display.

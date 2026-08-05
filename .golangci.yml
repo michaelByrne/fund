@@ -1,0 +1,83 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  # The standard set (errcheck, govet, ineffassign, staticcheck, unused) plus a
+  # short list chosen for catching real defects rather than enforcing style.
+  default: standard
+  enable:
+    # Would have caught the leaked PayPal response body: a non-2xx return that
+    # skipped the deferred Close.
+    - bodyclose
+    # err == ErrFoo comparisons that break the moment anything wraps.
+    - errorlint
+    # Returning nil after checking err != nil.
+    - nilerr
+    # Outbound requests with no context, so no timeout and no cancellation.
+    - noctx
+    - misspell
+    - unconvert
+
+  settings:
+    errcheck:
+      exclude-functions:
+        # templ's Render returns an error at every call site. A failed render
+        # means a broken connection, which is not actionable here.
+        - (github.com/a-h/templ.Component).Render
+        # Same for writing to a client that has gone away.
+        - (net/http.ResponseWriter).Write
+        - (*encoding/json.Encoder).Encode
+        # Deferred cleanup. Checking these buys nothing and obscures the real
+        # error being returned.
+        - (io.Closer).Close
+        - (github.com/jackc/pgx/v5.Tx).Rollback
+        # CLI output to stdout via tabwriter.
+        - fmt.Fprintf
+        - fmt.Fprintln
+
+    # No locale: regional spellings are not errors. This catches genuine typos
+    # like "retreive" without arguing about -ise versus -ize, and without
+    # flagging PayPal's own /v1/catalogs path.
+    misspell: {}
+
+    staticcheck:
+      # golangci-lint's own default set, minus two more.
+      #
+      # SA (bugs) and S (simplifications) are worth acting on. QF is the
+      # quickfix/refactor category -- De Morgan's law, embedded field selectors
+      # -- which is style, and noisy on generated-adjacent code. The ST entries
+      # are the upstream defaults for naming and comment form; spelling out
+      # "all" without them turns on doc-comment policing nobody asked for.
+      checks:
+        - all
+        - -ST1000
+        - -ST1003
+        - -ST1016
+        - -ST1020
+        - -ST1021
+        - -ST1022
+        - -QF1001
+        - -QF1008
+
+  exclusions:
+    generated: lax
+    paths:
+      # sqlc and templ output. Nothing here is hand-written.
+      - db/.*\.sql\.go$
+      - .*_templ\.go$
+      - service/mocks/.*
+    rules:
+      # Test fixtures legitimately ignore errors while arranging state, and
+      # httptest.NewRequest is the documented way to build a test request.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - bodyclose
+          - noctx
+
+formatters:
+  enable:
+    - gofmt
