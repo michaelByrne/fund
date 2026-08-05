@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"boardfund/service/enrollments"
 	"boardfund/service/fundevents"
 	"boardfund/service/members"
 
@@ -207,4 +208,27 @@ func eventLabel(kind fundevents.Kind) string {
 		// than as a blank row.
 		return strings.ReplaceAll(string(kind), "_", " ")
 	}
+}
+
+// unpayableCount is how many current enrollees a batch planned now would leave
+// out: no PayPal address, or a first payout date still in the future. Both are
+// silent exclusions in the payout path, so the list surfaces them.
+func unpayableCount(enrollments []enrollments.Enrollment) int {
+	now := time.Now()
+
+	var count int
+	for _, enrollment := range enrollments {
+		if !enrollment.Payable(now) {
+			count++
+		}
+	}
+
+	return count
+}
+
+func unpayableSummary(enrollments []enrollments.Enrollment) string {
+	unpayable := unpayableCount(enrollments)
+	payable := len(enrollments) - unpayable
+
+	return fmt.Sprintf("a payout planned now would cover %d of %d enrollees", payable, len(enrollments))
 }

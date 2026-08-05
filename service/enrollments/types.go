@@ -16,13 +16,36 @@ type InsertEnrollment struct {
 }
 
 type Enrollment struct {
-	ID              uuid.UUID
-	MemberID        uuid.UUID
-	MemberBCOName   string
-	FundID          uuid.UUID
+	ID            uuid.UUID
+	MemberID      uuid.UUID
+	MemberBCOName string
+	FundID        uuid.UUID
+
+	// PaypalEmail is where this person's payouts are sent. It was on the
+	// database row but dropped by the adapter, so nothing could show or check it
+	// -- which is unfortunate for the one field most likely to be wrong.
+	PaypalEmail string
+
+	// FirstPayoutDate gates inclusion in a batch: GetActiveEnrollmentsForPayout
+	// requires it to have passed, so an enrollee dated in the future is skipped
+	// without anything saying so.
 	FirstPayoutDate time.Time
-	Created         time.Time
-	Updated         time.Time
+
+	Created time.Time
+	Updated time.Time
+}
+
+// Payable reports whether this enrollment would be included in a batch planned
+// now. PlanBatch skips an enrollee with no PayPal address, and the eligibility
+// query excludes one whose first payout date has not arrived -- in both cases
+// silently, which is why the list says so instead.
+func (e Enrollment) Payable(now time.Time) bool {
+	return e.PaypalEmail != "" && !e.FirstPayoutDate.After(now)
+}
+
+// Eligible reports whether the first payout date has arrived.
+func (e Enrollment) Eligible(now time.Time) bool {
+	return !e.FirstPayoutDate.After(now)
 }
 
 type CreateEnrollment struct {

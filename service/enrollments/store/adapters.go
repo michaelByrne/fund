@@ -26,6 +26,7 @@ func fromDBEnrollment(dbEnrollment db.FundEnrollment) enrollments.Enrollment {
 		MemberID:        dbEnrollment.MemberID,
 		MemberBCOName:   dbEnrollment.MemberBcoName.String,
 		FundID:          dbEnrollment.FundID,
+		PaypalEmail:     dbEnrollment.PaypalEmail,
 		FirstPayoutDate: dbEnrollment.FirstPayoutDate.Time,
 		Created:         dbEnrollment.Created.Time,
 		Updated:         dbEnrollment.Updated.Time,
