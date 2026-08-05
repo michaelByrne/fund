@@ -1,8 +1,8 @@
 module boardfund
 
-go 1.23
+go 1.26.0
 
-toolchain go1.23.4
+toolchain go1.26.5
 
 require (
 	github.com/a-h/templ v0.2.793
