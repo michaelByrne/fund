@@ -95,6 +95,16 @@ func RootCmd(ctx context.Context, runConfig RunConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "fund",
 		Short: "bco mutual aid",
+
+		// A failing command prints its error, not the whole usage block. These
+		// run unattended on a schedule, where the reason a payout sweep failed
+		// should not be buried under a flag listing.
+		//
+		// Cobra also prints the error itself by default, which main.go then
+		// prints again via log.Fatal. Silencing that leaves one copy, timestamped.
+		SilenceUsage:  true,
+		SilenceErrors: true,
+
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return run(ctx, runConfig)
 		},
