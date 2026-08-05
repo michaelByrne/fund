@@ -249,8 +249,20 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	router := mux.NewRouter(http.NewServeMux())
 	router.Use(sessionManager.LoadAndSave)
 
+	// no-cache means "revalidate before reusing", not "do not store": the browser
+	// still caches, it just asks first, and gets a 304 with no body almost every
+	// time. Without this header there is no freshness information at all, so a
+	// browser is free to invent one -- typically a tenth of the file's age, which
+	// for a stylesheet last touched a year ago is weeks of serving a stale copy
+	// without ever contacting the server.
+	//
+	// These files are small, unversioned, and change with the deploy that ships
+	// them. A conditional request per asset is the right price for a CSS fix
+	// actually being visible once it is deployed.
+	staticFiles := http.StripPrefix("/static/", http.FileServer(http.Dir("public")))
 	router.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
-		http.StripPrefix("/static/", http.FileServer(http.Dir("public"))).ServeHTTP(w, r)
+		w.Header().Set("Cache-Control", "no-cache")
+		staticFiles.ServeHTTP(w, r)
 	})
 
 	authHandlers.Register(router)
