@@ -2,11 +2,13 @@ package payouts_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"testing"
 	"time"
 
+	"boardfund/events"
 	"boardfund/pg"
 	"boardfund/service/payouts"
 	payoutstore "boardfund/service/payouts/store"
@@ -423,4 +425,85 @@ func TestProviderStatusToStatus(t *testing.T) {
 			assert.Equal(t, want, payouts.ProviderStatusToStatus(input))
 		})
 	}
+}
+
+// captureSubscriber records the callbacks Handlers registers, so a test can drive
+// a webhook payload through the real subscription wiring.
+type captureSubscriber struct {
+	handlers map[string]func([]byte)
+}
+
+func (c *captureSubscriber) Subscribe(event string, cb func(data []byte)) error {
+	if c.handlers == nil {
+		c.handlers = map[string]func([]byte){}
+	}
+
+	c.handlers[event] = cb
+
+	return nil
+}
+
+// A payout item webhook typically arrives before anything has reconciled, so
+// provider_payout_item_id is still NULL. Matching on it would update no rows and
+// silently drop the outcome; sender_item_id carries our own payout ID and is
+// available immediately.
+func TestPayoutItemWebhookMatchesBeforeReconcile(t *testing.T) {
+	ctx := context.Background()
+
+	container, pool, err := pg.SetupTestDatabase()
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = container.Terminate(ctx) })
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	store := payoutstore.NewPayoutStore(pool)
+	svc := payouts.NewPayoutService(store, &stubProvider{batchID: "PAYPAL-WEBHOOK"}, nil, 72*time.Hour, 24*time.Hour, logger)
+
+	fundID := seedFundWithEnrollees(t, ctx, pool, 1)
+	approverID := seedMember(t, ctx, pool)
+
+	batch, err := svc.PlanBatch(ctx, payouts.PlanBatch{
+		FundID: fundID, PayoutDate: time.Now(), AmountCents: 1000, RequireApproval: true,
+	})
+	require.NoError(t, err)
+
+	_, err = svc.ApproveBatch(ctx, batch.ID, approverID)
+	require.NoError(t, err)
+
+	_, err = svc.SubmitBatch(ctx, batch.ID)
+	require.NoError(t, err)
+
+	items, err := svc.GetPayoutsForBatch(ctx, batch.ID)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+
+	// Nothing has reconciled, so the provider's item ID is not on the row yet.
+	require.Empty(t, items[0].ProviderPayoutItemID)
+
+	sub := &captureSubscriber{}
+	handlers := payouts.NewHandlers(store, logger)
+	require.NoError(t, handlers.Subscribe(sub))
+
+	cb := sub.handlers[events.PayoutsItemSucceeded]
+	require.NotNil(t, cb, "handler must subscribe to PAYMENT.PAYOUTS-ITEM.SUCCEEDED")
+
+	payload := fmt.Sprintf(`{
+		"payout_item_id": "ITEM-FROM-WEBHOOK",
+		"transaction_status": "SUCCESS",
+		"payout_item_fee": {"currency": "USD", "value": "0.25"},
+		"payout_item": {"sender_item_id": %q}
+	}`, items[0].ID.String())
+
+	cb([]byte(payload))
+
+	settled, err := svc.GetPayoutsForBatch(ctx, batch.ID)
+	require.NoError(t, err)
+	require.Len(t, settled, 1)
+
+	assert.Equal(t, payouts.StatusPaid, settled[0].Status)
+	assert.Equal(t, int32(25), settled[0].ProviderFeeCents)
+
+	// The provider's ID is recorded in the same statement, so a later reconcile or
+	// a subsequent webhook can both find the row either way.
+	assert.Equal(t, "ITEM-FROM-WEBHOOK", settled[0].ProviderPayoutItemID)
 }

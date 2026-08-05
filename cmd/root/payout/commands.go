@@ -416,6 +416,17 @@ func deadline(b payouts.Batch) string {
 	return fmt.Sprintf("%s (in %s)", b.ApprovalDeadline.Format(time.RFC3339), remaining)
 }
 
+// dollars renders cents as currency. The sign is handled explicitly because Go's
+// % keeps it, so -125 would otherwise print as "$-1.-25". Provider fees arrive
+// negative on refunds and reversals.
 func dollars(cents int32) string {
-	return fmt.Sprintf("$%d.%02d", cents/100, cents%100)
+	amount := int64(cents)
+
+	sign := ""
+	if amount < 0 {
+		sign = "-"
+		amount = -amount
+	}
+
+	return fmt.Sprintf("%s$%d.%02d", sign, amount/100, amount%100)
 }
