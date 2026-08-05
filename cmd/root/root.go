@@ -17,6 +17,8 @@ import (
 	"boardfund/service/finance"
 	"boardfund/service/members"
 	memberstore "boardfund/service/members/store"
+	"boardfund/service/payouts"
+	payoutstore "boardfund/service/payouts/store"
 	"boardfund/web/adminweb"
 	"boardfund/web/authweb"
 	"boardfund/web/homeweb"
@@ -76,6 +78,12 @@ type RunConfig struct {
 	DonationsPaymentsReportsS3Bucket string
 
 	ReportTypes []string
+
+	// PayoutApprovalWindow is how long a treasurer has to approve a batch before it
+	// is cancelled. PayoutReminderWindow is how close to that deadline a batch must
+	// be before a reminder is sent. Both fall back to service defaults when zero.
+	PayoutApprovalWindow time.Duration
+	PayoutReminderWindow time.Duration
 }
 
 type ChildDeps struct {
@@ -148,6 +156,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	donationStore := donationstore.NewDonationStore(pool)
 	memberStore := memberstore.NewMemberStore(pool)
 	enrollmentStore := enrollmentstore.NewEnrollmentStore(pool)
+	payoutStore := payoutstore.NewPayoutStore(pool)
 	authStore := store.NewAuthStore(pool)
 	sessionManager := scs.New()
 	sessionManager.IdleTimeout = 1 * time.Hour
@@ -219,6 +228,12 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		return err
 	}
 
+	payoutEventHandlers := payouts.NewHandlers(payoutStore, logger)
+	err = payoutEventHandlers.Subscribe(&messageBroker)
+	if err != nil {
+		return err
+	}
+
 	router := mux.NewRouter(http.NewServeMux())
 	router.Use(sessionManager.LoadAndSave)
 
@@ -257,7 +272,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 
 		err := server.Shutdown(shutdownCtx)
 		if err != nil {
-			logger.Error("server shutdown error:", err)
+			logger.Error("server shutdown error", slog.String("error", err.Error()))
 		}
 
 		ns.WaitForShutdown()

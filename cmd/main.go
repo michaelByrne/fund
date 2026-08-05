@@ -4,11 +4,13 @@ import (
 	"boardfund/cmd/root"
 	"boardfund/cmd/root/audit"
 	donationsaudit "boardfund/cmd/root/audit/donations"
+	"boardfund/cmd/root/payout"
 	"context"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func loadRunConfig() (*root.RunConfig, error) {
@@ -52,6 +54,9 @@ func loadRunConfig() (*root.RunConfig, error) {
 
 		EnableNATSLogging: getEnvAsBool("ENABLE_NATS_LOGGING", false),
 		ReportTypes:       getEnvAsSlice("ENABLED_REPORT_TYPES"),
+
+		PayoutApprovalWindow: getEnvAsDuration("PAYOUT_APPROVAL_WINDOW", 72*time.Hour),
+		PayoutReminderWindow: getEnvAsDuration("PAYOUT_REMINDER_WINDOW", 24*time.Hour),
 	}
 
 	return config, nil
@@ -81,6 +86,20 @@ func getEnvAsSlice(key string) []string {
 	return strings.Split(valueStr, ",")
 }
 
+func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return defaultValue
+	}
+
+	value, err := time.ParseDuration(valueStr)
+	if err != nil {
+		log.Fatalf("%s is not a valid duration: %v", key, err)
+	}
+
+	return value
+}
+
 func getEnvAsBool(key string, defaultValue bool) bool {
 	valueStr := os.Getenv(key)
 	if valueStr == "" {
@@ -107,6 +126,11 @@ func main() {
 
 	auditCmd.AddCommand(donationsAuditCmd)
 	rootCmd.AddCommand(auditCmd)
+	rootCmd.AddCommand(payout.PayoutCmd(runConfig))
 
-	rootCmd.Execute()
+	// Surface a non-zero exit code: scheduled audit runs are otherwise
+	// indistinguishable from successful ones.
+	if err := rootCmd.Execute(); err != nil {
+		log.Fatal(err)
+	}
 }

@@ -1,6 +1,9 @@
 package paypal
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type ErrPaypal struct {
 	Name    string       `json:"name"`
@@ -399,4 +402,84 @@ type Order struct {
 	ID            string `json:"id"`
 	PurchaseUnits OrderPurchaseUnits
 	Links         []Link `json:"links"`
+}
+
+// Payouts (https://developer.paypal.com/docs/api/payments.payouts-batch/v1/)
+
+type SenderBatchHeader struct {
+	// SenderBatchID is the idempotency key. PayPal rejects a batch whose
+	// sender_batch_id it has already accepted, which is what makes a retry after a
+	// timed-out request safe.
+	SenderBatchID string `json:"sender_batch_id"`
+	EmailSubject  string `json:"email_subject,omitempty"`
+	EmailMessage  string `json:"email_message,omitempty"`
+}
+
+type PayoutAmount struct {
+	Value        string `json:"value"`
+	CurrencyCode string `json:"currency"`
+}
+
+type PayoutItem struct {
+	RecipientType string       `json:"recipient_type"`
+	Amount        PayoutAmount `json:"amount"`
+	Receiver      string       `json:"receiver"`
+	Note          string       `json:"note,omitempty"`
+	// SenderItemID carries our payout row's ID so PayPal echoes it back on the
+	// details call, letting reconciliation attribute each item to its row.
+	SenderItemID string `json:"sender_item_id"`
+}
+
+type CreatePayoutRequest struct {
+	SenderBatchHeader SenderBatchHeader `json:"sender_batch_header"`
+	Items             []PayoutItem      `json:"items"`
+}
+
+type PayoutBatchHeader struct {
+	PayoutBatchID     string            `json:"payout_batch_id"`
+	BatchStatus       string            `json:"batch_status"`
+	TimeCreated       string            `json:"time_created,omitempty"`
+	TimeCompleted     string            `json:"time_completed,omitempty"`
+	SenderBatchHeader SenderBatchHeader `json:"sender_batch_header"`
+}
+
+// CreatePayoutResponse carries only the batch header: PayPal does not return
+// per-item IDs on create. They are read back from PayoutBatchDetails.
+type CreatePayoutResponse struct {
+	BatchHeader PayoutBatchHeader `json:"batch_header"`
+	Links       []Link            `json:"links"`
+}
+
+type PayoutItemDetail struct {
+	PayoutItemID string `json:"payout_item_id"`
+	// TransactionStatus is the per-item outcome: SUCCESS, FAILED, PENDING,
+	// UNCLAIMED, RETURNED, ONHOLD, BLOCKED, REFUNDED or REVERSED.
+	TransactionStatus string       `json:"transaction_status"`
+	PayoutItemFee     PayoutAmount `json:"payout_item_fee"`
+	PayoutBatchID     string       `json:"payout_batch_id"`
+	PayoutItem        PayoutItem   `json:"payout_item"`
+	SenderItemID      string       `json:"-"`
+	Errors            *ErrPaypal   `json:"errors,omitempty"`
+}
+
+// UnmarshalJSON lifts sender_item_id out of the nested payout_item, where PayPal
+// returns it, so callers can read it directly off the detail.
+func (d *PayoutItemDetail) UnmarshalJSON(data []byte) error {
+	type alias PayoutItemDetail
+
+	var raw alias
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	*d = PayoutItemDetail(raw)
+	d.SenderItemID = raw.PayoutItem.SenderItemID
+
+	return nil
+}
+
+type PayoutBatchDetails struct {
+	BatchHeader PayoutBatchHeader  `json:"batch_header"`
+	Items       []PayoutItemDetail `json:"items"`
+	Links       []Link             `json:"links"`
 }
