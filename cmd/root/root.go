@@ -26,6 +26,7 @@ import (
 	"boardfund/web/common"
 	"boardfund/web/homeweb"
 	"boardfund/web/hooksweb"
+	hooksstore "boardfund/web/hooksweb/store"
 	"boardfund/web/middlewares"
 	"boardfund/web/mux"
 	"context"
@@ -247,7 +248,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, payoutService, fundEvents, sessionManager, messageBroker, runConfig.PayPal.ClientID,
 	)
 	webhooksHandlers := hooksweb.NewWebhooksHandlers(
-		donationService, memberService, messageBroker, logger, runConfig.PayPal.WebhookID,
+		donationService, memberService, messageBroker, hooksstore.NewDeliveryStore(pool), logger, runConfig.PayPal.WebhookID,
 	)
 
 	donationWebhookHandlers := donations.NewHandlers(donationStore, fundEvents, logger)

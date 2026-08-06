@@ -255,6 +255,54 @@ func (s DonationStore) GetDonationsByDonorID(ctx context.Context, donorID uuid.U
 	return pg.FetchMany(ctx, donorID, query, uuidIdentity, fromDBDonation)
 }
 
+// ReactivateSuspendedDonation returns the donation it brought back, or nil when
+// there was nothing to bring back -- the subscription is unknown, already active,
+// or was deactivated for a reason a payment must not overturn.
+func (s DonationStore) ReactivateSuspendedDonation(ctx context.Context, subscriptionID string) (*donations.Donation, error) {
+	rows, err := s.queries.ReactivateSuspendedDonationBySubscriptionId(ctx,
+		pgtype.Text{String: subscriptionID, Valid: true})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rows) == 0 {
+		return nil, nil
+	}
+
+	donation := fromDBDonation(rows[0])
+
+	return &donation, nil
+}
+
+// SetDonationPaymentRefunded records money returned for a payment. Returns nil
+// when the payment is unknown, or already carries this refunded total -- which is
+// what a redelivered refund webhook looks like.
+func (s DonationStore) SetDonationPaymentRefunded(ctx context.Context, providerPaymentID string, refundedCents int32) (*donations.RefundedPayment, error) {
+	rows, err := s.queries.SetDonationPaymentRefunded(ctx, db.SetDonationPaymentRefundedParams{
+		PaypalPaymentID: providerPaymentID,
+		RefundedCents:   refundedCents,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rows) == 0 {
+		return nil, nil
+	}
+
+	row := rows[0]
+
+	return &donations.RefundedPayment{
+		PaymentID:               row.PaymentID,
+		DonationID:              row.DonationID,
+		FundID:                  row.FundID,
+		DonorID:                 row.DonorID,
+		AmountCents:             row.AmountCents,
+		RefundedCents:           row.RefundedCents,
+		PreviouslyRefundedCents: row.PreviouslyRefundedCents,
+	}, nil
+}
+
 func (s DonationStore) InsertDonationPayment(ctx context.Context, payment donations.InsertDonationPayment) (*donations.DonationPayment, error) {
 	query := s.queries.InsertDonationPayment
 

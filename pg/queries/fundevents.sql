@@ -1,7 +1,15 @@
--- name: InsertFundEvent :one
+-- A dedupe_key that is already present means this event has been recorded, which
+-- is the ordinary outcome of a redelivered webhook rather than a failure. The
+-- conflict target repeats the index predicate because the index is partial.
+--
+-- :many so a conflict yields no rows instead of ErrNoRows; the caller reads an
+-- empty result as "already recorded".
+-- name: InsertFundEvent :many
 INSERT INTO fund_event (id, fund_id, kind, occurred_at, actor_member_id, subject_member_id,
-                        amount_cents, detail, reference_id)
-VALUES ($1, $2, $3, COALESCE(sqlc.narg(occurred_at)::timestamptz, now()), $4, $5, $6, $7, $8)
+                        amount_cents, detail, reference_id, dedupe_key)
+VALUES ($1, $2, $3, COALESCE(sqlc.narg(occurred_at)::timestamptz, now()), $4, $5, $6, $7, $8,
+        sqlc.narg(dedupe_key)::text)
+ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
 RETURNING *;
 
 -- Newest first, with the actor's and subject's names resolved so the feed does

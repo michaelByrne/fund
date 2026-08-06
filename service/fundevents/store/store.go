@@ -86,12 +86,20 @@ func (s EventStore) InsertFundEvent(ctx context.Context, arg fundevents.Record) 
 		AmountCents:     nullInt4(arg.AmountCents),
 		Detail:          text(arg.Detail),
 		ReferenceID:     nullUUID(arg.ReferenceID),
+		DedupeKey:       text(arg.DedupeKey),
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	event := fromDB(inserted, "", "")
+	// No rows means the key was already present, so this event is on record and
+	// the caller has nothing to do. Distinguished from an error because a
+	// redelivered webhook is ordinary.
+	if len(inserted) == 0 {
+		return nil, nil
+	}
+
+	event := fromDB(inserted[0], "", "")
 
 	return &event, nil
 }

@@ -21,6 +21,17 @@ const (
 	PayoutFrequencyDaily PayoutFrequency = "daily"
 )
 
+// PayoutFrequencies is every frequency a fund can have.
+//
+// Somewhere to add one, so that code which must cover them all can iterate rather
+// than repeat a literal. Reconciliation named "monthly" directly and silently
+// stopped covering everything the day daily funds existed.
+var PayoutFrequencies = []PayoutFrequency{
+	PayoutFrequencyMonthly,
+	PayoutFrequencyDaily,
+	PayoutFrequencyOnce,
+}
+
 // Recurring reports whether the fund pays out more than once.
 //
 // The distinction used to be spelled `== PayoutFrequencyMonthly` at each call
@@ -47,6 +58,70 @@ type ProviderOrder struct {
 	FundReferenceID   string
 	ProviderPaymentID string
 	AmountCents       int32
+}
+
+// RefundEvent is the resource on PAYMENT.SALE.REFUNDED and .REVERSED.
+//
+// sale_id points at the payment being refunded, which is the id we store. A
+// reversal reports the sale in id instead, so both are read and sale_id wins.
+//
+// total_refunded_amount is cumulative and is what gets recorded: a second partial
+// refund reports the running total, so setting it is right where adding would
+// double-count.
+type RefundEvent struct {
+	ID                  string    `json:"id"`
+	SaleID              string    `json:"sale_id"`
+	State               string    `json:"state"`
+	CreateTime          time.Time `json:"create_time"`
+	Amount              Amount    `json:"amount"`
+	TotalRefundedAmount struct {
+		Value string `json:"value"`
+	} `json:"total_refunded_amount"`
+}
+
+// PaymentID is the payment this refund applies to.
+func (r RefundEvent) PaymentID() string {
+	if r.SaleID != "" {
+		return r.SaleID
+	}
+
+	return r.ID
+}
+
+// RefundedTotal is how much of the payment has come back in all, preferring the
+// provider's running total over this refund's own amount.
+func (r RefundEvent) RefundedTotal() string {
+	if r.TotalRefundedAmount.Value != "" {
+		return r.TotalRefundedAmount.Value
+	}
+
+	return r.Amount.Total
+}
+
+// RefundedPayment is what a refund changed, carrying the fund and donor so the
+// activity entry can be written without a second lookup.
+type RefundedPayment struct {
+	PaymentID  uuid.UUID
+	DonationID uuid.UUID
+	FundID     uuid.UUID
+	DonorID    uuid.UUID
+
+	AmountCents int32
+
+	// RefundedCents is the cumulative total returned for this payment, and
+	// PreviouslyRefundedCents is what it was before this refund. The balance cares
+	// about the total; the activity feed cares about the difference.
+	RefundedCents           int32
+	PreviouslyRefundedCents int32
+}
+
+// NewlyRefundedCents is how much came back in this refund alone.
+//
+// The feed reads as money moving, and a second partial refund moves only its own
+// amount. Recording the running total instead would report the whole refunded sum
+// again every time, and summing the feed would double-count.
+func (r RefundedPayment) NewlyRefundedCents() int32 {
+	return r.RefundedCents - r.PreviouslyRefundedCents
 }
 
 type Fund struct {

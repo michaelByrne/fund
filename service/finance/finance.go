@@ -70,6 +70,7 @@ type donationStore interface {
 	GetFundByID(ctx context.Context, uuid uuid.UUID) (*donations.Fund, error)
 	GetOneTimeDonationsForFund(ctx context.Context, arg donations.GetOneTimeDonationsForFundRequest) ([]donations.Donation, error)
 	UpdatePaymentPaypalFee(ctx context.Context, arg donations.UpdatePaymentPaypalFee) (*donations.DonationPayment, error)
+	InsertDonationPayment(ctx context.Context, payment donations.InsertDonationPayment) (*donations.DonationPayment, error)
 }
 
 type paymentsProvider interface {
@@ -262,22 +263,134 @@ func (s FinanceService) RunOneTimeDonationReconciliation(ctx context.Context) er
 	return nil
 }
 
+// RunRecurringDonationReconciliation covers every frequency whose donors hold
+// subscriptions.
+//
+// It read only "monthly" until daily funds existed, which left a daily fund's
+// donations with no status backstop at all -- the one thing this job is for.
+// Driving it from Recurring() rather than a literal means the next frequency
+// added is covered by adding it there.
 func (s FinanceService) RunRecurringDonationReconciliation(ctx context.Context) error {
-	funds, err := s.donationStore.GetActiveFunds(ctx, "monthly")
-	if err != nil {
-		s.logger.Error("failed to get active funds", slog.String("error", err.Error()))
+	for _, frequency := range donations.PayoutFrequencies {
+		// Filtered rather than listed. A one-off fund has no subscription to check
+		// and its payments are covered by the one-time pass, and a frequency added
+		// to PayoutFrequencies is covered here without anybody remembering to.
+		if !frequency.Recurring() {
+			continue
+		}
 
-		return err
-	}
+		funds, err := s.donationStore.GetActiveFunds(ctx, string(frequency))
+		if err != nil {
+			s.logger.Error("failed to get active funds",
+				slog.String("frequency", string(frequency)),
+				slog.String("error", err.Error()),
+			)
 
-	for _, fund := range funds {
-		errInner := s.reconcileRecurringDonationsForFund(ctx, fund.ID)
-		if errInner != nil {
-			return errInner
+			return err
+		}
+
+		for _, fund := range funds {
+			if errInner := s.reconcileRecurringDonationsForFund(ctx, fund.ID); errInner != nil {
+				return errInner
+			}
 		}
 	}
 
 	return nil
+}
+
+// backfillMissingPayments records payments the provider has and we do not.
+//
+// This is the half of reconciliation that was missing. The existing pass walks
+// the payments we already hold and asks the provider about each, so it can report
+// a payment that looks wrong and cannot notice one that never arrived -- which is
+// exactly what a webhook lost before the bus was durable leaves behind.
+//
+// Insertion is idempotent on the provider's payment id, so this is safe to run as
+// often as it likes: everything already recorded conflicts and does nothing.
+func (s FinanceService) backfillMissingPayments(ctx context.Context, donation donations.Donation, known []donations.DonationPayment) int {
+	// Recovery here is by subscription, so a donation without one has nothing to
+	// look up. A one-time donation is the case in point: its payment came from a
+	// capture, and asking the provider to list transactions for an empty
+	// subscription is a request with no answer.
+	if donation.ProviderSubscriptionID == "" {
+		return 0
+	}
+
+	logger := s.logger.With(slog.String("donation_id", donation.ID.String()))
+
+	transactions, err := s.paymentsProvider.GetTransactionsForDonationSubscription(ctx, donation.ProviderSubscriptionID)
+	if err != nil {
+		// Not fatal for the run: one unreadable subscription should not stop the
+		// other funds being reconciled.
+		logger.Error("failed to list provider transactions", slog.String("error", err.Error()))
+
+		return 0
+	}
+
+	have := make(map[string]bool, len(known))
+	for _, payment := range known {
+		have[payment.ProviderPaymentID] = true
+	}
+
+	var recovered int
+
+	for _, transaction := range transactions {
+		if transaction.ProviderPaymentID == "" || have[transaction.ProviderPaymentID] {
+			continue
+		}
+
+		// Only completed money. A pending or failed transaction is not something
+		// the fund can pay out, and recording it would inflate the balance.
+		if !strings.EqualFold(transaction.Status, "COMPLETED") {
+			continue
+		}
+
+		inserted, errInsert := s.donationStore.InsertDonationPayment(ctx, donations.InsertDonationPayment{
+			ID:                uuid.New(),
+			DonationID:        donation.ID,
+			ProviderPaymentID: transaction.ProviderPaymentID,
+			AmountCents:       transaction.AmountCents,
+			ProviderFeeCents:  transaction.FeeCents,
+		})
+		if errInsert != nil {
+			logger.Error("failed to record a payment found at the provider",
+				slog.String("provider_payment_id", transaction.ProviderPaymentID),
+				slog.String("error", errInsert.Error()),
+			)
+
+			continue
+		}
+
+		// Nil means another pass or a late webhook got there first.
+		if inserted == nil {
+			continue
+		}
+
+		recovered++
+
+		logger.Info("recorded a payment the provider had and we did not",
+			slog.String("provider_payment_id", transaction.ProviderPaymentID),
+			slog.Int("amount_cents", int(transaction.AmountCents)),
+		)
+
+		amount := transaction.AmountCents
+
+		s.events.Record(ctx, fundevents.Record{
+			FundID:          donation.FundID,
+			Kind:            fundevents.KindPaymentReceived,
+			OccurredAt:      transaction.Date,
+			SubjectMemberID: &donation.DonorID,
+			AmountCents:     &amount,
+			Detail:          "recurring, recovered by reconciliation",
+			ReferenceID:     &donation.ID,
+			// The payment is unique on this already; the key keeps a second
+			// reconciliation run from writing a second activity entry for it.
+			DedupeKey: "payment-recovered:" + transaction.ProviderPaymentID,
+		})
+	}
+
+	return recovered
 }
 
 func (s FinanceService) reconcileRecurringDonationsForFund(ctx context.Context, fundID uuid.UUID) error {
@@ -336,6 +449,18 @@ func (s FinanceService) reconcileRecurringDonationsForFund(ctx context.Context, 
 			logger.Error("failed to get donation payments", slog.String("error", errInner.Error()))
 
 			return errInner
+		}
+
+		// Before the verification pass below, so a payment recovered here is
+		// verified and reported in the same run rather than the next one.
+		if recovered := s.backfillMissingPayments(ctx, donation, payments); recovered > 0 {
+			payments, errInner = s.donationStore.GetDonationPaymentsByDonationID(ctx, donation.ID)
+			if errInner != nil {
+				logger.Error("failed to re-read donation payments after backfill",
+					slog.String("error", errInner.Error()))
+
+				return errInner
+			}
 		}
 
 		for _, payment := range payments {

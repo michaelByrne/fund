@@ -14,10 +14,10 @@ import (
 
 const getActiveFunds = `-- name: GetActiveFunds :many
 WITH FundStats AS (SELECT fund_id,
-                          COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+                          COALESCE(SUM(amount_cents - refunded_cents), 0)::INTEGER AS total_donated,
                           COUNT(*)                                AS total_donations,
                           CASE
-                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents - refunded_cents), 0) / COUNT(*)
                               ELSE 0
                               END                                 AS average_donation,
                           COUNT(DISTINCT donor_id)                AS total_donors
@@ -99,10 +99,10 @@ func (q *Queries) GetActiveFunds(ctx context.Context, payoutFrequency PayoutFreq
 
 const getAllFundsWithStats = `-- name: GetAllFundsWithStats :many
 WITH FundStats AS (SELECT fund_id,
-                          COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+                          COALESCE(SUM(amount_cents - refunded_cents), 0)::INTEGER AS total_donated,
                           COUNT(*)                                AS total_donations,
                           CASE
-                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents - refunded_cents), 0) / COUNT(*)
                               ELSE 0
                               END                                 AS average_donation,
                           COUNT(DISTINCT donor_id)                AS total_donors
@@ -190,10 +190,10 @@ func (q *Queries) GetAllFundsWithStats(ctx context.Context) ([]GetAllFundsWithSt
 
 const getClosedFundsWithStats = `-- name: GetClosedFundsWithStats :many
 WITH FundStats AS (SELECT fund_id,
-                          COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+                          COALESCE(SUM(amount_cents - refunded_cents), 0)::INTEGER AS total_donated,
                           COUNT(*)                                AS total_donations,
                           CASE
-                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents - refunded_cents), 0) / COUNT(*)
                               ELSE 0
                               END                                 AS average_donation,
                           COUNT(DISTINCT donor_id)                AS total_donors
@@ -359,7 +359,7 @@ func (q *Queries) GetDonationByProviderSubscriptionId(ctx context.Context, provi
 }
 
 const getDonationPaymentById = `-- name: GetDonationPaymentById :one
-SELECT id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents
+SELECT id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents, refunded_cents
 FROM donation_payment
 WHERE id = $1
 `
@@ -375,12 +375,13 @@ func (q *Queries) GetDonationPaymentById(ctx context.Context, id uuid.UUID) (Don
 		&i.Created,
 		&i.Updated,
 		&i.ProviderFeeCents,
+		&i.RefundedCents,
 	)
 	return i, err
 }
 
 const getDonationPaymentsByDonationId = `-- name: GetDonationPaymentsByDonationId :many
-SELECT id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents
+SELECT id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents, refunded_cents
 FROM donation_payment
 WHERE donation_id = $1
 `
@@ -402,6 +403,7 @@ func (q *Queries) GetDonationPaymentsByDonationId(ctx context.Context, donationI
 			&i.Created,
 			&i.Updated,
 			&i.ProviderFeeCents,
+			&i.RefundedCents,
 		); err != nil {
 			return nil, err
 		}
@@ -414,7 +416,7 @@ func (q *Queries) GetDonationPaymentsByDonationId(ctx context.Context, donationI
 }
 
 const getDonationPaymentsByMemberPaypalEmail = `-- name: GetDonationPaymentsByMemberPaypalEmail :many
-SELECT donation_payment.id, donation_payment.donation_id, donation_payment.paypal_payment_id, donation_payment.amount_cents, donation_payment.created, donation_payment.updated, donation_payment.provider_fee_cents
+SELECT donation_payment.id, donation_payment.donation_id, donation_payment.paypal_payment_id, donation_payment.amount_cents, donation_payment.created, donation_payment.updated, donation_payment.provider_fee_cents, donation_payment.refunded_cents
 FROM donation_payment
          JOIN donation ON donation.id = donation_payment.donation_id
          JOIN member ON member.id = donation.donor_id
@@ -438,6 +440,7 @@ func (q *Queries) GetDonationPaymentsByMemberPaypalEmail(ctx context.Context, pa
 			&i.Created,
 			&i.Updated,
 			&i.ProviderFeeCents,
+			&i.RefundedCents,
 		); err != nil {
 			return nil, err
 		}
@@ -627,10 +630,10 @@ func (q *Queries) GetExpiredActiveFunds(ctx context.Context) ([]GetExpiredActive
 
 const getFundById = `-- name: GetFundById :one
 WITH FundStats AS (SELECT fund_id,
-                          COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+                          COALESCE(SUM(amount_cents - refunded_cents), 0)::INTEGER AS total_donated,
                           COUNT(*)                                AS total_donations,
                           CASE
-                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents - refunded_cents), 0) / COUNT(*)
                               ELSE 0
                               END                                 AS average_donation,
                           COUNT(DISTINCT donor_id)                AS total_donors
@@ -808,7 +811,7 @@ func (q *Queries) GetMonthlyDonationTotalsForFund(ctx context.Context, fundID uu
 
 const getMonthlyTotalsByFund = `-- name: GetMonthlyTotalsByFund :many
 WITH monthly_totals AS (SELECT DATE_TRUNC('month', dp.created) AS month_year,
-                               SUM(dp.amount_cents)            AS total,
+                               SUM(dp.amount_cents - dp.refunded_cents) AS total,
                                COUNT(DISTINCT d.donor_id)      AS unique_donors
                         FROM fund f
                                  JOIN donation d ON f.id = d.fund_id
@@ -901,7 +904,7 @@ func (q *Queries) GetOneTimeDonationsForFund(ctx context.Context, arg GetOneTime
 }
 
 const getPaymentsForDonation = `-- name: GetPaymentsForDonation :many
-SELECT dp.id, dp.donation_id, dp.paypal_payment_id, dp.amount_cents, dp.created, dp.updated, dp.provider_fee_cents
+SELECT dp.id, dp.donation_id, dp.paypal_payment_id, dp.amount_cents, dp.created, dp.updated, dp.provider_fee_cents, dp.refunded_cents
 FROM donation_payment dp
 WHERE dp.donation_id = $1
 `
@@ -923,6 +926,7 @@ func (q *Queries) GetPaymentsForDonation(ctx context.Context, donationID uuid.UU
 			&i.Created,
 			&i.Updated,
 			&i.ProviderFeeCents,
+			&i.RefundedCents,
 		); err != nil {
 			return nil, err
 		}
@@ -981,7 +985,7 @@ func (q *Queries) GetRecurringDonationsForFund(ctx context.Context, arg GetRecur
 }
 
 const getTotalDonatedByFund = `-- name: GetTotalDonatedByFund :one
-SELECT sum(amount_cents)
+SELECT sum(amount_cents - refunded_cents)
 FROM donation
          JOIN donation_payment dp on donation.id = dp.donation_id
 WHERE fund_id = $1
@@ -995,7 +999,7 @@ func (q *Queries) GetTotalDonatedByFund(ctx context.Context, fundID uuid.UUID) (
 }
 
 const getTotalDonatedByMember = `-- name: GetTotalDonatedByMember :one
-SELECT sum(amount_cents)
+SELECT sum(amount_cents - refunded_cents)
 FROM donation
          JOIN donation_payment dp on donation.id = dp.donation_id
 WHERE donor_id = $1
@@ -1055,7 +1059,7 @@ const insertDonationPayment = `-- name: InsertDonationPayment :many
 INSERT INTO donation_payment (id, donation_id, paypal_payment_id, amount_cents, provider_fee_cents)
 VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (paypal_payment_id) DO NOTHING
-RETURNING id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents
+RETURNING id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents, refunded_cents
 `
 
 type InsertDonationPaymentParams struct {
@@ -1097,6 +1101,7 @@ func (q *Queries) InsertDonationPayment(ctx context.Context, arg InsertDonationP
 			&i.Created,
 			&i.Updated,
 			&i.ProviderFeeCents,
+			&i.RefundedCents,
 		); err != nil {
 			return nil, err
 		}
@@ -1206,6 +1211,134 @@ func (q *Queries) InsertFund(ctx context.Context, arg InsertFundParams) (Fund, e
 		&i.Updated,
 	)
 	return i, err
+}
+
+const reactivateSuspendedDonationBySubscriptionId = `-- name: ReactivateSuspendedDonationBySubscriptionId :many
+UPDATE donation
+SET active          = true,
+    inactive_reason = NULL,
+    updated         = now()
+FROM fund
+WHERE donation.fund_id = fund.id
+  AND donation.provider_subscription_id = $1
+  AND donation.active = false
+  AND donation.inactive_reason = 'SUSPENDED'
+  AND fund.active = true
+RETURNING donation.id, donation.recurring, donation.donor_id, donation.donation_plan_id, donation.provider_order_id, donation.created, donation.updated, donation.fund_id, donation.active, donation.provider_subscription_id, donation.inactive_reason
+`
+
+// Brings back a donation that suspension deactivated, and only that.
+//
+// The reason is checked because a donation can be inactive for reasons a payment
+// must not overturn: a member cancelled it, or the fund closed and cancelled
+// every subscription in it. A late or duplicate payment against one of those is
+// not evidence that anybody wants it running again.
+//
+// The fund is joined for the same reason. Reactivating a donation into a closed
+// fund would leave it collecting money the fund can no longer pay out.
+func (q *Queries) ReactivateSuspendedDonationBySubscriptionId(ctx context.Context, providerSubscriptionID pgtype.Text) ([]Donation, error) {
+	rows, err := q.db.Query(ctx, reactivateSuspendedDonationBySubscriptionId, providerSubscriptionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Donation
+	for rows.Next() {
+		var i Donation
+		if err := rows.Scan(
+			&i.ID,
+			&i.Recurring,
+			&i.DonorID,
+			&i.DonationPlanID,
+			&i.ProviderOrderID,
+			&i.Created,
+			&i.Updated,
+			&i.FundID,
+			&i.Active,
+			&i.ProviderSubscriptionID,
+			&i.InactiveReason,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setDonationPaymentRefunded = `-- name: SetDonationPaymentRefunded :many
+WITH previous AS (SELECT prev.id, prev.refunded_cents
+                  FROM donation_payment prev
+                  WHERE prev.paypal_payment_id = $1)
+UPDATE donation_payment dp
+SET refunded_cents = $2,
+    updated        = now()
+FROM donation d, previous p
+WHERE dp.id = p.id
+  AND dp.donation_id = d.id
+  AND dp.refunded_cents <> $2
+RETURNING dp.id AS payment_id, d.id AS donation_id, d.fund_id, d.donor_id,
+    dp.amount_cents, dp.refunded_cents, p.refunded_cents AS previously_refunded_cents
+`
+
+type SetDonationPaymentRefundedParams struct {
+	PaypalPaymentID string
+	RefundedCents   int32
+}
+
+type SetDonationPaymentRefundedRow struct {
+	PaymentID               uuid.UUID
+	DonationID              uuid.UUID
+	FundID                  uuid.UUID
+	DonorID                 uuid.UUID
+	AmountCents             int32
+	RefundedCents           int32
+	PreviouslyRefundedCents int32
+}
+
+// Records money that came back, as a cumulative total rather than a delta: PayPal
+// reports total_refunded_amount, so setting it is idempotent across redeliveries
+// and correct when a second partial refund follows a first.
+//
+// The inequality is what makes a redelivery report "nothing to do" -- no rows,
+// and the caller skips the fund event rather than recording a second refund for
+// the same money.
+// The donation is joined so the caller has the fund and donor the event needs,
+// rather than following the refund with a second lookup.
+//
+// The prior total is read before the update and returned alongside the new one.
+// refunded_cents is cumulative, so a second partial refund reports the running
+// total: without the previous value the caller cannot tell how much came back
+// this time, and recording the total would say three hundred dollars returned
+// when a hundred did.
+func (q *Queries) SetDonationPaymentRefunded(ctx context.Context, arg SetDonationPaymentRefundedParams) ([]SetDonationPaymentRefundedRow, error) {
+	rows, err := q.db.Query(ctx, setDonationPaymentRefunded, arg.PaypalPaymentID, arg.RefundedCents)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SetDonationPaymentRefundedRow
+	for rows.Next() {
+		var i SetDonationPaymentRefundedRow
+		if err := rows.Scan(
+			&i.PaymentID,
+			&i.DonationID,
+			&i.FundID,
+			&i.DonorID,
+			&i.AmountCents,
+			&i.RefundedCents,
+			&i.PreviouslyRefundedCents,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const setDonationToInactive = `-- name: SetDonationToInactive :one
@@ -1555,7 +1688,7 @@ const updateDonationPaymentPaypalFee = `-- name: UpdateDonationPaymentPaypalFee 
 UPDATE donation_payment
 SET provider_fee_cents = $2
 WHERE id = $1
-RETURNING id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents
+RETURNING id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents, refunded_cents
 `
 
 type UpdateDonationPaymentPaypalFeeParams struct {
@@ -1574,6 +1707,7 @@ func (q *Queries) UpdateDonationPaymentPaypalFee(ctx context.Context, arg Update
 		&i.Created,
 		&i.Updated,
 		&i.ProviderFeeCents,
+		&i.RefundedCents,
 	)
 	return i, err
 }

@@ -1,0 +1,18 @@
+# See railway/plan-due.toml for why each cron needs its own config file.
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "go build -o fund ./cmd"
+
+[deploy]
+startCommand = "./fund audit donations"
+# Daily, well before plan-due at 09:00. Reconciliation can add payments the
+# provider took and we never heard about, and the planner divides the balance
+# between enrollees -- so a fund should be reconciled before it decides what it
+# can afford to pay out, not after.
+cronSchedule = "0 7 * * *"
+numReplicas = 1
+# NEVER, matching the other jobs: a run that failed halfway should wait for its
+# slot rather than restart against donations it has already reconciled. Nothing
+# is lost by waiting, because everything it does is idempotent.
+restartPolicyType = "NEVER"

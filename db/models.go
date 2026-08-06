@@ -28,6 +28,9 @@ const (
 	FundEventKindPayoutBatchSettled   FundEventKind = "payout_batch_settled"
 	FundEventKindPayoutBatchExpired   FundEventKind = "payout_batch_expired"
 	FundEventKindFundClosed           FundEventKind = "fund_closed"
+	FundEventKindPaymentFailed        FundEventKind = "payment_failed"
+	FundEventKindDonationResumed      FundEventKind = "donation_resumed"
+	FundEventKindPaymentRefunded      FundEventKind = "payment_refunded"
 )
 
 func (e *FundEventKind) Scan(src interface{}) error {
@@ -294,6 +297,7 @@ type DonationPayment struct {
 	Created          pgtype.Timestamptz
 	Updated          pgtype.Timestamptz
 	ProviderFeeCents int32
+	RefundedCents    int32
 }
 
 type DonationPlan struct {
@@ -348,6 +352,7 @@ type FundEvent struct {
 	Detail          pgtype.Text
 	ReferenceID     uuid.NullUUID
 	Created         pgtype.Timestamptz
+	DedupeKey       pgtype.Text
 }
 
 type Member struct {
@@ -398,4 +403,10 @@ type Session struct {
 	Token  string
 	Data   []byte
 	Expiry pgtype.Timestamptz
+}
+
+type WebhookDelivery struct {
+	TransmissionID string
+	EventType      string
+	ReceivedAt     pgtype.Timestamptz
 }
