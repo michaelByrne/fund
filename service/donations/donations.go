@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"log/slog"
 )
 
@@ -189,6 +190,110 @@ func (s DonationService) DeactivateFund(ctx context.Context, id uuid.UUID, actor
 			ReferenceID:     &cancelled.ID,
 		})
 	}
+
+	return nil
+}
+
+// ListDonationsForMember is a donor's own donations.
+func (s DonationService) ListDonationsForMember(ctx context.Context, memberID uuid.UUID) ([]MemberDonation, error) {
+	donationsForMember, err := s.donationStore.GetDonationsForDonor(ctx, memberID)
+	if err != nil {
+		s.logger.Error("failed to list donations for member",
+			slog.String("member_id", memberID.String()),
+			slog.String("error", err.Error()),
+		)
+
+		return nil, err
+	}
+
+	return donationsForMember, nil
+}
+
+// CancelDonationForMember ends a member's own recurring donation.
+//
+// The provider is called before anything is written, and a failure leaves the
+// donation alone. This is the same order DeactivateFund uses and for the same
+// reason, which matters more here than anywhere: the donor is watching. Marking
+// it cancelled locally and failing at PayPal would tell someone their payments
+// had stopped while their card kept being charged, and nothing would correct it
+// -- reconciliation only pushes the other way, marking donations inactive once
+// the provider says they are gone.
+//
+// Ownership is checked here rather than trusted from the route, because the id
+// comes from the request.
+func (s DonationService) CancelDonationForMember(ctx context.Context, donationID, memberID uuid.UUID) error {
+	donation, err := s.donationStore.GetDonationByID(ctx, donationID)
+	if err != nil {
+		// An id that matches nothing gets the same answer as one belonging to
+		// somebody else. Distinguishing them would let a member discover which
+		// donation ids exist by watching which error comes back.
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrDonationNotYours
+		}
+
+		s.logger.Error("failed to get donation", slog.String("error", err.Error()))
+
+		return err
+	}
+
+	if donation == nil || donation.DonorID != memberID {
+		return ErrDonationNotYours
+	}
+
+	// Already stopped. Reported as success: the donor asked for it to be off, and
+	// it is off. A double-submitted form should not read as a failure.
+	if !donation.Active {
+		return nil
+	}
+
+	if !donation.Recurring || donation.ProviderSubscriptionID == "" {
+		return ErrDonationNotCancellable
+	}
+
+	cancelled, err := s.paymentsProvider.CancelSubscriptions(ctx, []string{donation.ProviderSubscriptionID})
+	if err != nil {
+		s.logger.Error("failed to cancel subscription at provider, donation left active",
+			slog.String("donation_id", donationID.String()),
+			slog.String("error", err.Error()),
+		)
+
+		return err
+	}
+
+	// Checked by membership rather than count, as elsewhere: a provider that
+	// returned a different id of the same length would otherwise pass.
+	if len(uncancelledSubscriptions(cancelled, []string{donation.ProviderSubscriptionID})) > 0 {
+		s.logger.Error("provider did not cancel the subscription, donation left active",
+			slog.String("donation_id", donationID.String()),
+		)
+
+		return ErrSubscriptionsNotCancelled
+	}
+
+	_, err = s.donationStore.SetDonationToInactive(ctx, DeactivateDonation{
+		ID:     donationID,
+		Reason: "cancelled by donor",
+	})
+	if err != nil {
+		// The subscription is cancelled at the provider and the row still says
+		// active. Reconciliation repairs exactly this, which is why this is the
+		// direction the ordering leaves open.
+		s.logger.Error("cancelled at provider but failed to record it",
+			slog.String("donation_id", donationID.String()),
+			slog.String("error", err.Error()),
+		)
+
+		return err
+	}
+
+	s.events.Record(ctx, fundevents.Record{
+		FundID:          donation.FundID,
+		Kind:            fundevents.KindDonationCancelled,
+		ActorMemberID:   &memberID,
+		SubjectMemberID: &memberID,
+		Detail:          "cancelled by donor",
+		ReferenceID:     &donation.ID,
+	})
 
 	return nil
 }

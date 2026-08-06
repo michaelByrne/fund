@@ -28,3 +28,13 @@ var ErrSubscriptionNotActive = errors.New("provider subscription is not active")
 // The plan is created by us, per fund, so a mismatch is not something an honest
 // client can produce.
 var ErrSubscriptionPlanMismatch = errors.New("provider subscription belongs to a different plan or fund")
+
+// ErrDonationNotYours means the donation belongs to somebody else.
+//
+// Reported as not-found to the caller rather than forbidden: a member has no
+// business learning whether a donation id exists.
+var ErrDonationNotYours = errors.New("donation does not belong to this member")
+
+// ErrDonationNotCancellable means there is nothing to cancel -- a one-off
+// donation, or one already ended.
+var ErrDonationNotCancellable = errors.New("donation cannot be cancelled")

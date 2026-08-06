@@ -590,6 +590,85 @@ func (q *Queries) GetDonationsByMemberPaypalEmail(ctx context.Context, paypalEma
 	return items, nil
 }
 
+const getDonationsForDonor = `-- name: GetDonationsForDonor :many
+SELECT d.id,
+       d.fund_id,
+       f.name                                                        AS fund_name,
+       f.active                                                      AS fund_active,
+       d.recurring,
+       d.active,
+       d.inactive_reason,
+       d.provider_subscription_id,
+       d.created,
+       COALESCE(SUM(dp.amount_cents - dp.refunded_cents), 0)::bigint AS total_given_cents,
+       MAX(dp.created)::timestamptz                                  AS last_payment_at,
+       p.amount_cents                                                AS plan_amount_cents,
+       p.interval_unit                                               AS plan_interval_unit
+FROM donation d
+         JOIN fund f ON f.id = d.fund_id
+         LEFT JOIN donation_payment dp ON dp.donation_id = d.id
+         LEFT JOIN donation_plan p ON p.id = d.donation_plan_id
+WHERE d.donor_id = $1
+GROUP BY d.id, f.name, f.active, p.amount_cents, p.interval_unit
+ORDER BY d.active DESC, d.created DESC
+`
+
+type GetDonationsForDonorRow struct {
+	ID                     uuid.UUID
+	FundID                 uuid.UUID
+	FundName               string
+	FundActive             bool
+	Recurring              bool
+	Active                 bool
+	InactiveReason         pgtype.Text
+	ProviderSubscriptionID pgtype.Text
+	Created                pgtype.Timestamptz
+	TotalGivenCents        int64
+	LastPaymentAt          pgtype.Timestamptz
+	PlanAmountCents        pgtype.Int4
+	PlanIntervalUnit       NullIntervalUnit
+}
+
+// What a donor sees on their own donations page: one row per donation, with the
+// fund it supports, what they have given to it, and what it costs them.
+//
+// Refunds are subtracted from the total for the same reason they are everywhere
+// else -- money that came back is not money they gave.
+// Live donations first, because those are the ones with a decision attached.
+func (q *Queries) GetDonationsForDonor(ctx context.Context, donorID uuid.UUID) ([]GetDonationsForDonorRow, error) {
+	rows, err := q.db.Query(ctx, getDonationsForDonor, donorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetDonationsForDonorRow
+	for rows.Next() {
+		var i GetDonationsForDonorRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FundID,
+			&i.FundName,
+			&i.FundActive,
+			&i.Recurring,
+			&i.Active,
+			&i.InactiveReason,
+			&i.ProviderSubscriptionID,
+			&i.Created,
+			&i.TotalGivenCents,
+			&i.LastPaymentAt,
+			&i.PlanAmountCents,
+			&i.PlanIntervalUnit,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getExpiredActiveFunds = `-- name: GetExpiredActiveFunds :many
 SELECT id, name
 FROM fund

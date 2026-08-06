@@ -371,9 +371,13 @@ func TestDailyFundsAdvanceByADay(t *testing.T) {
 		setFundFrequency(t, ctx, pool, fundID, "daily")
 		seedDonation(t, ctx, pool, fundID, 1000)
 
-		// Ten days of missed runs. The planner must not need ten passes to catch
-		// up, or a fund left alone over a holiday reports itself due every run.
-		due := time.Now().Add(-10 * 24 * time.Hour)
+		// Ten days of missed runs, and deliberately not a whole number of them.
+		// An anchor exactly N days old advances to the first strictly-future day,
+		// which is this instant -- so whether it reads as future depends on the
+		// milliseconds between the update and the assertion, and on how closely the
+		// container's clock tracks this one. The extra hours put the answer a clear
+		// nineteen hours out and the race disappears.
+		due := time.Now().Add(-10*24*time.Hour - 5*time.Hour)
 		setFundNextPayment(t, ctx, pool, fundID, due)
 
 		_, err := svc.PlanDueBatches(ctx)
