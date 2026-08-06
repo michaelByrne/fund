@@ -10,6 +10,7 @@ import (
 	"boardfund/service/payouts"
 	"boardfund/web/common"
 	"boardfund/web/mux"
+	"context"
 	"errors"
 	"github.com/alexedwards/scs/v2"
 	"github.com/google/uuid"
@@ -64,6 +65,8 @@ func (h *AdminHandlers) Register(r *mux.Router) {
 	r.HandleFunc("POST /admin/fund/deactivate/{id}", h.withAdmin(h.deactivateFund))
 	r.HandleFunc("POST /admin/member/deactivate/{id}", h.withAdmin(h.deactivateMember))
 	r.HandleFunc("GET /admin/member/{id}", h.withAdmin(h.memberPage))
+	r.HandleFunc("POST /admin/member/{id}/admin", h.withAdmin(h.grantAdmin))
+	r.HandleFunc("DELETE /admin/member/{id}/admin", h.withAdmin(h.revokeAdmin))
 	r.HandleFunc("GET /admin/fund/audits/{id}", h.withAdmin(h.availableAudits))
 	r.HandleFunc("GET /admin/fund/audit", h.withAdmin(h.fundAudit))
 	r.HandleFunc("GET /admin/fund", h.withAdmin(h.fundPage))
@@ -495,6 +498,105 @@ func (h *AdminHandlers) availableAudits(w http.ResponseWriter, r *http.Request) 
 	FundAudits(availAudits).Render(ctx, w)
 }
 
+// AdminAccessState is what the member page knows about a member's admin rights.
+// Unknown is separate from IsAdmin because the answer lives in Cognito: when that
+// lookup fails, "not an admin" is a guess, and one that offers a button undoing
+// whatever is actually true.
+type AdminAccessState struct {
+	IsAdmin bool
+	IsSelf  bool
+	Changed bool
+	Unknown bool
+}
+
+// adminAccess reads the viewed member's rights from Cognito. A failure is
+// reported as unknown rather than returned: the rest of the member page --
+// donations, contributions, dates -- does not depend on Cognito, and taking the
+// whole page down when the provider is slow is how a blip becomes an outage.
+func (h *AdminHandlers) adminAccess(ctx context.Context, viewed, actor members.Member, changed bool) AdminAccessState {
+	state := AdminAccessState{
+		IsSelf:  viewed.ID == actor.ID,
+		Changed: changed,
+	}
+
+	isAdmin, err := h.authService.IsAdmin(ctx, viewed.BCOName)
+	if err != nil {
+		state.Unknown = true
+
+		return state
+	}
+
+	state.IsAdmin = isAdmin
+
+	return state
+}
+
+// setAdmin backs both the promote and the revoke route. It re-reads the rights
+// from Cognito afterwards rather than assuming the write took, so the control
+// that comes back reflects the provider rather than the request.
+func (h *AdminHandlers) setAdmin(w http.ResponseWriter, r *http.Request, grant bool) {
+	ctx := r.Context()
+
+	actor, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		// Only ever reached by hx-post/hx-delete from the toggle, so a bare 302
+		// would be followed by the XHR and put the home page inside the admin
+		// access row. A session can expire while the token behind withAdmin is
+		// still valid, which is exactly when this fires.
+		common.Redirect(w, r, "/")
+
+		return
+	}
+
+	idUUID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		h.badRequest(w, r, "")
+
+		return
+	}
+
+	viewed, err := h.memberService.GetMemberByID(ctx, idUUID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		common.ErrorMessage(&actor, "failed to get member", r.URL.Path, r.URL.Path).Render(ctx, w)
+
+		return
+	}
+
+	// One admin revoking their own access locks everyone out, and the admin
+	// section is the only place this can be undone. The button is hidden for the
+	// same case, but the route is reachable without it.
+	if !grant && viewed.ID == actor.ID {
+		w.WriteHeader(http.StatusConflict)
+		common.ErrorMessage(&actor, "you cannot revoke your own admin access", r.URL.Path, r.URL.Path).Render(ctx, w)
+
+		return
+	}
+
+	if grant {
+		err = h.authService.GrantAdmin(ctx, viewed.BCOName)
+	} else {
+		err = h.authService.RevokeAdmin(ctx, viewed.BCOName)
+	}
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		common.ErrorMessage(&actor, "failed to change admin access", r.URL.Path, r.URL.Path).Render(ctx, w)
+
+		return
+	}
+
+	AdminAccess(*viewed, h.adminAccess(ctx, *viewed, actor, true)).Render(ctx, w)
+}
+
+func (h *AdminHandlers) grantAdmin(w http.ResponseWriter, r *http.Request) {
+	h.setAdmin(w, r, true)
+}
+
+func (h *AdminHandlers) revokeAdmin(w http.ResponseWriter, r *http.Request) {
+	h.setAdmin(w, r, false)
+}
+
 func (h *AdminHandlers) memberPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -528,7 +630,7 @@ func (h *AdminHandlers) memberPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("HX-Redirect", r.URL.Path)
-	Member(*memberDetails, &member, r.URL.Path).Render(ctx, w)
+	Member(*memberDetails, &member, r.URL.Path, h.adminAccess(ctx, *memberDetails, member, false)).Render(ctx, w)
 }
 
 func (h *AdminHandlers) deactivateFund(w http.ResponseWriter, r *http.Request) {

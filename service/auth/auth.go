@@ -30,6 +30,9 @@ type authorizer interface {
 	Authorize(ctx context.Context, user, pass string) (*AuthResponse, error)
 	SetPassword(ctx context.Context, user, old, new string) error
 	CreateUser(ctx context.Context, username, email string, memberID uuid.UUID) (string, error)
+	AddToGroup(ctx context.Context, username, group string) error
+	RemoveFromGroup(ctx context.Context, username, group string) error
+	ListGroups(ctx context.Context, username string) ([]string, error)
 }
 
 type AuthService struct {
@@ -74,6 +77,70 @@ func (s AuthService) Register(ctx context.Context, username, email string) (*mem
 	}
 
 	return member, nil
+}
+
+// GrantAdmin puts a member in the Cognito group that authorises the admin
+// section, which is the whole of what makes someone an admin -- see the comment
+// on jwtauth.AdminGroup. Nothing is written to member.roles: that column
+// authorises nothing, and Authenticate already derives the session's view of it
+// from the token, so a second copy could only ever disagree.
+//
+// Cognito stamps group membership into the ID token at authentication, so the
+// member stays non-admin until they log in again. Callers should say so.
+func (s AuthService) GrantAdmin(ctx context.Context, username string) error {
+	if err := s.authorizer.AddToGroup(ctx, username, jwtauth.AdminGroup); err != nil {
+		s.logger.Error("failed to grant admin",
+			slog.String("username", username),
+			slog.String("error", err.Error()),
+		)
+
+		return err
+	}
+
+	s.logger.Info("granted admin", slog.String("username", username))
+
+	return nil
+}
+
+// RevokeAdmin is the inverse. It takes effect on the member's next login for the
+// same reason, but sooner in practice: their current token expires within the
+// hour, and nothing reissues one without a fresh authentication.
+func (s AuthService) RevokeAdmin(ctx context.Context, username string) error {
+	if err := s.authorizer.RemoveFromGroup(ctx, username, jwtauth.AdminGroup); err != nil {
+		s.logger.Error("failed to revoke admin",
+			slog.String("username", username),
+			slog.String("error", err.Error()),
+		)
+
+		return err
+	}
+
+	s.logger.Info("revoked admin", slog.String("username", username))
+
+	return nil
+}
+
+// IsAdmin asks Cognito rather than the database. member.roles would be cheaper to
+// read and wrong: nothing writes ADMIN to it, so it reports every admin as an
+// ordinary member.
+func (s AuthService) IsAdmin(ctx context.Context, username string) (bool, error) {
+	groups, err := s.authorizer.ListGroups(ctx, username)
+	if err != nil {
+		s.logger.Error("failed to list groups",
+			slog.String("username", username),
+			slog.String("error", err.Error()),
+		)
+
+		return false, err
+	}
+
+	for _, group := range groups {
+		if group == jwtauth.AdminGroup {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func (s AuthService) ResetPassword(ctx context.Context, username, password, newPassword string) (*members.Member, *AuthResponse, error) {

@@ -658,7 +658,7 @@ func (h *FundHandlers) closedFundSummary(w http.ResponseWriter, r *http.Request)
 
 	if !fund.Closed() {
 		// Still taking donations, so the donation page is the honest destination.
-		http.Redirect(w, r, "/donate/"+fundID.String(), http.StatusSeeOther)
+		common.Redirect(w, r, "/donate/"+fundID.String())
 
 		return
 	}

@@ -34,11 +34,13 @@ templ Funds(funds []donations.Fund, closed []donations.ClosedFund, member *membe
 							</thead>
 							<tbody>
 								for _, fund := range funds {
-									<tr
-										hx-get={ fmt.Sprintf("/donate/%s", fund.ID.String()) }
-										class="clickable odd:bg-odd odd:hover:bg-odd-hover even:bg-even even:hover:bg-even-hover"
-									>
-										<td class="p-2">{ fund.Name }</td>
+									// The name is a real link and its ::after overlay covers the row, so
+									// the whole row stays clickable with one tab stop, a working
+									// middle-click and a URL the browser can show. See RowLink.
+									<tr class="clickable relative odd:bg-odd odd:hover:bg-odd-hover even:bg-even even:hover:bg-even-hover">
+										<td class="p-2">
+											@RowLink(fmt.Sprintf("/donate/%s", fund.ID.String()), fund.Name)
+										</td>
 										<td class="p-2">{ fmt.Sprintf("%d", fund.Stats.TotalDonors) }</td>
 										<td class="p-2">${ centsToDecimalString(fund.Stats.TotalDonated) }</td>
 										@TableGoal(fund.GoalCents)
@@ -51,9 +53,9 @@ templ Funds(funds []donations.Fund, closed []donations.ClosedFund, member *membe
 					</div>
 					<div class="block lg:hidden space-y-4 text-sm">
 						for _, fund := range funds {
-							<div
-								hx-get={ fmt.Sprintf("/donate/%s", fund.ID.String()) }
-								class="clickable mb-4 p-4 odd:bg-odd even:bg-even hover:shadow-blue-boxy-thin shadow-blue-boxy"
+							<a
+								href={ templ.SafeURL(fmt.Sprintf("/donate/%s", fund.ID.String())) }
+								class="block mb-4 p-4 odd:bg-odd even:bg-even hover:shadow-blue-boxy-thin shadow-blue-boxy"
 							>
 								<p class="font-semibold text-lg mb-2">{ fund.Name }</p>
 								<div>
@@ -67,7 +69,7 @@ templ Funds(funds []donations.Fund, closed []donations.ClosedFund, member *membe
 										<span class="font-bold">expires:</span> @TableExpires(fund.Expires)
 									</p>
 								</div>
-							</div>
+							</a>
 						}
 					</div>
 				</div>
@@ -98,11 +100,10 @@ templ ClosedFunds(funds []donations.ClosedFund) {
 					</thead>
 					<tbody>
 						for _, fund := range funds {
-							<tr
-								hx-get={ fmt.Sprintf("/fund/%s/summary", fund.ID.String()) }
-								class="clickable odd:bg-odd odd:hover:bg-odd-hover even:bg-even even:hover:bg-even-hover"
-							>
-								<td class="p-2">{ fund.Name }</td>
+							<tr class="clickable relative odd:bg-odd odd:hover:bg-odd-hover even:bg-even even:hover:bg-even-hover">
+								<td class="p-2">
+									@RowLink(fmt.Sprintf("/fund/%s/summary", fund.ID.String()), fund.Name)
+								</td>
 								<td class="p-2">{ fmt.Sprintf("%d", fund.Stats.TotalDonors) }</td>
 								<td class="p-2 tabular-nums">${ centsToDecimalString(fund.Stats.TotalDonated) }</td>
 								<td class="p-2 tabular-nums">${ centsToDecimalString64(fund.Payouts.TotalPaidCents) }</td>
@@ -115,9 +116,9 @@ templ ClosedFunds(funds []donations.ClosedFund) {
 			</div>
 			<div class="block lg:hidden space-y-4 text-sm">
 				for _, fund := range funds {
-					<div
-						hx-get={ fmt.Sprintf("/fund/%s/summary", fund.ID.String()) }
-						class="clickable mb-4 p-4 odd:bg-odd even:bg-even hover:shadow-blue-boxy-thin shadow-blue-boxy"
+					<a
+						href={ templ.SafeURL(fmt.Sprintf("/fund/%s/summary", fund.ID.String())) }
+						class="block mb-4 p-4 odd:bg-odd even:bg-even hover:shadow-blue-boxy-thin shadow-blue-boxy"
 					>
 						<p class="font-semibold text-lg mb-2">{ fund.Name }</p>
 						<div>
@@ -126,11 +127,31 @@ templ ClosedFunds(funds []donations.ClosedFund) {
 							<p><span class="font-bold">recipients:</span> { fmt.Sprintf("%d", fund.Payouts.TotalRecipients) }</p>
 							<p><span class="font-bold">closed:</span> { fund.ClosedOn().Format("01-02-2006") }</p>
 						</div>
-					</div>
+					</a>
 				}
 			</div>
 		</div>
 	}
+}
+
+// RowLink makes a whole table row clickable without giving up on being a link.
+//
+// An anchor cannot wrap a <tr>, and one anchor per cell would put six identical
+// tab stops and six identical announcements in every row. So the name cell holds
+// the only anchor, and that anchor's ::after is stretched to cover the row. The
+// row is positioned `relative`, which is what the overlay sizes itself against;
+// without it the overlay would spread to the whole page.
+//
+// The result is one tab stop and one accessible name per row, plus everything
+// hx-get could never do: middle-click, open in a new tab, copy link address, and
+// a destination the browser shows before you commit to it.
+templ RowLink(href, label string) {
+	<a
+		href={ templ.SafeURL(href) }
+		class="after:absolute after:inset-0 after:content-[''] hover:underline"
+	>
+		{ label }
+	</a>
 }
 
 templ TableNextPayment(nextPayment time.Time) {

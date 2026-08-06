@@ -30,4 +30,5 @@ var (
 	ErrNewUserOther       = errors.New("unable to create new user")
 	ErrUsernameExists     = errors.New("username already exists")
 	ErrInvalidPassword    = errors.New("invalid password")
+	ErrGroupOther         = errors.New("unable to change group membership")
 )

@@ -18,6 +18,9 @@ type awsCognito interface {
 	AdminCreateUser(ctx context.Context, params *cognito.AdminCreateUserInput, optFns ...func(*cognito.Options)) (*cognito.AdminCreateUserOutput, error)
 	AdminDeleteUser(ctx context.Context, params *cognito.AdminDeleteUserInput, optFns ...func(*cognito.Options)) (*cognito.AdminDeleteUserOutput, error)
 	AdminSetUserPassword(ctx context.Context, params *cognito.AdminSetUserPasswordInput, optFns ...func(*cognito.Options)) (*cognito.AdminSetUserPasswordOutput, error)
+	AdminAddUserToGroup(ctx context.Context, params *cognito.AdminAddUserToGroupInput, optFns ...func(*cognito.Options)) (*cognito.AdminAddUserToGroupOutput, error)
+	AdminRemoveUserFromGroup(ctx context.Context, params *cognito.AdminRemoveUserFromGroupInput, optFns ...func(*cognito.Options)) (*cognito.AdminRemoveUserFromGroupOutput, error)
+	AdminListGroupsForUser(ctx context.Context, params *cognito.AdminListGroupsForUserInput, optFns ...func(*cognito.Options)) (*cognito.AdminListGroupsForUserOutput, error)
 }
 
 type CognitoAuth struct {
@@ -138,6 +141,79 @@ func (c CognitoAuth) DeleteUser(ctx context.Context, username string) error {
 	}
 
 	return nil
+}
+
+// AddToGroup is idempotent at the provider: adding a user already in the group
+// succeeds rather than erroring, so a double-click promotes once.
+func (c CognitoAuth) AddToGroup(ctx context.Context, username, group string) error {
+	_, err := c.awsCognito.AdminAddUserToGroup(ctx, &cognito.AdminAddUserToGroupInput{
+		UserPoolId: &c.userPoolID,
+		Username:   &username,
+		GroupName:  &group,
+	})
+	if err != nil {
+		c.logger.Error("failed to add user to group",
+			slog.String("group", group),
+			slog.String("error", err.Error()),
+		)
+
+		return handleCognitoError(err, auth.ErrGroupOther)
+	}
+
+	return nil
+}
+
+// RemoveFromGroup is likewise idempotent: removing a user who is not in the
+// group is not an error.
+func (c CognitoAuth) RemoveFromGroup(ctx context.Context, username, group string) error {
+	_, err := c.awsCognito.AdminRemoveUserFromGroup(ctx, &cognito.AdminRemoveUserFromGroupInput{
+		UserPoolId: &c.userPoolID,
+		Username:   &username,
+		GroupName:  &group,
+	})
+	if err != nil {
+		c.logger.Error("failed to remove user from group",
+			slog.String("group", group),
+			slog.String("error", err.Error()),
+		)
+
+		return handleCognitoError(err, auth.ErrGroupOther)
+	}
+
+	return nil
+}
+
+// ListGroups returns every group the user belongs to. It follows the pagination
+// token rather than reading the first page: a truncated reply would report an
+// admin as not being one, which reads as the promotion having failed.
+func (c CognitoAuth) ListGroups(ctx context.Context, username string) ([]string, error) {
+	var groups []string
+	var next *string
+
+	for {
+		resp, err := c.awsCognito.AdminListGroupsForUser(ctx, &cognito.AdminListGroupsForUserInput{
+			UserPoolId: &c.userPoolID,
+			Username:   &username,
+			NextToken:  next,
+		})
+		if err != nil {
+			c.logger.Error("failed to list groups for user", slog.String("error", err.Error()))
+
+			return nil, handleCognitoError(err, auth.ErrGroupOther)
+		}
+
+		for _, group := range resp.Groups {
+			if group.GroupName != nil {
+				groups = append(groups, *group.GroupName)
+			}
+		}
+
+		if resp.NextToken == nil || *resp.NextToken == "" {
+			return groups, nil
+		}
+
+		next = resp.NextToken
+	}
 }
 
 func handleCognitoError(err, base error) error {
