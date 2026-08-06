@@ -17,9 +17,11 @@ package messaging
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -60,7 +62,56 @@ var defaultBackOff = []time.Duration{
 	10 * time.Minute,
 }
 
+// maxRecordedExhausted bounds the in-memory record of messages JetStream gave up
+// on. Fifty is far more than a healthy system produces and small enough to keep.
+const maxRecordedExhausted = 50
+
+// Exhausted is a message JetStream stopped redelivering because it used up
+// MaxDeliver attempts. It is the only silent loss the durable bus still has, so
+// it is worth surfacing somewhere a person will look.
+type Exhausted struct {
+	Consumer   string
+	StreamSeq  uint64
+	Deliveries int
+	At         time.Time
+}
+
+// Status is what the admin page renders.
+type Status struct {
+	Stream    StreamStatus
+	Consumers []ConsumerStatus
+	// Exhausted is since this process started, because it is held in memory. A
+	// restart clears it; the messages themselves are still in the stream until
+	// retention expires them.
+	Exhausted []Exhausted
+}
+
+type StreamStatus struct {
+	Name     string
+	Messages uint64
+	Bytes    uint64
+	FirstSeq uint64
+	LastSeq  uint64
+	Oldest   time.Time
+	Newest   time.Time
+}
+
+type ConsumerStatus struct {
+	Name    string
+	Subject string
+	// Pending is waiting to be delivered. AckPending has been delivered and is
+	// being worked on, or was delivered to something that died. Redelivered is
+	// the count that have been handed out more than once, which is the number
+	// worth watching: it is zero on a healthy consumer.
+	Pending     uint64
+	AckPending  int
+	Redelivered int
+	AckFloor    uint64
+	Delivered   uint64
+}
+
 type Broker struct {
+	nc     *nats.Conn
 	js     jetstream.JetStream
 	stream jetstream.Stream
 
@@ -73,6 +124,12 @@ type Broker struct {
 	backOff []time.Duration
 
 	consuming []jetstream.ConsumeContext
+
+	// names maps durable back to the subject it was created for, because
+	// ConsumerInfo reports the durable name and an operator thinks in event types.
+	mu        sync.Mutex
+	names     map[string]string
+	exhausted []Exhausted
 }
 
 // NewBroker declares the stream. CreateOrUpdateStream is idempotent, so a restart
@@ -96,7 +153,127 @@ func NewBroker(ctx context.Context, nc *nats.Conn, logger *slog.Logger) (*Broker
 		return nil, fmt.Errorf("failed to declare stream %s: %w", StreamName, err)
 	}
 
-	return &Broker{js: js, stream: stream, ctx: ctx, logger: logger, backOff: defaultBackOff}, nil
+	broker := &Broker{
+		nc:      nc,
+		js:      js,
+		stream:  stream,
+		ctx:     ctx,
+		logger:  logger,
+		backOff: defaultBackOff,
+		names:   map[string]string{},
+	}
+
+	if err = broker.watchExhausted(); err != nil {
+		return nil, err
+	}
+
+	return broker, nil
+}
+
+// watchExhausted records the messages JetStream stops redelivering.
+//
+// Every other failure in this package is recoverable: a nak comes back, a
+// restart resumes. Running out of deliveries is where an event finally stops,
+// and without this it is a single log line at the moment it happens.
+func (b *Broker) watchExhausted() error {
+	subject := fmt.Sprintf("$JS.EVENT.ADVISORY.CONSUMER.MAX_DELIVERIES.%s.*", StreamName)
+
+	_, err := b.nc.Subscribe(subject, func(msg *nats.Msg) {
+		var advisory struct {
+			Consumer   string `json:"consumer"`
+			StreamSeq  uint64 `json:"stream_seq"`
+			Deliveries int    `json:"deliveries"`
+		}
+
+		if errParse := json.Unmarshal(msg.Data, &advisory); errParse != nil {
+			b.logger.Error("failed to read max-deliveries advisory",
+				slog.String("error", errParse.Error()))
+
+			return
+		}
+
+		b.logger.Error("giving up on a message after exhausting redelivery",
+			slog.String("consumer", advisory.Consumer),
+			slog.Uint64("stream_seq", advisory.StreamSeq),
+			slog.Int("deliveries", advisory.Deliveries),
+		)
+
+		b.mu.Lock()
+		defer b.mu.Unlock()
+
+		b.exhausted = append(b.exhausted, Exhausted{
+			Consumer:   advisory.Consumer,
+			StreamSeq:  advisory.StreamSeq,
+			Deliveries: advisory.Deliveries,
+			At:         time.Now(),
+		})
+
+		if len(b.exhausted) > maxRecordedExhausted {
+			b.exhausted = b.exhausted[len(b.exhausted)-maxRecordedExhausted:]
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("failed to watch for exhausted messages: %w", err)
+	}
+
+	return nil
+}
+
+// Status reports what the stream holds and how far each consumer has got.
+func (b *Broker) Status(ctx context.Context) (Status, error) {
+	info, err := b.stream.Info(ctx)
+	if err != nil {
+		return Status{}, fmt.Errorf("failed to read stream info: %w", err)
+	}
+
+	status := Status{
+		Stream: StreamStatus{
+			Name:     info.Config.Name,
+			Messages: info.State.Msgs,
+			Bytes:    info.State.Bytes,
+			FirstSeq: info.State.FirstSeq,
+			LastSeq:  info.State.LastSeq,
+			Oldest:   info.State.FirstTime,
+			Newest:   info.State.LastTime,
+		},
+	}
+
+	consumers := b.stream.ListConsumers(ctx)
+	for consumer := range consumers.Info() {
+		status.Consumers = append(status.Consumers, ConsumerStatus{
+			Name:        consumer.Name,
+			Subject:     b.subjectFor(consumer.Name, consumer.Config.FilterSubject),
+			Pending:     consumer.NumPending,
+			AckPending:  consumer.NumAckPending,
+			Redelivered: consumer.NumRedelivered,
+			AckFloor:    consumer.AckFloor.Stream,
+			Delivered:   consumer.Delivered.Stream,
+		})
+	}
+
+	if err = consumers.Err(); err != nil {
+		return Status{}, fmt.Errorf("failed to list consumers: %w", err)
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	status.Exhausted = append(status.Exhausted, b.exhausted...)
+
+	return status, nil
+}
+
+// subjectFor prefers the subject we registered, falling back to whatever the
+// consumer reports. A durable created by an older build may have no filter.
+func (b *Broker) subjectFor(durable, filter string) string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if subject, ok := b.names[durable]; ok {
+		return subject
+	}
+
+	return filter
 }
 
 // Publish returns only once the message is on disk.
@@ -173,6 +350,10 @@ func (b *Broker) Subscribe(event string, cb func(data []byte) error) error {
 	}
 
 	b.consuming = append(b.consuming, consuming)
+
+	b.mu.Lock()
+	b.names[durableName(event)] = event
+	b.mu.Unlock()
 
 	return nil
 }

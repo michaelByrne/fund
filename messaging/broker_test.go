@@ -267,3 +267,147 @@ func TestRedeliveryBacksOffInsteadOfSpinning(t *testing.T) {
 		t.Errorf("redelivered after %v, want at least the first backoff of 300ms", gap)
 	}
 }
+
+// The admin page is only worth having if the numbers on it move. Redelivered is
+// the one that matters: it is zero on a healthy consumer, and non-zero is the
+// first sign a handler is failing.
+func TestStatusReportsWhatIsStuck(t *testing.T) {
+	broker := newBroker(t, startServer(t, t.TempDir()))
+
+	ctx := context.Background()
+
+	failing := make(chan struct{})
+	var once sync.Once
+
+	err := broker.Subscribe(PaymentCompleted, func([]byte) error {
+		once.Do(func() { close(failing) })
+
+		return errNotToday
+	})
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+
+	if err = broker.Publish(PaymentCompleted, []byte(`{"id":"SALE-4"}`)); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	<-failing
+
+	// Give the nak time to land before asking.
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		status, errStatus := broker.Status(ctx)
+		if errStatus != nil {
+			t.Fatalf("status: %v", errStatus)
+		}
+
+		if status.Stream.Messages != 1 {
+			t.Fatalf("stream should hold the message, got %d", status.Stream.Messages)
+		}
+
+		if len(status.Consumers) != 1 {
+			t.Fatalf("expected one consumer, got %d", len(status.Consumers))
+		}
+
+		consumer := status.Consumers[0]
+
+		// The durable name is unreadable; the page shows the event type.
+		if consumer.Subject != PaymentCompleted {
+			t.Errorf("consumer subject = %q, want %q", consumer.Subject, PaymentCompleted)
+		}
+
+		if consumer.Redelivered > 0 {
+			return
+		}
+
+		if time.Now().After(deadline) {
+			t.Fatalf("redelivered stayed at 0 while the handler kept failing: %+v", consumer)
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// A healthy stream reports nothing alarming, so the page is readable at a glance
+// rather than always faintly red.
+func TestStatusIsQuietWhenNothingIsWrong(t *testing.T) {
+	broker := newBroker(t, startServer(t, t.TempDir()))
+
+	handled := make(chan struct{})
+	if err := broker.Subscribe(SubscriptionCancelled, func([]byte) error {
+		close(handled)
+
+		return nil
+	}); err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+
+	if err := broker.Publish(SubscriptionCancelled, []byte(`{"id":"SUB-2"}`)); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	<-handled
+
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		status, err := broker.Status(context.Background())
+		if err != nil {
+			t.Fatalf("status: %v", err)
+		}
+
+		if len(status.Consumers) == 1 && status.Consumers[0].Pending == 0 &&
+			status.Consumers[0].AckPending == 0 && status.Consumers[0].Redelivered == 0 {
+			if len(status.Exhausted) != 0 {
+				t.Errorf("nothing should have been given up on, got %d", len(status.Exhausted))
+			}
+
+			return
+		}
+
+		if time.Now().After(deadline) {
+			t.Fatalf("a handled message left the consumer busy: %+v", status.Consumers)
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// Running out of deliveries is where an event finally stops. Without the
+// advisory it is one log line at the moment it happens and nothing afterwards.
+func TestExhaustedMessagesAreRecorded(t *testing.T) {
+	broker := newBroker(t, startServer(t, t.TempDir()))
+	broker.backOff = []time.Duration{10 * time.Millisecond}
+
+	if err := broker.Subscribe(PayoutsItemFailed, func([]byte) error {
+		return errNotToday
+	}); err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+
+	if err := broker.Publish(PayoutsItemFailed, []byte(`{"payout_item_id":"PI-1"}`)); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		status, err := broker.Status(context.Background())
+		if err != nil {
+			t.Fatalf("status: %v", err)
+		}
+
+		if len(status.Exhausted) > 0 {
+			if got := status.Exhausted[0].Deliveries; got < 2 {
+				t.Errorf("deliveries = %d, want at least 2", got)
+			}
+
+			return
+		}
+
+		if time.Now().After(deadline) {
+			t.Fatal("a message that used up every delivery was never recorded")
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+}

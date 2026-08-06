@@ -1,0 +1,143 @@
+package adminweb
+
+import (
+	"boardfund/messaging"
+	"boardfund/service/members"
+	"boardfund/web/common"
+	"fmt"
+	"time"
+)
+
+// Webhooks is where the durable bus is inspected.
+//
+// The embedded NATS server never opens a client port, so the nats CLI cannot
+// reach it and neither can anything else outside this process. The volume holds
+// the stream configuration in readable form but the interesting state -- what is
+// pending, what is being retried -- only in binary. This page is the way in.
+templ Webhooks(status messaging.Status, member *members.Member, path string) {
+	@Admin(member, path) {
+		<div class="w-[95%] mx-auto mt-4">
+			@common.Section("webhook stream") {
+				<div class="text-sm md:w-[60%] w-full bg-even p-2">
+					<div class="flex flex-row items-center">
+						<span class="font-semibold p-1">messages held</span>
+						<span class="ml-auto p-1 tabular-nums">{ fmt.Sprintf("%d", status.Stream.Messages) }</span>
+					</div>
+					<div class="flex flex-row items-center bg-odd">
+						<span class="font-semibold p-1">on disk</span>
+						<span class="ml-auto p-1 tabular-nums">{ humanBytes(status.Stream.Bytes) }</span>
+					</div>
+					<div class="flex flex-row items-center">
+						<span class="font-semibold p-1">oldest</span>
+						<span class="ml-auto p-1">{ whenOrNever(status.Stream.Oldest) }</span>
+					</div>
+					<div class="flex flex-row items-center bg-odd">
+						<span class="font-semibold p-1">newest</span>
+						<span class="ml-auto p-1">{ whenOrNever(status.Stream.Newest) }</span>
+					</div>
+				</div>
+			}
+			<div class="mt-6">
+				@common.Section("consumers") {
+					if len(status.Consumers) == 0 {
+						// Nothing is subscribed, which means webhooks are landing in the
+						// stream and staying there.
+						<p class="text-sm p-2">no consumers are attached.</p>
+					} else {
+						<div class="overflow-x-auto">
+							<table class="table-auto w-full border-collapse text-sm leading-relaxed">
+								<thead class="bg-even">
+									<tr>
+										<th class="p-2 text-left font-semibold">event</th>
+										<th class="p-2 text-right font-semibold">waiting</th>
+										<th class="p-2 text-right font-semibold">in flight</th>
+										<th class="p-2 text-right font-semibold">retried</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, consumer := range status.Consumers {
+										<tr class="odd:bg-odd even:bg-even">
+											<td class="p-2 break-all">{ consumer.Subject }</td>
+											<td class="p-2 text-right tabular-nums">{ fmt.Sprintf("%d", consumer.Pending) }</td>
+											<td class="p-2 text-right tabular-nums">{ fmt.Sprintf("%d", consumer.AckPending) }</td>
+											// Zero on a healthy consumer, so it is the first thing
+											// worth noticing rather than another number in a row.
+											if consumer.Redelivered > 0 {
+												<td class="p-2 text-right tabular-nums font-semibold text-red-600">{ fmt.Sprintf("%d", consumer.Redelivered) }</td>
+											} else {
+												<td class="p-2 text-right tabular-nums">0</td>
+											}
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					}
+				}
+			</div>
+			<div class="mt-6 mb-8">
+				@common.Section("given up on") {
+					if len(status.Exhausted) == 0 {
+						<p class="text-sm p-2">nothing has run out of retries since this instance started.</p>
+					} else {
+						<p class="text-sm p-2">
+							these used every delivery attempt and will not be retried again. the
+							messages are still in the stream until it expires them.
+						</p>
+						<div class="overflow-x-auto">
+							<table class="table-auto w-full border-collapse text-sm leading-relaxed">
+								<thead class="bg-even">
+									<tr>
+										<th class="p-2 text-left font-semibold">consumer</th>
+										<th class="p-2 text-right font-semibold">stream seq</th>
+										<th class="p-2 text-right font-semibold">attempts</th>
+										<th class="p-2 text-right font-semibold">when</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, gone := range status.Exhausted {
+										<tr class="odd:bg-odd even:bg-even">
+											<td class="p-2 break-all">{ gone.Consumer }</td>
+											<td class="p-2 text-right tabular-nums">{ fmt.Sprintf("%d", gone.StreamSeq) }</td>
+											<td class="p-2 text-right tabular-nums">{ fmt.Sprintf("%d", gone.Deliveries) }</td>
+											<td class="p-2 text-right">{ gone.At.Format("01-02 15:04:05") }</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					}
+					// Held in memory, so it is worth saying so rather than letting an
+					// empty table after a restart read as an all clear.
+					<p class="text-xs text-gray-500 p-2">this list is cleared when the service restarts.</p>
+				}
+			</div>
+		</div>
+	}
+}
+
+func humanBytes(b uint64) string {
+	const unit = 1024
+
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+
+	div, exp := uint64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGT"[exp])
+}
+
+// whenOrNever keeps an empty stream from reporting the zero time, which renders
+// as a date in the year one and reads as a fault.
+func whenOrNever(t time.Time) string {
+	if t.IsZero() {
+		return "-"
+	}
+
+	return t.Format("01-02-2006 15:04:05")
+}

@@ -29,7 +29,7 @@ func TestAllRoutesRegisterWithoutConflict(t *testing.T) {
 	authHandlers := authweb.NewAuthHandlers(nil, nil, nil, "")
 	donationHandlers := homeweb.NewFundHandlers(nil, nil, passthrough, nil, "", "")
 	adminHandlers := adminweb.NewAdminHandlers(
-		passthrough, nil, nil, nil, nil, nil, nil, nil, nil, "",
+		passthrough, nil, nil, nil, nil, nil, nil, nil, nil, nil, "",
 	)
 	webhooksHandlers := hooksweb.NewWebhooksHandlers(nil, nil, nil, nil, "")
 
