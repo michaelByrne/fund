@@ -1,6 +1,7 @@
 package adminweb
 
 import (
+	"boardfund/messaging"
 	"boardfund/service/auth"
 	"boardfund/service/donations"
 	"boardfund/service/enrollments"
@@ -19,6 +20,12 @@ import (
 	"time"
 )
 
+// webhookBus is the durable bus, read-only. Narrow on purpose: the admin page
+// inspects delivery, it does not drive it.
+type webhookBus interface {
+	Status(ctx context.Context) (messaging.Status, error)
+}
+
 type AdminHandlers struct {
 	withAdmin         func(next http.HandlerFunc) http.HandlerFunc
 	memberService     *members.MemberService
@@ -29,6 +36,7 @@ type AdminHandlers struct {
 	payoutService     *payouts.PayoutService
 	fundEventsService *fundevents.Service
 	sessionManager    *scs.SessionManager
+	webhookBus        webhookBus
 	clientID          string
 }
 
@@ -42,6 +50,7 @@ func NewAdminHandlers(
 	payoutService *payouts.PayoutService,
 	fundEventsService *fundevents.Service,
 	sessionManager *scs.SessionManager,
+	webhookBus webhookBus,
 	clientID string,
 ) *AdminHandlers {
 	return &AdminHandlers{
@@ -54,6 +63,7 @@ func NewAdminHandlers(
 		payoutService:     payoutService,
 		fundEventsService: fundEventsService,
 		sessionManager:    sessionManager,
+		webhookBus:        webhookBus,
 		clientID:          clientID,
 	}
 }
@@ -78,6 +88,7 @@ func (h *AdminHandlers) Register(r *mux.Router) {
 	r.HandleFunc("GET /admin/enrollment/confirm", h.withAdmin(h.confirmEnrollment))
 	r.HandleFunc("POST /admin/enrollment/cancel/{id}", h.withAdmin(h.deactivateEnrollment))
 	r.HandleFunc("GET /admin/payouts", h.withAdmin(h.payoutsPage))
+	r.HandleFunc("GET /admin/webhooks", h.withAdmin(h.webhooksPage))
 	r.HandleFunc("GET /admin/payout/{id}", h.withAdmin(h.payoutPage))
 	r.HandleFunc("POST /admin/payout/approve/{id}", h.withAdmin(h.approvePayout))
 	r.HandleFunc("POST /admin/payout/reject/{id}", h.withAdmin(h.rejectPayout))
@@ -598,6 +609,28 @@ func (h *AdminHandlers) grantAdmin(w http.ResponseWriter, r *http.Request) {
 
 func (h *AdminHandlers) revokeAdmin(w http.ResponseWriter, r *http.Request) {
 	h.setAdmin(w, r, false)
+}
+
+// webhooksPage is the only window onto the durable bus. The embedded NATS server
+// opens no client port, so nothing outside this process can query it.
+func (h *AdminHandlers) webhooksPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		common.Redirect(w, r, "/")
+
+		return
+	}
+
+	status, err := h.webhookBus.Status(ctx)
+	if err != nil {
+		h.internalError(w, r)
+
+		return
+	}
+
+	Webhooks(status, &member, r.URL.Path).Render(ctx, w)
 }
 
 func (h *AdminHandlers) memberPage(w http.ResponseWriter, r *http.Request) {
