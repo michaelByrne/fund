@@ -54,6 +54,9 @@ type payoutStore interface {
 	GetBatchesByStatus(ctx context.Context, status Status) ([]Batch, error)
 	GetPayoutsForBatch(ctx context.Context, batchID uuid.UUID) ([]Payout, error)
 	GetEnrollmentsForPayout(ctx context.Context, fundID uuid.UUID) ([]PayoutEnrollment, error)
+	GetFundsDueForPayout(ctx context.Context) ([]DueFund, error)
+	GetFundBalanceCents(ctx context.Context, fundID uuid.UUID) (int64, error)
+	AdvanceFundNextPayment(ctx context.Context, fundID uuid.UUID) error
 	IsFundActive(ctx context.Context, fundID uuid.UUID) (bool, error)
 	ApproveBatch(ctx context.Context, arg ApproveBatch) (*Batch, error)
 	RejectBatch(ctx context.Context, arg RejectBatch) (*Batch, error)
@@ -597,4 +600,254 @@ func (s PayoutService) GetBatchByID(ctx context.Context, id uuid.UUID) (*Batch, 
 
 func (s PayoutService) GetPayoutsForBatch(ctx context.Context, batchID uuid.UUID) ([]Payout, error) {
 	return s.payoutStore.GetPayoutsForBatch(ctx, batchID)
+}
+
+// PlanResult is what one run of the planner did, for the caller to print.
+type PlanResult struct {
+	Planned int
+	Skipped int
+}
+
+// PlanDueBatches builds a batch for every fund whose payout date has arrived.
+//
+// The amount is the fund's available balance divided evenly among eligible
+// enrollees, floored: the remainder stays in the fund and rolls into the next
+// payout rather than being handed to whoever sorts first. Nothing here decides
+// to send money -- every batch lands awaiting a treasurer, which is the point of
+// planning being separate from submitting.
+//
+// One fund's failure never stops the others. A cron that abandons the remaining
+// funds because the first had no PayPal address on file would turn a single
+// misconfigured member into a fund-wide outage.
+func (s PayoutService) PlanDueBatches(ctx context.Context) (PlanResult, error) {
+	var result PlanResult
+
+	due, err := s.payoutStore.GetFundsDueForPayout(ctx)
+	if err != nil {
+		s.logger.Error("failed to get funds due for payout", slog.String("error", err.Error()))
+
+		return result, err
+	}
+
+	for _, fund := range due {
+		logger := s.logger.With(
+			slog.String("fund_id", fund.ID.String()),
+			slog.String("fund", fund.Name),
+		)
+
+		planned, errPlan := s.planOneDueFund(ctx, fund, logger)
+		if errPlan != nil {
+			// Logged where it happened, with the fund named. Counted as skipped so
+			// the run's summary line does not claim a clean sweep.
+			result.Skipped++
+
+			continue
+		}
+
+		if !planned {
+			result.Skipped++
+
+			continue
+		}
+
+		result.Planned++
+	}
+
+	s.logger.Info("payout planning complete",
+		slog.Int("funds_due", len(due)),
+		slog.Int("planned", result.Planned),
+		slog.Int("skipped", result.Skipped),
+	)
+
+	return result, nil
+}
+
+// planOneDueFund returns whether a batch was created. The error is for the
+// caller's tally only -- it is logged here, where the fund is still in scope.
+func (s PayoutService) planOneDueFund(ctx context.Context, fund DueFund, logger *slog.Logger) (bool, error) {
+	enrollments, err := s.payoutStore.GetEnrollmentsForPayout(ctx, fund.ID)
+	if err != nil {
+		logger.Error("failed to get enrollments for payout", slog.String("error", err.Error()))
+
+		return false, err
+	}
+
+	payable := 0
+	for _, enrollment := range enrollments {
+		if enrollment.PaypalEmail != "" {
+			payable++
+		}
+	}
+
+	if payable == 0 {
+		// Nobody to pay, and no amount of waiting changes that for this period.
+		// Advanced so a fund with no enrollees does not report itself due every
+		// day forever.
+		logger.Warn("fund is due but has no payable enrollees, skipping period")
+
+		if errAdvance := s.payoutStore.AdvanceFundNextPayment(ctx, fund.ID); errAdvance != nil {
+			logger.Error("failed to advance next payment", slog.String("error", errAdvance.Error()))
+
+			return false, errAdvance
+		}
+
+		return false, nil
+	}
+
+	available, err := s.payoutStore.GetFundBalanceCents(ctx, fund.ID)
+	if err != nil {
+		logger.Error("failed to get fund balance", slog.String("error", err.Error()))
+
+		return false, err
+	}
+
+	perHead := available / int64(payable)
+	if perHead <= 0 {
+		// Deliberately not advanced: the payout is still owed, and donations may
+		// arrive tomorrow. Retrying is the right behaviour even though it means
+		// this warning repeats until the fund is funded or deactivated.
+		logger.Warn("fund is due but has nothing to pay out, will retry",
+			slog.Int64("available_cents", available),
+			slog.Int("payable", payable),
+		)
+
+		return false, nil
+	}
+
+	// int32 to match the column. perHead cannot exceed available, and available is
+	// bounded by what the fund actually holds.
+	batch, err := s.PlanBatch(ctx, PlanBatch{
+		FundID: fund.ID,
+		// The scheduled date, not today. A run that catches up a missed period must
+		// record the date it is paying for, and the (fund_id, payout_date) unique
+		// index is what stops a second run paying it twice.
+		PayoutDate:      fund.NextPayment,
+		AmountCents:     int32(perHead),
+		Description:     fmt.Sprintf("%s payout", fund.Name),
+		Notes:           fmt.Sprintf("planned automatically: %d cents available, %d payees", available, payable),
+		RequireApproval: true,
+	})
+	if err != nil {
+		logger.Error("failed to plan batch", slog.String("error", err.Error()))
+
+		return false, err
+	}
+
+	// Only after the batch exists. Advancing first would lose the period entirely
+	// if planning then failed.
+	if err = s.payoutStore.AdvanceFundNextPayment(ctx, fund.ID); err != nil {
+		// The batch is real and awaiting approval, so this is not fatal -- but the
+		// fund still reads as due, and tomorrow's run will hit the unique index on
+		// (fund_id, payout_date) rather than double-pay.
+		logger.Error("batch planned but failed to advance next payment",
+			slog.String("error", err.Error()),
+			slog.String("batch_id", batch.ID.String()),
+		)
+	}
+
+	logger.Info("planned batch for due fund",
+		slog.String("batch_id", batch.ID.String()),
+		slog.Int64("per_head_cents", perHead),
+		slog.Int("payees", payable),
+		slog.Int64("remainder_cents", available-perHead*int64(payable)),
+	)
+
+	return true, nil
+}
+
+// SubmitApprovedBatches sends every approved batch whose payout date has arrived.
+//
+// The date guard matters: `plan` accepts an arbitrary --date, so an approved
+// batch can exist for a date still in the future, and approval is permission to
+// pay on that date rather than permission to pay now.
+func (s PayoutService) SubmitApprovedBatches(ctx context.Context) (int, error) {
+	// Shared with the dry run rather than re-filtered here: a preview that selects
+	// by different rules than the send is worse than no preview, because it is
+	// trusted.
+	due, err := s.GetBatchesReadyToSubmit(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	submitted := 0
+	for _, batch := range due {
+		if _, errSubmit := s.SubmitBatch(ctx, batch.ID); errSubmit != nil {
+			// Left in 'ready' for the next run. SubmitBatch reuses the batch's
+			// sender_batch_id, which the provider treats as an idempotency key, so
+			// a retry after an ambiguous failure cannot pay twice.
+			s.logger.Error("failed to submit approved batch",
+				slog.String("error", errSubmit.Error()),
+				slog.String("batch_id", batch.ID.String()),
+			)
+
+			continue
+		}
+
+		submitted++
+	}
+
+	s.logger.Info("submitted approved batches",
+		slog.Int("due", len(due)),
+		slog.Int("submitted", submitted),
+	)
+
+	return submitted, nil
+}
+
+// ReconcilePendingBatches polls the provider for every batch still in flight.
+//
+// Webhooks normally settle these, so on a healthy system this finds nothing to
+// change. It exists for the dropped webhook, which otherwise leaves a payout
+// showing 'pending' indefinitely with the money long since moved.
+func (s PayoutService) ReconcilePendingBatches(ctx context.Context) (int, error) {
+	pending, err := s.payoutStore.GetBatchesByStatus(ctx, StatusPending)
+	if err != nil {
+		s.logger.Error("failed to get pending batches", slog.String("error", err.Error()))
+
+		return 0, err
+	}
+
+	reconciled := 0
+	for _, batch := range pending {
+		if errReconcile := s.ReconcileBatch(ctx, batch.ID); errReconcile != nil {
+			s.logger.Error("failed to reconcile batch",
+				slog.String("error", errReconcile.Error()),
+				slog.String("batch_id", batch.ID.String()),
+			)
+
+			continue
+		}
+
+		reconciled++
+	}
+
+	s.logger.Info("reconciled pending batches",
+		slog.Int("pending", len(pending)),
+		slog.Int("reconciled", reconciled),
+	)
+
+	return reconciled, nil
+}
+
+// GetBatchesReadyToSubmit returns approved batches whose payout date has arrived.
+func (s PayoutService) GetBatchesReadyToSubmit(ctx context.Context) ([]Batch, error) {
+	ready, err := s.payoutStore.GetBatchesByStatus(ctx, StatusReady)
+	if err != nil {
+		s.logger.Error("failed to get approved batches", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	now := time.Now()
+
+	due := make([]Batch, 0, len(ready))
+	for _, batch := range ready {
+		if batch.PayoutDate.After(now) {
+			continue
+		}
+
+		due = append(due, batch)
+	}
+
+	return due, nil
 }

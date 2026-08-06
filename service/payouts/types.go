@@ -195,3 +195,14 @@ type ProviderItemResult struct {
 	Status               string
 	FeeCents             int32
 }
+
+// DueFund is a fund whose scheduled payout date has arrived. Name is carried so
+// the planner's logs and errors can say which fund they mean without a second
+// lookup -- these run unattended, and a bare uuid in a cron log is not enough to
+// act on.
+type DueFund struct {
+	ID          uuid.UUID
+	Name        string
+	Frequency   string
+	NextPayment time.Time
+}

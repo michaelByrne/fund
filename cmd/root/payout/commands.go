@@ -430,3 +430,109 @@ func dollars(cents int32) string {
 
 	return fmt.Sprintf("%s$%d.%02d", sign, amount/100, amount%100)
 }
+
+// The three commands below are the scheduled counterparts of plan, submit and
+// reconcile. They take no arguments, because a cron cannot supply a batch id --
+// which is the only reason they exist separately.
+func planDueCmd(runConfig *root.RunConfig) *cobra.Command {
+	return &cobra.Command{
+		Use:   "plan-due",
+		Short: "plan a batch for every fund whose payout date has arrived",
+		Long: "Splits each due fund's available balance evenly among its eligible " +
+			"enrollees and leaves the batch awaiting a treasurer. The remainder from " +
+			"an uneven split stays in the fund. Intended to run daily.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			d, err := build(runConfig)
+			if err != nil {
+				return err
+			}
+
+			result, err := d.service.PlanDueBatches(cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("planned %d batch(es), skipped %d fund(s)\n", result.Planned, result.Skipped)
+
+			return nil
+		},
+	}
+}
+
+func submitApprovedCmd(runConfig *root.RunConfig) *cobra.Command {
+	var confirm bool
+
+	cmd := &cobra.Command{
+		Use:   "submit-approved",
+		Short: "send every approved batch whose payout date has arrived",
+		Long: "Approval is the gate; this is the mechanical step after it. Without " +
+			"--confirm the command only reports what it would send.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			d, err := build(runConfig)
+			if err != nil {
+				return err
+			}
+
+			// Same shape as `submit`: this one moves real money with no batch id in
+			// the command line to check against, so the dry run is the default.
+			if !confirm {
+				batches, errList := d.service.GetBatchesReadyToSubmit(cmd.Context())
+				if errList != nil {
+					return errList
+				}
+
+				if len(batches) == 0 {
+					fmt.Println("no approved batches are due for submission")
+
+					return nil
+				}
+
+				fmt.Printf("would submit %d batch(es):\n", len(batches))
+				for _, batch := range batches {
+					printBatch(batch)
+				}
+
+				fmt.Println("\nre-run with --confirm to send them")
+
+				return nil
+			}
+
+			submitted, err := d.service.SubmitApprovedBatches(cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("submitted %d batch(es)\n", submitted)
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "actually send the batches; without this the command only reports what would be sent")
+
+	return cmd
+}
+
+func reconcilePendingCmd(runConfig *root.RunConfig) *cobra.Command {
+	return &cobra.Command{
+		Use:   "reconcile-pending",
+		Short: "poll the provider for every batch still in flight",
+		Long: "A safety net for dropped webhooks. On a healthy system this finds " +
+			"nothing to change. Intended to run hourly.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			d, err := build(runConfig)
+			if err != nil {
+				return err
+			}
+
+			reconciled, err := d.service.ReconcilePendingBatches(cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("reconciled %d batch(es)\n", reconciled)
+
+			return nil
+		},
+	}
+}
