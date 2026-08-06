@@ -5,6 +5,7 @@ import (
 	"boardfund/service/members"
 	"boardfund/web/mux"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 )
@@ -40,7 +41,23 @@ func (h WebhooksHandlers) Register(r *mux.Router) {
 func (h WebhooksHandlers) webhooks(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, err := verifySignature(r, h.webhookID)
 	if err != nil {
-		h.logger.Error("failed to verify signature", slog.String("error", err.Error()))
+		// Being unable to check is not the same as checking and finding it invalid.
+		// A bad signature is settled and a retry would fail identically, so it is
+		// dropped. A certificate we could not fetch or trust is our fault or
+		// PayPal's, and answering 200 to that would tell PayPal the event was
+		// delivered -- discarding a real event permanently, on the strength of a
+		// fault at our end.
+		if errors.Is(err, errUnverifiable) {
+			h.logger.Error("could not verify signature, asking for redelivery",
+				slog.String("error", err.Error()),
+			)
+
+			w.WriteHeader(http.StatusInternalServerError)
+
+			return
+		}
+
+		h.logger.Error("rejected webhook with an invalid signature", slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusOK)
 

@@ -6,7 +6,12 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
+	"io"
+	"log/slog"
 	"math/big"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -101,4 +106,124 @@ func TestCertPEMMustContainACertificate(t *testing.T) {
 			}
 		})
 	}
+}
+
+type stubPublisher struct {
+	published []string
+	err       error
+}
+
+func (s *stubPublisher) Publish(event string, _ []byte) error {
+	s.published = append(s.published, event)
+
+	return s.err
+}
+
+func newTestHandlers(pub publisher) WebhooksHandlers {
+	return WebhooksHandlers{
+		publisher: pub,
+		logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		webhookID: "WH-TEST",
+	}
+}
+
+func webhookRequest(t *testing.T, headers map[string]string) *http.Request {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodPost, "/webhooks",
+		strings.NewReader(`{"event_type":"PAYMENT.SALE.COMPLETED","resource":{}}`))
+
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
+	return req
+}
+
+// A settled rejection and an inability to check need different answers. Answering
+// 200 to both means a fault at our end -- a certificate we cannot fetch, or one
+// that stops chaining -- silently discards real events, because PayPal marks them
+// delivered and never sends them again.
+func TestUnverifiableRequestsAskForRedelivery(t *testing.T) {
+	validHeaders := map[string]string{
+		"paypal-transmission-id":   "tx-1",
+		"paypal-transmission-time": time.Now().Format(time.RFC3339),
+		"paypal-cert-url":          "https://api.paypal.com/v1/notifications/certs/CERT-abc",
+		"paypal-transmission-sig":  "c2ln",
+	}
+
+	withHeader := func(key, value string) map[string]string {
+		out := map[string]string{}
+		for k, v := range validHeaders {
+			out[k] = v
+		}
+		out[key] = value
+
+		return out
+	}
+
+	cases := []struct {
+		name    string
+		headers map[string]string
+		// failFetch makes the certificate download fail, standing in for PayPal
+		// being unreachable or serving an error.
+		failFetch  bool
+		wantStatus int
+		reason     string
+	}{
+		{
+			name:       "missing headers",
+			headers:    map[string]string{},
+			wantStatus: http.StatusOK,
+			reason:     "a request with no signature headers will not grow them on a retry",
+		},
+		{
+			name:       "certificate url is not PayPal",
+			headers:    withHeader("paypal-cert-url", "https://evil.example.com/cert.pem"),
+			wantStatus: http.StatusOK,
+			reason:     "a forged request is settled, and redelivering it achieves nothing",
+		},
+		{
+			name:       "signature is not base64",
+			headers:    withHeader("paypal-transmission-sig", "!!!not base64!!!"),
+			wantStatus: http.StatusOK,
+			reason:     "a malformed signature decodes no better the second time",
+		},
+		{
+			name:       "certificate cannot be fetched",
+			headers:    validHeaders,
+			failFetch:  true,
+			wantStatus: http.StatusInternalServerError,
+			reason:     "the request may be perfectly valid; we simply could not check it",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if c.failFetch {
+				original := certFetchClient
+				certFetchClient = &http.Client{Transport: failingTransport{}}
+				t.Cleanup(func() { certFetchClient = original })
+			}
+
+			pub := &stubPublisher{}
+			rec := httptest.NewRecorder()
+
+			newTestHandlers(pub).webhooks(rec, webhookRequest(t, c.headers))
+
+			if rec.Code != c.wantStatus {
+				t.Errorf("status = %d, want %d: %s", rec.Code, c.wantStatus, c.reason)
+			}
+
+			if len(pub.published) != 0 {
+				t.Errorf("an unverified event must not be published, got %v", pub.published)
+			}
+		})
+	}
+}
+
+type failingTransport struct{}
+
+func (failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("certificate host unreachable")
 }

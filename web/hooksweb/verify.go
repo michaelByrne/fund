@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -21,6 +22,23 @@ import (
 // stalled connection holds the webhook handler open indefinitely, and PayPal
 // gives up and redelivers while we are still waiting.
 var certFetchClient = &http.Client{Timeout: 10 * time.Second}
+
+// errUnverifiable means verification could not be completed, as distinct from
+// completing and finding the request invalid.
+//
+// The two need different answers to PayPal. A bad signature is settled -- a retry
+// would fail identically, so it is accepted and dropped. Being unable to check is
+// not settled: the certificate download failed, or the certificate PayPal is
+// serving does not chain today. Answering 200 to those tells PayPal the event was
+// delivered and it is never sent again, so a fault on our side silently costs
+// real events. A 5xx gets it redelivered.
+var errUnverifiable = errors.New("could not complete signature verification")
+
+// unverifiable marks an error as our inability to check rather than the caller's
+// invalidity.
+func unverifiable(err error) error {
+	return fmt.Errorf("%w: %w", errUnverifiable, err)
+}
 
 // certHosts are the only hosts a webhook may name as the source of its signing
 // certificate.
@@ -164,7 +182,7 @@ func verifySignature(r *http.Request, webhookID string) ([]byte, error) {
 
 	bodyBytes, err := io.ReadAll(body)
 	if err != nil {
-		return nil, err
+		return nil, unverifiable(err)
 	}
 
 	crc := crc32.ChecksumIEEE(bodyBytes)
@@ -180,20 +198,25 @@ func verifySignature(r *http.Request, webhookID string) ([]byte, error) {
 	// Cache key derived from the URL, so a rotated certificate is a new entry
 	// rather than a stale hit.
 	sum := sha256.Sum256([]byte(certURL))
+	// Decoded before the certificate is fetched. A signature that is not even
+	// base64 is settled without asking anything of the network, and there is no
+	// reason to spend a request to PayPal establishing that.
+	sigBytes, err := base64.StdEncoding.DecodeString(sig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode signature: %w", err)
+	}
+
+	// Past the host check, so the certificate is coming from PayPal. Failing to
+	// fetch or trust it from here is our problem or theirs, not the caller's, and
+	// the event deserves another delivery rather than being dropped.
 	certPem, err := downloadAndCache(r.Context(), certURL, "pp-cert-"+hex.EncodeToString(sum[:8])+".pem")
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch certificate: %w", err)
+		return nil, unverifiable(fmt.Errorf("failed to fetch certificate: %w", err))
 	}
 
 	parsed, err := parseAndVerifyCert(certPem)
 	if err != nil {
-		return nil, err
-	}
-
-	// Decode the signature from base64
-	sigBytes, err := base64.StdEncoding.DecodeString(sig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode signature: %w", err)
+		return nil, unverifiable(err)
 	}
 
 	return bodyBytes, parsed.CheckSignature(x509.SHA256WithRSA, []byte(message)[:], sigBytes)
