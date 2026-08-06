@@ -658,12 +658,31 @@ func (h *FundHandlers) closedFundSummary(w http.ResponseWriter, r *http.Request)
 
 	if !fund.Closed() {
 		// Still taking donations, so the donation page is the honest destination.
-		http.Redirect(w, r, "/donate/"+fundID.String(), http.StatusSeeOther)
+		redirect(w, r, "/donate/"+fundID.String())
 
 		return
 	}
 
 	ClosedFundSummary(*fund, fund.Stats, &member, r.URL.Path).Render(ctx, w)
+}
+
+// redirect sends a browser to target from a handler that may have been reached
+// either by htmx or by a plain navigation.
+//
+// The archive rows are anchors, so today every caller is a plain navigation. The
+// htmx branch is here because a bare 303 fails silently rather than loudly if one
+// ever is not: the XHR follows the redirect transparently, htmx never learns it
+// happened, and the destination page gets swapped into whatever element was
+// clicked. HX-Redirect is the header htmx acts on.
+func redirect(w http.ResponseWriter, r *http.Request, target string) {
+	if r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("HX-Redirect", target)
+		w.WriteHeader(http.StatusOK)
+
+		return
+	}
+
+	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
 func sendJSON(w http.ResponseWriter, status int, v any) {
