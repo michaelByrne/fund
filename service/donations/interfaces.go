@@ -19,7 +19,7 @@ type donationStore interface {
 	SetFundAndDonationsToInactive(ctx context.Context, id uuid.UUID) ([]Donation, error)
 	GetActiveFunds(ctx context.Context, freq string) ([]Fund, error)
 	GetAllFundsWithStats(ctx context.Context) ([]Fund, error)
-	GetClosedFundsWithStats(ctx context.Context) ([]Fund, error)
+	GetClosedFundsWithStats(ctx context.Context) ([]ClosedFund, error)
 	GetExpiredActiveFunds(ctx context.Context) ([]Fund, error)
 	GetFundPayoutStats(ctx context.Context, fundID uuid.UUID) (PayoutStats, error)
 	GetRecurringDonationsForFund(ctx context.Context, arg GetRecurringDonationsForFundRequest) ([]Donation, error)

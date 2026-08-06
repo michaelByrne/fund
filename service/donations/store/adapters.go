@@ -316,7 +316,7 @@ func fromDBAllFundsRow(fund db.GetAllFundsWithStatsRow) donations.Fund {
 	return fundOut
 }
 
-func fromDBClosedFundRow(fund db.GetClosedFundsWithStatsRow) donations.Fund {
+func fromDBClosedFundRow(fund db.GetClosedFundsWithStatsRow) donations.ClosedFund {
 	fundOut := donations.Fund{
 		ID:              fund.ID,
 		Name:            fund.Name,
@@ -342,7 +342,21 @@ func fromDBClosedFundRow(fund db.GetClosedFundsWithStatsRow) donations.Fund {
 		fundOut.Expires = &fund.Expires.Time
 	}
 
-	return fundOut
+	out := donations.ClosedFund{
+		Fund: fundOut,
+		Payouts: donations.PayoutStats{
+			TotalPaidCents:  fund.TotalPaidCents,
+			TotalRecipients: fund.TotalRecipients,
+			TotalPayouts:    fund.TotalPayouts,
+		},
+	}
+
+	if fund.LastPayoutDate.Valid {
+		last := fund.LastPayoutDate.Time
+		out.Payouts.LastPayoutDate = &last
+	}
+
+	return out
 }
 
 func fromDBPayoutStats(stats db.GetFundPayoutStatsRow) donations.PayoutStats {

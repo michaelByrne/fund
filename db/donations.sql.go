@@ -200,14 +200,36 @@ WITH FundStats AS (SELECT fund_id,
                    FROM donation
                             JOIN member m ON donation.donor_id = m.id
                             LEFT JOIN donation_payment dp ON donation.id = dp.donation_id
-                   GROUP BY fund_id)
+                   GROUP BY fund_id),
+     -- Aggregated here rather than queried per fund. This drives the front page,
+     -- and the archive only ever grows, so a round-trip per row turns a page load
+     -- into one query plus one per closed fund forever.
+     PayoutStats AS (SELECT bp.fund_id,
+                            SUM(p.amount_cents)         AS total_paid_cents,
+                            COUNT(DISTINCT fe.member_id) AS total_recipients,
+                            COUNT(p.id)                  AS total_payouts,
+                            MAX(p.payout_date)           AS last_payout_date
+                     FROM payout p
+                              JOIN batch_payout bp ON bp.id = p.batch_id
+                              JOIN fund_enrollment fe ON fe.id = p.fund_enrollment_id
+                     WHERE p.status = 'paid'
+                     GROUP BY bp.fund_id)
 SELECT f.id, f.name, f.description, f.provider_id, f.provider_name, f.goal_cents, f.payout_frequency, f.active, f.principal, f.expires, f.next_payment, f.created, f.updated,
        fs.total_donated,
        fs.total_donations,
        fs.average_donation,
-       fs.total_donors
+       fs.total_donors,
+       -- COALESCE because the join is outer: a fund that closed without paying
+       -- anyone has no row here, and those figures are zero rather than unknown.
+       COALESCE(ps.total_paid_cents, 0)::bigint AS total_paid_cents,
+       COALESCE(ps.total_recipients, 0)::bigint AS total_recipients,
+       COALESCE(ps.total_payouts, 0)::bigint    AS total_payouts,
+       -- Left nullable: "never paid out" is not a date, and a zero time would
+       -- render as a real one.
+       ps.last_payout_date::timestamptz         AS last_payout_date
 FROM fund f
          LEFT JOIN FundStats fs ON f.id = fs.fund_id
+         LEFT JOIN PayoutStats ps ON f.id = ps.fund_id
 WHERE f.active = false
    OR (f.expires IS NOT NULL AND f.expires <= now())
 ORDER BY COALESCE(f.expires, f.updated) DESC
@@ -231,6 +253,10 @@ type GetClosedFundsWithStatsRow struct {
 	TotalDonations  pgtype.Int8
 	AverageDonation pgtype.Int4
 	TotalDonors     pgtype.Int8
+	TotalPaidCents  int64
+	TotalRecipients int64
+	TotalPayouts    int64
+	LastPayoutDate  pgtype.Timestamptz
 }
 
 // The public archive: funds that have ended, newest first.
@@ -267,6 +293,10 @@ func (q *Queries) GetClosedFundsWithStats(ctx context.Context) ([]GetClosedFunds
 			&i.TotalDonations,
 			&i.AverageDonation,
 			&i.TotalDonors,
+			&i.TotalPaidCents,
+			&i.TotalRecipients,
+			&i.TotalPayouts,
+			&i.LastPayoutDate,
 		); err != nil {
 			return nil, err
 		}

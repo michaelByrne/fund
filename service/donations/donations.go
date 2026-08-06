@@ -535,6 +535,9 @@ func (s DonationService) ListExpiredOpenFunds(ctx context.Context) ([]Fund, erro
 // ListClosedFunds returns the public archive of funds that have ended, each with
 // what it collected and what it paid out.
 func (s DonationService) ListClosedFunds(ctx context.Context) ([]ClosedFund, error) {
+	// One query, aggregates included. This drives the front page and the archive
+	// only grows, so a stats lookup per closed fund would cost a round-trip per
+	// row on every home page load, forever.
 	funds, err := s.donationStore.GetClosedFundsWithStats(ctx)
 	if err != nil {
 		s.logger.Error("failed to list closed funds", slog.String("error", err.Error()))
@@ -542,22 +545,7 @@ func (s DonationService) ListClosedFunds(ctx context.Context) ([]ClosedFund, err
 		return nil, err
 	}
 
-	closed := make([]ClosedFund, 0, len(funds))
-	for _, fund := range funds {
-		stats, errStats := s.donationStore.GetFundPayoutStats(ctx, fund.ID)
-		if errStats != nil {
-			s.logger.Error("failed to get payout stats for fund",
-				slog.String("error", errStats.Error()),
-				slog.String("fund_id", fund.ID.String()),
-			)
-
-			return nil, errStats
-		}
-
-		closed = append(closed, ClosedFund{Fund: fund, Payouts: stats})
-	}
-
-	return closed, nil
+	return funds, nil
 }
 
 // GetClosedFund is the summary page for one ended fund: what came in, what went

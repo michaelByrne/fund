@@ -225,7 +225,10 @@ func (h *FundHandlers) donate(w http.ResponseWriter, r *http.Request) {
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
-		common.ErrorMessage(&member, "unauthorized", "/", r.URL.Path).Render(ctx, w)
+		// nil, not &member. The assertion failed, so member is the zero value, and
+		// a non-nil pointer to it reads as logged in: the nav renders logout and
+		// hides login, leaving the one link this visitor needs off the page.
+		common.ErrorMessage(nil, "unauthorized", "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -262,7 +265,10 @@ func (h *FundHandlers) donationSuccess(w http.ResponseWriter, r *http.Request) {
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
-		common.ErrorMessage(&member, "unauthorized", "/", r.URL.Path).Render(ctx, w)
+		// nil, not &member. The assertion failed, so member is the zero value, and
+		// a non-nil pointer to it reads as logged in: the nav renders logout and
+		// hides login, leaving the one link this visitor needs off the page.
+		common.ErrorMessage(nil, "unauthorized", "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -276,7 +282,10 @@ func (h *FundHandlers) completeOneTimeDonation(w http.ResponseWriter, r *http.Re
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
-		common.ErrorMessage(&member, "unauthorized", "/", r.URL.Path).Render(ctx, w)
+		// nil, not &member. The assertion failed, so member is the zero value, and
+		// a non-nil pointer to it reads as logged in: the nav renders logout and
+		// hides login, leaving the one link this visitor needs off the page.
+		common.ErrorMessage(nil, "unauthorized", "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -367,7 +376,10 @@ func (h *FundHandlers) completeRecurringDonation(w http.ResponseWriter, r *http.
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
-		common.ErrorMessage(&member, "unauthorized", "/", r.URL.Path).Render(ctx, w)
+		// nil, not &member. The assertion failed, so member is the zero value, and
+		// a non-nil pointer to it reads as logged in: the nav renders logout and
+		// hides login, leaving the one link this visitor needs off the page.
+		common.ErrorMessage(nil, "unauthorized", "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -577,7 +589,10 @@ func (h *FundHandlers) home(w http.ResponseWriter, r *http.Request) {
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
-		common.ErrorMessage(&member, "unauthorized", "/", r.URL.Path).Render(ctx, w)
+		// nil, not &member. The assertion failed, so member is the zero value, and
+		// a non-nil pointer to it reads as logged in: the nav renders logout and
+		// hides login, leaving the one link this visitor needs off the page.
+		common.ErrorMessage(nil, "unauthorized", "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}
@@ -610,7 +625,10 @@ func (h *FundHandlers) closedFundSummary(w http.ResponseWriter, r *http.Request)
 	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
-		common.ErrorMessage(&member, "unauthorized", "/", r.URL.Path).Render(ctx, w)
+		// nil, not &member. The assertion failed, so member is the zero value, and
+		// a non-nil pointer to it reads as logged in: the nav renders logout and
+		// hides login, leaving the one link this visitor needs off the page.
+		common.ErrorMessage(nil, "unauthorized", "/", r.URL.Path).Render(ctx, w)
 
 		return
 	}

@@ -306,7 +306,7 @@ func (s DonationStore) GetAllFundsWithStats(ctx context.Context) ([]donations.Fu
 	return pg.FetchAll(ctx, s.queries.GetAllFundsWithStats, fromDBAllFundsRow)
 }
 
-func (s DonationStore) GetClosedFundsWithStats(ctx context.Context) ([]donations.Fund, error) {
+func (s DonationStore) GetClosedFundsWithStats(ctx context.Context) ([]donations.ClosedFund, error) {
 	return pg.FetchAll(ctx, s.queries.GetClosedFundsWithStats, fromDBClosedFundRow)
 }
 
