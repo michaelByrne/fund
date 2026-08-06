@@ -7,10 +7,14 @@ import (
 	"fmt"
 )
 
+// A recurring fund takes subscriptions; a one-off fund takes a single payment.
+// Keyed on Recurring rather than on monthly specifically, so a daily fund gets
+// the subscription form rather than silently falling through to one-time.
 func donationURL(freq donations.PayoutFrequency) string {
-	if freq == donations.PayoutFrequencyMonthly {
+	if freq.Recurring() {
 		return "/donation/plan"
 	}
+
 	return "/donation/once"
 }
 
@@ -69,7 +73,7 @@ templ DonationForm(fund donations.Fund) {
 }
 
 templ Frequency(freq donations.PayoutFrequency) {
-	if freq == donations.PayoutFrequencyMonthly {
+	if freq.Recurring() {
 		<div class="flex items-center gap-2">
 			<span>every</span>
 			<span class="gap-0">

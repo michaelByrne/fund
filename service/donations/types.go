@@ -9,11 +9,28 @@ type IntervalUnit string
 type PayoutFrequency string
 
 const (
-	IntervalUnitWeek       IntervalUnit    = "WEEK"
-	IntervalUnitMonth      IntervalUnit    = "MONTH"
+	IntervalUnitWeek  IntervalUnit = "WEEK"
+	IntervalUnitMonth IntervalUnit = "MONTH"
+
 	PayoutFrequencyMonthly PayoutFrequency = "monthly"
 	PayoutFrequencyOnce    PayoutFrequency = "once"
+
+	// PayoutFrequencyDaily exists to make the payout lifecycle testable. A monthly
+	// fund takes a month per period, and a 'once' fund never advances to a second
+	// one, so neither shows that the schedule actually rolls forward.
+	PayoutFrequencyDaily PayoutFrequency = "daily"
 )
+
+// Recurring reports whether the fund pays out more than once.
+//
+// The distinction used to be spelled `== PayoutFrequencyMonthly` at each call
+// site, which read as "is this monthly" but meant "does this repeat". Every one
+// of those would have treated a daily fund as a one-off: no rolling forward of
+// the next payout date, and donors offered a single payment instead of a
+// subscription.
+func (f PayoutFrequency) Recurring() bool {
+	return f == PayoutFrequencyMonthly || f == PayoutFrequencyDaily
+}
 
 type Fund struct {
 	ID              uuid.UUID       `json:"id"`
@@ -48,12 +65,25 @@ func (f Fund) NextPaymentAfter(now time.Time) time.Time {
 
 	// A one-off fund has a single payout date. There is nothing to roll forward
 	// to, and a date in the past means it has been and gone.
-	if f.PayoutFrequency != PayoutFrequencyMonthly {
+	if !f.PayoutFrequency.Recurring() {
 		return f.NextPayment
 	}
 
 	if !f.NextPayment.Before(now) {
 		return f.NextPayment
+	}
+
+	// Days need no clamping -- every month has a tomorrow -- so the anchor's
+	// time of day carries forward by whole days from the original date.
+	if f.PayoutFrequency == PayoutFrequencyDaily {
+		days := int(now.Sub(f.NextPayment) / (24 * time.Hour))
+
+		next := f.NextPayment.AddDate(0, 0, days)
+		if next.Before(now) {
+			next = f.NextPayment.AddDate(0, 0, days+1)
+		}
+
+		return next
 	}
 
 	// Computed in one step from the anchor rather than by repeated addition,

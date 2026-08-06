@@ -112,6 +112,7 @@ type PayoutFrequency string
 const (
 	PayoutFrequencyMonthly PayoutFrequency = "monthly"
 	PayoutFrequencyOnce    PayoutFrequency = "once"
+	PayoutFrequencyDaily   PayoutFrequency = "daily"
 )
 
 func (e *PayoutFrequency) Scan(src interface{}) error {

@@ -115,7 +115,10 @@ RETURNING *;
 INSERT INTO fund (id, name, description, provider_id, provider_name, active, payout_frequency, goal_cents, expires,
                   principal, next_payment)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        (CASE WHEN $7::payout_frequency = 'monthly' THEN (SELECT now() + INTERVAL '1 month') ELSE $9::timestamptz END))
+        (CASE
+             WHEN $7::payout_frequency = 'monthly' THEN (SELECT now() + INTERVAL '1 month')
+             WHEN $7::payout_frequency = 'daily' THEN (SELECT now() + INTERVAL '1 day')
+             ELSE $9::timestamptz END))
 RETURNING *;
 
 -- name: UpdateFund :one

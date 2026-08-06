@@ -16,6 +16,9 @@ const advanceFundNextPayment = `-- name: AdvanceFundNextPayment :one
 UPDATE fund
 SET next_payment = CASE
                        WHEN payout_frequency = 'once' THEN NULL
+                       WHEN payout_frequency = 'daily' THEN next_payment + (interval '1 day' * (SELECT MIN(n)
+                                                                                                FROM generate_series(1, 3650) n
+                                                                                                WHERE next_payment + (interval '1 day' * n) > now()))
                        ELSE next_payment + (interval '1 month' * (SELECT MIN(n)
                                                                   FROM generate_series(1, 60) n
                                                                   WHERE next_payment + (interval '1 month' * n) > now()))
@@ -35,6 +38,11 @@ RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_
 // planner has not run in five years.
 //
 // A 'once' fund gets NULL: it has paid, and there is no next time.
+//
+// 'daily' steps by days on the same anchored principle. It needs no clamping --
+// every month has a tomorrow -- but it does need a wider search, since 60 of
+// anything is two months of days. Ten years of them keeps the bound honest
+// against a test fund left running.
 func (q *Queries) AdvanceFundNextPayment(ctx context.Context, id uuid.UUID) (Fund, error) {
 	row := q.db.QueryRow(ctx, advanceFundNextPayment, id)
 	var i Fund
