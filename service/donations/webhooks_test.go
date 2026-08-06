@@ -558,3 +558,29 @@ func TestRefundsAreRecordedAgainstTheRightPayment(t *testing.T) {
 		}
 	})
 }
+
+// The key is what stops one cancellation being recorded twice, and an empty one
+// would stop every cancellation being recorded at all after the first: a partial
+// unique index treats ” as a value, so every donation with no subscription
+// recorded would share it.
+func TestSubscriptionEndedKey(t *testing.T) {
+	if got := subscriptionEndedKey("", providerStatusCancelled); got != "" {
+		t.Errorf("a missing subscription id must produce no key, got %q", got)
+	}
+
+	first := subscriptionEndedKey("SUB-1", providerStatusCancelled)
+	second := subscriptionEndedKey("SUB-2", providerStatusCancelled)
+
+	if first == "" || second == "" {
+		t.Fatal("a real subscription should produce a key")
+	}
+
+	if first == second {
+		t.Error("two subscriptions share a key, so only the first cancellation would be recorded")
+	}
+
+	// Suspension and cancellation of one subscription are different events.
+	if subscriptionEndedKey("SUB-1", "SUSPENDED") == first {
+		t.Error("two outcomes of one subscription share a key")
+	}
+}

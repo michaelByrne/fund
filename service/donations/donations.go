@@ -97,6 +97,30 @@ func (s DonationService) ListAllFunds(ctx context.Context) ([]Fund, error) {
 	return funds, nil
 }
 
+// providerStatusCancelled is what PayPal reports for a subscription that has been
+// cancelled, and what its BILLING.SUBSCRIPTION.CANCELLED webhook carries.
+const providerStatusCancelled = "CANCELLED"
+
+// subscriptionEndedKey identifies "this subscription reached this state", and is
+// shared by everything that can record it.
+//
+// Cancelling produces two accounts of one event: ours, when we ask the provider
+// to stop, and the provider's, when it tells us it has. Both are true and the
+// feed wants one of them, so both write under this key and the second is
+// discarded by the unique index.
+//
+// Built in one place because the suppression works only while the strings match
+// exactly, and two of the writers are in different files.
+func subscriptionEndedKey(providerSubscriptionID, status string) string {
+	if providerSubscriptionID == "" {
+		// No key rather than a shared empty one, which would collapse every
+		// unrelated cancellation into the first.
+		return ""
+	}
+
+	return "subscription-ended:" + providerSubscriptionID + ":" + status
+}
+
 // ErrSubscriptionsNotCancelled means the provider would not cancel every
 // subscription, so the fund was left open.
 var ErrSubscriptionsNotCancelled = errors.New("could not cancel all subscriptions at the provider")
@@ -188,6 +212,7 @@ func (s DonationService) DeactivateFund(ctx context.Context, id uuid.UUID, actor
 			SubjectMemberID: &cancelled.DonorID,
 			Detail:          "fund deactivated",
 			ReferenceID:     &cancelled.ID,
+			DedupeKey:       subscriptionEndedKey(cancelled.ProviderSubscriptionID, providerStatusCancelled),
 		})
 	}
 
@@ -293,6 +318,7 @@ func (s DonationService) CancelDonationForMember(ctx context.Context, donationID
 		SubjectMemberID: &memberID,
 		Detail:          "cancelled by donor",
 		ReferenceID:     &donation.ID,
+		DedupeKey:       subscriptionEndedKey(donation.ProviderSubscriptionID, providerStatusCancelled),
 	})
 
 	return nil
