@@ -117,3 +117,107 @@ func TestNextPaymentIsNeverInThePastForMonthlyFunds(t *testing.T) {
 		}
 	}
 }
+
+// A daily fund rolls forward the same way, just in days. The distinction that
+// matters is that it rolls forward at all: every one of these cases used to
+// return the anchor unchanged, because the code asked whether the fund was
+// monthly when it meant whether the fund repeats.
+//
+// `now` is deliberately off the hour here. at() pins everything to 12:00, which
+// for a daily schedule anchored at 12:00 is always exactly a payout instant --
+// so a table built only from at() would test the boundary and nothing else.
+func TestNextPaymentAfterForDailyFunds(t *testing.T) {
+	daily := func(anchor time.Time) Fund {
+		return Fund{PayoutFrequency: PayoutFrequencyDaily, NextPayment: anchor}
+	}
+
+	afternoon := func(y int, m time.Month, d int) time.Time {
+		return time.Date(y, m, d, 17, 0, 0, 0, time.UTC)
+	}
+
+	cases := []struct {
+		name string
+		fund Fund
+		now  time.Time
+		want time.Time
+	}{
+		{
+			name: "anchor still ahead",
+			fund: daily(at(2026, time.August, 7)),
+			now:  at(2026, time.August, 6),
+			want: at(2026, time.August, 7),
+		},
+		{
+			// Due exactly now counts as due, matching the monthly behaviour: the
+			// planner runs on the instant and must not skip the period it is in.
+			name: "due exactly now",
+			fund: daily(at(2026, time.August, 6)),
+			now:  at(2026, time.August, 9),
+			want: at(2026, time.August, 9),
+		},
+		{
+			name: "part way through a period",
+			fund: daily(at(2026, time.August, 6)),
+			now:  afternoon(2026, time.August, 6),
+			want: at(2026, time.August, 7),
+		},
+		{
+			name: "a fortnight of missed runs",
+			fund: daily(at(2026, time.August, 6)),
+			now:  afternoon(2026, time.August, 20),
+			want: at(2026, time.August, 21),
+		},
+		// Days need none of the clamping months do, but they still have to cross
+		// month and year ends without landing on the 32nd of anything.
+		{
+			name: "across a month end",
+			fund: daily(at(2026, time.August, 30)),
+			now:  afternoon(2026, time.August, 31),
+			want: at(2026, time.September, 1),
+		},
+		{
+			name: "across a year end",
+			fund: daily(at(2026, time.December, 31)),
+			now:  afternoon(2027, time.January, 4),
+			want: at(2027, time.January, 5),
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := c.fund.NextPaymentAfter(c.now)
+			if !got.Equal(c.want) {
+				t.Errorf("NextPaymentAfter(%s) = %s, want %s",
+					c.now.Format(time.RFC3339), got.Format(time.RFC3339), c.want.Format(time.RFC3339))
+			}
+		})
+	}
+}
+
+// The time of day is the anchor's, not the caller's. A fund anchored at 09:00
+// pays at 09:00 tomorrow, which is what makes the daily cron's window stable.
+func TestDailyNextPaymentKeepsTheAnchorsTimeOfDay(t *testing.T) {
+	anchor := time.Date(2026, time.August, 6, 9, 0, 0, 0, time.UTC)
+	fund := Fund{PayoutFrequency: PayoutFrequencyDaily, NextPayment: anchor}
+
+	got := fund.NextPaymentAfter(time.Date(2026, time.August, 9, 17, 42, 0, 0, time.UTC))
+	want := time.Date(2026, time.August, 10, 9, 0, 0, 0, time.UTC)
+
+	if !got.Equal(want) {
+		t.Errorf("got %s, want %s", got.Format(time.RFC3339), want.Format(time.RFC3339))
+	}
+}
+
+func TestRecurringDistinguishesRepeatingFundsFromOneOffs(t *testing.T) {
+	// Every call site that branches on this reads "does this fund pay more than
+	// once", so a new frequency being absent here is the bug, not a style point.
+	for freq, want := range map[PayoutFrequency]bool{
+		PayoutFrequencyMonthly: true,
+		PayoutFrequencyDaily:   true,
+		PayoutFrequencyOnce:    false,
+	} {
+		if got := freq.Recurring(); got != want {
+			t.Errorf("%s.Recurring() = %v, want %v", freq, got, want)
+		}
+	}
+}

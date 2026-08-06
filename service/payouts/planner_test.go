@@ -55,6 +55,16 @@ func fundNextPayment(t *testing.T, ctx context.Context, pool *pgxpool.Pool, fund
 	return next
 }
 
+// setFundFrequency switches an already-seeded fund's schedule. seedFund creates
+// monthly funds, and the frequency is what decides the step AdvanceFundNextPayment
+// takes.
+func setFundFrequency(t *testing.T, ctx context.Context, pool *pgxpool.Pool, fundID uuid.UUID, freq string) {
+	t.Helper()
+
+	_, err := pool.Exec(ctx, `UPDATE fund SET payout_frequency = $2::payout_frequency WHERE id = $1`, fundID, freq)
+	require.NoError(t, err)
+}
+
 func TestPlanDueBatches(t *testing.T) {
 	ctx := context.Background()
 
@@ -316,5 +326,62 @@ func TestSubmitApprovedBatches(t *testing.T) {
 
 		assert.Zero(t, submitted)
 		assert.Empty(t, provider.submitted, "the treasurer gate must survive automation")
+	})
+}
+
+// A daily fund exists so the payout lifecycle can be watched end to end without
+// waiting a month for the second period. That only holds if the schedule really
+// advances by a day: stepping a month would make the second run a month away,
+// and the whole point of the frequency would be lost.
+func TestDailyFundsAdvanceByADay(t *testing.T) {
+	ctx := context.Background()
+
+	container, pool, err := pg.SetupTestDatabase()
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = container.Terminate(ctx) })
+
+	t.Run("advances one day, not one month", func(t *testing.T) {
+		svc := newService(t, pool, &stubProvider{batchID: "P-DAILY-1"})
+
+		fundID := seedFundWithEnrollees(t, ctx, pool, 2)
+		setFundFrequency(t, ctx, pool, fundID, "daily")
+		seedDonation(t, ctx, pool, fundID, 1000)
+
+		due := time.Now().Add(-time.Hour)
+		setFundNextPayment(t, ctx, pool, fundID, due)
+
+		_, err := svc.PlanDueBatches(ctx)
+		require.NoError(t, err)
+
+		next := fundNextPayment(t, ctx, pool, fundID)
+		require.NotNil(t, next)
+
+		// The anchor was an hour ago, so the next one is 23 hours out.
+		assert.WithinDuration(t, due.Add(24*time.Hour), *next, time.Second)
+		assert.True(t, next.After(time.Now()), "a daily fund must not stay due")
+		assert.Less(t, time.Until(*next), 48*time.Hour,
+			"stepping by a month would defeat the point of a daily fund")
+	})
+
+	t.Run("a long-stale daily fund catches up to the next future day", func(t *testing.T) {
+		svc := newService(t, pool, &stubProvider{batchID: "P-DAILY-2"})
+
+		fundID := seedFundWithEnrollees(t, ctx, pool, 2)
+		setFundFrequency(t, ctx, pool, fundID, "daily")
+		seedDonation(t, ctx, pool, fundID, 1000)
+
+		// Ten days of missed runs. The planner must not need ten passes to catch
+		// up, or a fund left alone over a holiday reports itself due every run.
+		due := time.Now().Add(-10 * 24 * time.Hour)
+		setFundNextPayment(t, ctx, pool, fundID, due)
+
+		_, err := svc.PlanDueBatches(ctx)
+		require.NoError(t, err)
+
+		next := fundNextPayment(t, ctx, pool, fundID)
+		require.NotNil(t, next)
+		assert.True(t, next.After(time.Now()), "one pass should reach a future date")
+		assert.Less(t, time.Until(*next), 24*time.Hour, "and not overshoot past tomorrow")
 	})
 }
