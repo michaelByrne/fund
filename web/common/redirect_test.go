@@ -1,4 +1,4 @@
-package homeweb
+package common
 
 import (
 	"net/http"
@@ -7,14 +7,14 @@ import (
 )
 
 func TestRedirectNavigatesRatherThanSwapping(t *testing.T) {
-	// The archive and active-fund rows are clicked through hx-get. An XHR follows
-	// a 303 transparently, so htmx never learns a redirect happened and swaps the
-	// destination page into the row that was clicked. Only HX-Redirect navigates.
+	// An XHR follows a 303 transparently, so htmx never learns a redirect happened
+	// and swaps the destination page into whatever element was clicked. Only
+	// HX-Redirect makes the browser navigate.
 	req := httptest.NewRequest(http.MethodGet, "/fund/abc/summary", nil)
 	req.Header.Set("HX-Request", "true")
 
 	rec := httptest.NewRecorder()
-	redirect(rec, req, "/donate/abc")
+	Redirect(rec, req, "/donate/abc")
 
 	if got := rec.Header().Get("HX-Redirect"); got != "/donate/abc" {
 		t.Errorf("HX-Redirect = %q, want /donate/abc", got)
@@ -35,7 +35,7 @@ func TestRedirectStillWorksForPlainNavigation(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/fund/abc/summary", nil)
 
 	rec := httptest.NewRecorder()
-	redirect(rec, req, "/donate/abc")
+	Redirect(rec, req, "/donate/abc")
 
 	if rec.Code != http.StatusSeeOther {
 		t.Errorf("status = %d, want 303", rec.Code)

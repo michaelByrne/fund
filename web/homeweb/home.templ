@@ -137,11 +137,14 @@ templ ClosedFunds(funds []donations.ClosedFund) {
 // RowLink makes a whole table row clickable without giving up on being a link.
 //
 // An anchor cannot wrap a <tr>, and one anchor per cell would put six identical
-// tab stops and six identical announcements in every row. Instead the name cell
-// holds the only anchor and its ::after overlay is stretched over the row, which
-// the row's own `relative` anchors. One tab stop, one accessible name, and the
-// things hx-get could never do: middle-click, open in new tab, copy link, and a
-// destination the browser shows before you commit to it.
+// tab stops and six identical announcements in every row. So the name cell holds
+// the only anchor, and that anchor's ::after is stretched to cover the row. The
+// row is positioned `relative`, which is what the overlay sizes itself against;
+// without it the overlay would spread to the whole page.
+//
+// The result is one tab stop and one accessible name per row, plus everything
+// hx-get could never do: middle-click, open in a new tab, copy link address, and
+// a destination the browser shows before you commit to it.
 templ RowLink(href, label string) {
 	<a
 		href={ templ.SafeURL(href) }

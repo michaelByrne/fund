@@ -539,7 +539,11 @@ func (h *AdminHandlers) setAdmin(w http.ResponseWriter, r *http.Request, grant b
 
 	actor, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
-		http.Redirect(w, r, "/", http.StatusFound)
+		// Only ever reached by hx-post/hx-delete from the toggle, so a bare 302
+		// would be followed by the XHR and put the home page inside the admin
+		// access row. A session can expire while the token behind withAdmin is
+		// still valid, which is exactly when this fires.
+		common.Redirect(w, r, "/")
 
 		return
 	}
