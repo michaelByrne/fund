@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -72,11 +73,31 @@ func checkCertURL(raw string) error {
 	return nil
 }
 
-// parseAndVerifyCert reads the downloaded PEM and checks it chains to a trusted
-// root, rather than trusting whatever key the certificate happens to carry.
+// signingCert is the certificate PayPal serves, and what we could establish about
+// it beyond the fact that PayPal served it.
+type signingCert struct {
+	leaf *x509.Certificate
+	// chainErr is nil when the certificate chains to a trusted root. Non-nil is
+	// reported and not fatal -- see parseSigningCert.
+	chainErr error
+}
+
+// parseSigningCert reads the downloaded PEM and attempts to chain it to a trusted
+// root.
 //
-// PayPal serves the leaf first and may include intermediates after it.
-func parseAndVerifyCert(certPem string) (*x509.Certificate, error) {
+// The chain result is advisory, and that is a deliberate weakening of what this
+// did before. PayPal serves the leaf on its own: the certificate that signs
+// webhooks is issued by an intermediate CA which the endpoint does not include,
+// so building a path from the PEM alone fails and every webhook was rejected.
+//
+// What actually establishes trust here is the transport. The URL must be one of
+// PayPal's own hosts, and it is fetched over HTTPS, so the server certificate is
+// validated against the system roots before a byte of this is read. An attacker
+// who cannot break that cannot choose which certificate we are handed, and one
+// who can does not need to bother with this. Chaining the signing certificate as
+// well was defence in depth against nothing that the first two do not already
+// cover -- and it turned out to be defence against PayPal.
+func parseSigningCert(certPem string) (*signingCert, error) {
 	var leaf *x509.Certificate
 	intermediates := x509.NewCertPool()
 
@@ -110,11 +131,16 @@ func parseAndVerifyCert(certPem string) (*x509.Certificate, error) {
 		return nil, fmt.Errorf("no certificate in PEM")
 	}
 
-	if _, err := leaf.Verify(x509.VerifyOptions{Intermediates: intermediates}); err != nil {
-		return nil, fmt.Errorf("certificate does not chain to a trusted root: %w", err)
-	}
+	// ExtKeyUsageAny, because the default is ServerAuth and this certificate signs
+	// messages rather than serving TLS. Left at the default it would fail on key
+	// usage even where a chain existed, which is a second way the original check
+	// was wrong.
+	_, chainErr := leaf.Verify(x509.VerifyOptions{
+		Intermediates: intermediates,
+		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+	})
 
-	return leaf, nil
+	return &signingCert{leaf: leaf, chainErr: chainErr}, nil
 }
 
 // downloadAndCache caches by URL. Keying on a constant meant the first
@@ -167,7 +193,7 @@ func downloadAndCache(ctx context.Context, certURL, cacheKey string) (string, er
 	return string(body), nil
 }
 
-func verifySignature(r *http.Request, webhookID string) ([]byte, error) {
+func verifySignature(r *http.Request, webhookID string, logger *slog.Logger) ([]byte, error) {
 	transmissionID := r.Header.Get("paypal-transmission-id")
 	timestamp := r.Header.Get("paypal-transmission-time")
 	certURL := r.Header.Get("paypal-cert-url")
@@ -214,10 +240,20 @@ func verifySignature(r *http.Request, webhookID string) ([]byte, error) {
 		return nil, unverifiable(fmt.Errorf("failed to fetch certificate: %w", err))
 	}
 
-	parsed, err := parseAndVerifyCert(certPem)
+	cert, err := parseSigningCert(certPem)
 	if err != nil {
 		return nil, unverifiable(err)
 	}
 
-	return bodyBytes, parsed.CheckSignature(x509.SHA256WithRSA, []byte(message)[:], sigBytes)
+	// Reported, not enforced. PayPal serves this certificate without the
+	// intermediate that would let it chain, so a failure here is the ordinary
+	// case rather than a signal -- but it is worth seeing if it ever stops being.
+	if cert.chainErr != nil {
+		logger.Warn("webhook signing certificate did not chain to a trusted root",
+			slog.String("cert_url", certURL),
+			slog.String("error", cert.chainErr.Error()),
+		)
+	}
+
+	return bodyBytes, cert.leaf.CheckSignature(x509.SHA256WithRSA, []byte(message)[:], sigBytes)
 }

@@ -81,14 +81,38 @@ func selfSignedPEM(t *testing.T) string {
 	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
 }
 
-// The host check is not enough on its own. Parsing a certificate says nothing
-// about who issued it, and the old code verified signatures against whatever
-// public key it found.
-func TestCertMustChainToATrustedRoot(t *testing.T) {
-	if _, err := parseAndVerifyCert(selfSignedPEM(t)); err == nil {
-		t.Fatal("a self-signed certificate was accepted")
-	} else if !strings.Contains(err.Error(), "chain") {
-		t.Errorf("expected a chain-of-trust failure, got: %v", err)
+// PayPal serves the signing certificate without the intermediate that issued it,
+// so a self-signed certificate and a genuine PayPal one look the same to a chain
+// check: neither builds a path. Rejecting on that basis rejected every webhook.
+//
+// The certificate is still usable and the failure is still reported -- what it no
+// longer does is decide.
+func TestAnUnchainableCertIsUsableAndReported(t *testing.T) {
+	cert, err := parseSigningCert(selfSignedPEM(t))
+	if err != nil {
+		t.Fatalf("a certificate that will not chain is still a certificate: %v", err)
+	}
+
+	if cert.leaf == nil {
+		t.Fatal("no leaf returned, so nothing could verify a signature")
+	}
+
+	if cert.chainErr == nil {
+		t.Error("a self-signed certificate should be reported as unchained, even though it is accepted")
+	}
+}
+
+// Trust comes from the transport, and that is the check that must not soften. A
+// certificate is only ever read from one of PayPal's hosts over HTTPS, so the
+// server certificate is validated against the system roots before any of this
+// runs.
+func TestTheHostCheckIsStillTheRealBoundary(t *testing.T) {
+	if err := checkCertURL("https://evil.example.com/cert.pem"); err == nil {
+		t.Error("relaxing the chain check must not relax where certificates come from")
+	}
+
+	if err := checkCertURL("http://api.paypal.com/cert.pem"); err == nil {
+		t.Error("plaintext would mean no server certificate was validated at all")
 	}
 }
 
@@ -102,7 +126,7 @@ func TestCertPEMMustContainACertificate(t *testing.T) {
 		{"a key rather than a certificate", "-----BEGIN RSA PRIVATE KEY-----\nAAAA\n-----END RSA PRIVATE KEY-----\n"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			if _, err := parseAndVerifyCert(c.pem); err == nil {
+			if _, err := parseSigningCert(c.pem); err == nil {
 				t.Error("expected an error")
 			}
 		})
