@@ -333,3 +333,25 @@ func TestAcceptAsksForRedeliveryWhenItCannotRecord(t *testing.T) {
 		t.Error("nothing should be published when we cannot tell a replay from a first delivery")
 	}
 }
+
+// An empty transmission id is one primary key. The first webhook carrying one
+// would be recorded and every one after it would look like a replay of it, so
+// every subsequent event would be dropped -- silently, and for good.
+//
+// Verification already refuses a request without the header. This is the second
+// line, because the consequence of the first ever moving is total.
+func TestAcceptRefusesAnEmptyTransmissionID(t *testing.T) {
+	pub := &stubPublisher{}
+	rec := httptest.NewRecorder()
+
+	newTestHandlersWith(pub, &stubDeliveries{}).
+		accept(context.Background(), rec, "", []byte(`{"event_type":"PAYMENT.SALE.COMPLETED"}`))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
+
+	if len(pub.published) != 0 {
+		t.Error("nothing should be published under an empty dedupe key")
+	}
+}

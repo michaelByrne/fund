@@ -32,14 +32,14 @@ type WebhooksHandlers struct {
 	webhookID string
 }
 
-func NewWebhooksHandlers(donationService *donations.DonationService, memberService *members.MemberService, publisher publisher, deliveries deliveries, logger *slog.Logger, webhoodID string) *WebhooksHandlers {
+func NewWebhooksHandlers(donationService *donations.DonationService, memberService *members.MemberService, publisher publisher, deliveries deliveries, logger *slog.Logger, webhookID string) *WebhooksHandlers {
 	return &WebhooksHandlers{
 		donationService: donationService,
 		memberService:   memberService,
 		publisher:       publisher,
 		deliveries:      deliveries,
 		logger:          logger,
-		webhookID:       webhoodID,
+		webhookID:       webhookID,
 	}
 }
 
@@ -90,6 +90,21 @@ func (h WebhooksHandlers) accept(ctx context.Context, w http.ResponseWriter, tra
 		h.logger.Error("failed to unmarshal webhook event", slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusOK)
+
+		return
+	}
+
+	// Verification rejects a request with no transmission id, so this is a second
+	// line rather than the first. It is worth having because the failure it
+	// prevents is silent and total: an empty id is a single primary key, so the
+	// first such webhook would be recorded and every one after it would look like
+	// a replay of it and be dropped.
+	if transmissionID == "" {
+		h.logger.Error("refusing a webhook with no transmission id",
+			slog.String("event_type", event.EventType),
+		)
+
+		w.WriteHeader(http.StatusBadRequest)
 
 		return
 	}

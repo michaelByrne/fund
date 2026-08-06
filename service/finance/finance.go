@@ -271,10 +271,10 @@ func (s FinanceService) RunOneTimeDonationReconciliation(ctx context.Context) er
 // Driving it from Recurring() rather than a literal means the next frequency
 // added is covered by adding it there.
 func (s FinanceService) RunRecurringDonationReconciliation(ctx context.Context) error {
-	for _, frequency := range []donations.PayoutFrequency{
-		donations.PayoutFrequencyMonthly,
-		donations.PayoutFrequencyDaily,
-	} {
+	for _, frequency := range donations.PayoutFrequencies {
+		// Filtered rather than listed. A one-off fund has no subscription to check
+		// and its payments are covered by the one-time pass, and a frequency added
+		// to PayoutFrequencies is covered here without anybody remembering to.
 		if !frequency.Recurring() {
 			continue
 		}
@@ -309,6 +309,14 @@ func (s FinanceService) RunRecurringDonationReconciliation(ctx context.Context) 
 // Insertion is idempotent on the provider's payment id, so this is safe to run as
 // often as it likes: everything already recorded conflicts and does nothing.
 func (s FinanceService) backfillMissingPayments(ctx context.Context, donation donations.Donation, known []donations.DonationPayment) int {
+	// Recovery here is by subscription, so a donation without one has nothing to
+	// look up. A one-time donation is the case in point: its payment came from a
+	// capture, and asking the provider to list transactions for an empty
+	// subscription is a request with no answer.
+	if donation.ProviderSubscriptionID == "" {
+		return 0
+	}
+
 	logger := s.logger.With(slog.String("donation_id", donation.ID.String()))
 
 	transactions, err := s.paymentsProvider.GetTransactionsForDonationSubscription(ctx, donation.ProviderSubscriptionID)
@@ -539,18 +547,6 @@ func (s FinanceService) reconcileOneTimeDonationsForFund(ctx context.Context, fu
 			logger.Error("failed to get donation payments", slog.String("error", errInner.Error()))
 
 			return errInner
-		}
-
-		// Before the verification pass below, so a payment recovered here is
-		// verified and reported in the same run rather than the next one.
-		if recovered := s.backfillMissingPayments(ctx, donation, payments); recovered > 0 {
-			payments, errInner = s.donationStore.GetDonationPaymentsByDonationID(ctx, donation.ID)
-			if errInner != nil {
-				logger.Error("failed to re-read donation payments after backfill",
-					slog.String("error", errInner.Error()))
-
-				return errInner
-			}
 		}
 
 		for _, payment := range payments {

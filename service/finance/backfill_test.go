@@ -232,3 +232,77 @@ func TestReconciliationCoversEveryRecurringFrequency(t *testing.T) {
 		t.Error("one-off funds have no subscriptions to reconcile")
 	}
 }
+
+// Recovery here is by subscription. A one-time donation has none -- its payment
+// came from a capture -- so asking the provider to list transactions for an empty
+// subscription is a request with no answer, made once per donation per run.
+//
+// This is not hypothetical: the call was briefly wired into the one-time
+// reconciliation path as well, by a replacement that matched in two places.
+func TestBackfillSkipsDonationsWithNoSubscription(t *testing.T) {
+	provider := &countingProvider{}
+
+	oneTime := donations.Donation{
+		ID: uuid.New(), FundID: uuid.New(), DonorID: uuid.New(),
+		ProviderSubscriptionID: "",
+	}
+
+	recovered := newService(&fakeStore{}, provider, &capturedEvents{}).
+		backfillMissingPayments(context.Background(), oneTime, nil)
+
+	if recovered != 0 {
+		t.Errorf("recovered %d, want 0", recovered)
+	}
+
+	if provider.calls != 0 {
+		t.Errorf("asked the provider %d times about a subscription that does not exist", provider.calls)
+	}
+}
+
+type countingProvider struct {
+	paymentsProvider
+
+	calls int
+}
+
+func (c *countingProvider) GetTransactionsForDonationSubscription(context.Context, string) ([]ProviderTransaction, error) {
+	c.calls++
+
+	return nil, nil
+}
+
+// The frequency list lives in one place so that adding one covers everything that
+// must iterate them. Reconciliation named "monthly" directly and stopped covering
+// everything the day daily funds existed.
+func TestEveryFrequencyIsAccountedFor(t *testing.T) {
+	var recurring int
+
+	for _, frequency := range donations.PayoutFrequencies {
+		if frequency.Recurring() {
+			recurring++
+		}
+	}
+
+	if recurring == 0 {
+		t.Fatal("no recurring frequency in the canonical list, so reconciliation covers nothing")
+	}
+
+	// Every frequency the enum allows has to be in the list, or something that
+	// iterates it silently skips a fund type.
+	for _, frequency := range []donations.PayoutFrequency{
+		donations.PayoutFrequencyMonthly,
+		donations.PayoutFrequencyDaily,
+		donations.PayoutFrequencyOnce,
+	} {
+		var found bool
+		for _, known := range donations.PayoutFrequencies {
+			if known == frequency {
+				found = true
+			}
+		}
+
+		if !found {
+			t.Errorf("%s is missing from PayoutFrequencies", frequency)
+		}
+	}
+}

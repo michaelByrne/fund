@@ -21,6 +21,17 @@ const (
 	PayoutFrequencyDaily PayoutFrequency = "daily"
 )
 
+// PayoutFrequencies is every frequency a fund can have.
+//
+// Somewhere to add one, so that code which must cover them all can iterate rather
+// than repeat a literal. Reconciliation named "monthly" directly and silently
+// stopped covering everything the day daily funds existed.
+var PayoutFrequencies = []PayoutFrequency{
+	PayoutFrequencyMonthly,
+	PayoutFrequencyDaily,
+	PayoutFrequencyOnce,
+}
+
 // Recurring reports whether the fund pays out more than once.
 //
 // The distinction used to be spelled `== PayoutFrequencyMonthly` at each call
