@@ -49,22 +49,28 @@ func (s DonationService) GetTotalDonatedByFund(ctx context.Context, id uuid.UUID
 	return total, nil
 }
 
+// ListActiveFunds is the public front page.
+//
+// It asked for "once" and "monthly" by name, so a fund created with any other
+// frequency simply did not appear -- open, collecting, and invisible to the
+// donors it needed. Iterating the canonical list means a frequency added to
+// PayoutFrequencies shows up here without anyone remembering to come back.
 func (s DonationService) ListActiveFunds(ctx context.Context) ([]Fund, error) {
-	onceFunds, err := s.donationStore.GetActiveFunds(ctx, "once")
-	if err != nil {
-		s.logger.Error("failed to get active funds", slog.String("error", err.Error()))
+	var funds []Fund
 
-		return nil, err
+	for _, frequency := range PayoutFrequencies {
+		found, err := s.donationStore.GetActiveFunds(ctx, string(frequency))
+		if err != nil {
+			s.logger.Error("failed to get active funds",
+				slog.String("frequency", string(frequency)),
+				slog.String("error", err.Error()),
+			)
+
+			return nil, err
+		}
+
+		funds = append(funds, found...)
 	}
-
-	recurringFunds, err := s.donationStore.GetActiveFunds(ctx, "monthly")
-	if err != nil {
-		s.logger.Error("failed to get active funds", slog.String("error", err.Error()))
-
-		return nil, err
-	}
-
-	funds := append(onceFunds, recurringFunds...)
 
 	// The monthly breakdown is deliberately not loaded here. This used to run a
 	// query per fund and assign the result to `fund`, which is a copy of the slice
