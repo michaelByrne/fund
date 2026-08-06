@@ -350,6 +350,7 @@ type FundEvent struct {
 	Detail          pgtype.Text
 	ReferenceID     uuid.NullUUID
 	Created         pgtype.Timestamptz
+	DedupeKey       pgtype.Text
 }
 
 type Member struct {

@@ -13,7 +13,7 @@ import (
 )
 
 const getFundEvents = `-- name: GetFundEvents :many
-SELECT fund_event.id, fund_event.fund_id, fund_event.kind, fund_event.occurred_at, fund_event.actor_member_id, fund_event.subject_member_id, fund_event.amount_cents, fund_event.detail, fund_event.reference_id, fund_event.created,
+SELECT fund_event.id, fund_event.fund_id, fund_event.kind, fund_event.occurred_at, fund_event.actor_member_id, fund_event.subject_member_id, fund_event.amount_cents, fund_event.detail, fund_event.reference_id, fund_event.created, fund_event.dedupe_key,
        actor.bco_name   AS actor_name,
        subject.bco_name AS subject_name
 FROM fund_event
@@ -57,6 +57,7 @@ func (q *Queries) GetFundEvents(ctx context.Context, arg GetFundEventsParams) ([
 			&i.FundEvent.Detail,
 			&i.FundEvent.ReferenceID,
 			&i.FundEvent.Created,
+			&i.FundEvent.DedupeKey,
 			&i.ActorName,
 			&i.SubjectName,
 		); err != nil {
@@ -70,11 +71,13 @@ func (q *Queries) GetFundEvents(ctx context.Context, arg GetFundEventsParams) ([
 	return items, nil
 }
 
-const insertFundEvent = `-- name: InsertFundEvent :one
+const insertFundEvent = `-- name: InsertFundEvent :many
 INSERT INTO fund_event (id, fund_id, kind, occurred_at, actor_member_id, subject_member_id,
-                        amount_cents, detail, reference_id)
-VALUES ($1, $2, $3, COALESCE($9::timestamptz, now()), $4, $5, $6, $7, $8)
-RETURNING id, fund_id, kind, occurred_at, actor_member_id, subject_member_id, amount_cents, detail, reference_id, created
+                        amount_cents, detail, reference_id, dedupe_key)
+VALUES ($1, $2, $3, COALESCE($9::timestamptz, now()), $4, $5, $6, $7, $8,
+        $10::text)
+ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
+RETURNING id, fund_id, kind, occurred_at, actor_member_id, subject_member_id, amount_cents, detail, reference_id, created, dedupe_key
 `
 
 type InsertFundEventParams struct {
@@ -87,10 +90,17 @@ type InsertFundEventParams struct {
 	Detail          pgtype.Text
 	ReferenceID     uuid.NullUUID
 	OccurredAt      pgtype.Timestamptz
+	DedupeKey       pgtype.Text
 }
 
-func (q *Queries) InsertFundEvent(ctx context.Context, arg InsertFundEventParams) (FundEvent, error) {
-	row := q.db.QueryRow(ctx, insertFundEvent,
+// A dedupe_key that is already present means this event has been recorded, which
+// is the ordinary outcome of a redelivered webhook rather than a failure. The
+// conflict target repeats the index predicate because the index is partial.
+//
+// :many so a conflict yields no rows instead of ErrNoRows; the caller reads an
+// empty result as "already recorded".
+func (q *Queries) InsertFundEvent(ctx context.Context, arg InsertFundEventParams) ([]FundEvent, error) {
+	rows, err := q.db.Query(ctx, insertFundEvent,
 		arg.ID,
 		arg.FundID,
 		arg.Kind,
@@ -100,19 +110,34 @@ func (q *Queries) InsertFundEvent(ctx context.Context, arg InsertFundEventParams
 		arg.Detail,
 		arg.ReferenceID,
 		arg.OccurredAt,
+		arg.DedupeKey,
 	)
-	var i FundEvent
-	err := row.Scan(
-		&i.ID,
-		&i.FundID,
-		&i.Kind,
-		&i.OccurredAt,
-		&i.ActorMemberID,
-		&i.SubjectMemberID,
-		&i.AmountCents,
-		&i.Detail,
-		&i.ReferenceID,
-		&i.Created,
-	)
-	return i, err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FundEvent
+	for rows.Next() {
+		var i FundEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.FundID,
+			&i.Kind,
+			&i.OccurredAt,
+			&i.ActorMemberID,
+			&i.SubjectMemberID,
+			&i.AmountCents,
+			&i.Detail,
+			&i.ReferenceID,
+			&i.Created,
+			&i.DedupeKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

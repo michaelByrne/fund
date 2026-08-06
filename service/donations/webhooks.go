@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Handlers struct {
@@ -87,6 +88,10 @@ func (h *Handlers) subscriptionPaymentFailed(data []byte) error {
 		return fmt.Errorf("no donation for provider subscription %s yet", event.ID)
 	}
 
+	// This handler changes nothing, so there is no state to consult about whether
+	// it has run before. The provider's own update time separates one failure from
+	// the next; keying on the subscription alone would record the first failure
+	// and silently swallow every one after it.
 	h.events.Record(context.Background(), fundevents.Record{
 		FundID:          donation.FundID,
 		Kind:            fundevents.KindPaymentFailed,
@@ -94,6 +99,8 @@ func (h *Handlers) subscriptionPaymentFailed(data []byte) error {
 		SubjectMemberID: &donation.DonorID,
 		Detail:          "payment failed at provider",
 		ReferenceID:     &donation.ID,
+		DedupeKey: "payment-failed:" + event.ID + ":" +
+			event.StatusUpdateTime.UTC().Format(time.RFC3339Nano),
 	})
 
 	return nil
@@ -122,6 +129,11 @@ func (h *Handlers) subscriptionEnded(data []byte) error {
 	// No actor: the provider ended this, not a person. OccurredAt is the
 	// provider's own timestamp, so the feed reads in the order things actually
 	// happened rather than the order we heard about them.
+	//
+	// Keyed on the subscription and the status it moved to. The deactivation above
+	// is an unconditional update, so unlike the payment and reactivation paths
+	// there is nothing here that reports "already done" -- without a key a
+	// redelivery records a second cancellation for the same one.
 	h.events.Record(context.Background(), fundevents.Record{
 		FundID:          donation.FundID,
 		Kind:            fundevents.KindDonationCancelled,
@@ -129,6 +141,7 @@ func (h *Handlers) subscriptionEnded(data []byte) error {
 		SubjectMemberID: &donation.DonorID,
 		Detail:          "subscription " + strings.ToLower(subscriptionEnded.Status) + " at provider",
 		ReferenceID:     &donation.ID,
+		DedupeKey:       "subscription-ended:" + subscriptionEnded.ID + ":" + subscriptionEnded.Status,
 	})
 
 	return nil

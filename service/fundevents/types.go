@@ -47,6 +47,15 @@ type Record struct {
 	// SubjectMemberID is who it concerns: the donor, or the enrollee being paid.
 	SubjectMemberID *uuid.UUID
 
+	// DedupeKey makes recording this event idempotent. Empty for anything that
+	// happens once by construction -- an admin clicking a button -- and set by
+	// webhook handlers, where at-least-once delivery means the same event arrives
+	// again whenever an acknowledgement is lost after the work was done.
+	//
+	// It must identify the occurrence, not the subject: a donation receives many
+	// payments, and keying on the donation would record only the first.
+	DedupeKey string
+
 	AmountCents *int32
 
 	// Detail is free text for the reader, such as a provider's cancellation

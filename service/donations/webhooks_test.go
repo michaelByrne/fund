@@ -354,3 +354,65 @@ func TestAPaymentResumesASuspendedDonation(t *testing.T) {
 		}
 	})
 }
+
+// The mechanism is only worth having if the handlers that need it use it. These
+// two record unconditionally -- nothing in either reports "already done" the way
+// the payment and reactivation paths do -- so a redelivery duplicates the feed
+// entry unless a key stops it.
+func TestTheUnguardedHandlersSupplyADedupeKey(t *testing.T) {
+	donation := &Donation{ID: uuid.New(), FundID: uuid.New(), DonorID: uuid.New()}
+
+	t.Run("a cancellation is keyed on the subscription and its new status", func(t *testing.T) {
+		events := &recordedEvents{}
+		store := &fakeDonationStore{deactivate: donation}
+
+		err := newHandlers(store, events).subscriptionEnded([]byte(`{"id":"SUB-1","status":"CANCELLED"}`))
+		require(t, err)
+
+		key := events.records[0].DedupeKey
+		if key == "" {
+			t.Fatal("a redelivery would record a second cancellation")
+		}
+
+		// Suspension and cancellation of the same subscription are different
+		// events and must not collapse into one.
+		suspended := &recordedEvents{}
+		err = newHandlers(&fakeDonationStore{deactivate: donation}, suspended).
+			subscriptionEnded([]byte(`{"id":"SUB-1","status":"SUSPENDED"}`))
+		require(t, err)
+
+		if suspended.records[0].DedupeKey == key {
+			t.Error("two different subscription outcomes produced the same key")
+		}
+	})
+
+	t.Run("a failed payment is keyed on when it failed", func(t *testing.T) {
+		first := &recordedEvents{}
+		err := newHandlers(&fakeDonationStore{donation: donation}, first).
+			subscriptionPaymentFailed([]byte(`{"id":"SUB-1","status_update_time":"2026-08-06T10:00:00Z"}`))
+		require(t, err)
+
+		if first.records[0].DedupeKey == "" {
+			t.Fatal("a redelivery would record a second failure")
+		}
+
+		// A second genuine failure a week later is a second event. Keying on the
+		// subscription alone would keep the first and swallow every one after it.
+		second := &recordedEvents{}
+		err = newHandlers(&fakeDonationStore{donation: donation}, second).
+			subscriptionPaymentFailed([]byte(`{"id":"SUB-1","status_update_time":"2026-08-13T10:00:00Z"}`))
+		require(t, err)
+
+		if second.records[0].DedupeKey == first.records[0].DedupeKey {
+			t.Error("two separate failures share a key, so only the first would ever be recorded")
+		}
+	})
+}
+
+func require(t *testing.T, err error) {
+	t.Helper()
+
+	if err != nil {
+		t.Fatalf("handler: %v", err)
+	}
+}
