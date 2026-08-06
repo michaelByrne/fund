@@ -43,7 +43,60 @@ func (h *Handlers) Subscribe(subscriber subscriber) error {
 		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", messaging.SubscriptionCancelled, err))
 	}
 
+	// Suspended joins expired and cancelled. PayPal suspends a subscription that
+	// has stopped paying, and a donation nobody is paying into is not an active
+	// donation whatever the provider may do with it later. If it resumes, the next
+	// payment webhook is the evidence for turning it back on -- which nothing does
+	// yet, and is the one thing to watch for here.
+	if err := subscriber.Subscribe(messaging.SubscriptionSuspended, h.subscriptionEnded); err != nil {
+		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", messaging.SubscriptionSuspended, err))
+	}
+
+	// A failed payment is not an ended subscription. PayPal retries, and most
+	// recover, so this records and changes nothing.
+	if err := subscriber.Subscribe(messaging.SubscriptionPaymentFailed, h.subscriptionPaymentFailed); err != nil {
+		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", messaging.SubscriptionPaymentFailed, err))
+	}
+
 	return errResult
+}
+
+// subscriptionPaymentFailed records a charge that did not go through.
+//
+// Deliberately no state change. Deactivating on one failed payment would cancel
+// donations that PayPal is about to collect successfully on its own retry, and
+// the fund would stop counting money it is still receiving. What matters is that
+// somebody can see a run of them against one donor, which is what the feed is
+// for.
+func (h *Handlers) subscriptionPaymentFailed(data []byte) error {
+	var event SubscriptionEvent
+	if err := json.Unmarshal(data, &event); err != nil {
+		h.logger.Error("discarding unparseable payment failed event", slog.String("error", err.Error()))
+
+		return nil
+	}
+
+	donation, err := h.donationStore.GetDonationByProviderSubscriptionID(context.Background(), event.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get donation by provider subscription id: %w", err)
+	}
+
+	if donation == nil {
+		// Not ours, or not recorded yet. Retried on the same reasoning as a
+		// payment: the subscription may still be being written.
+		return fmt.Errorf("no donation for provider subscription %s yet", event.ID)
+	}
+
+	h.events.Record(context.Background(), fundevents.Record{
+		FundID:          donation.FundID,
+		Kind:            fundevents.KindPaymentFailed,
+		OccurredAt:      event.StatusUpdateTime,
+		SubjectMemberID: &donation.DonorID,
+		Detail:          "payment failed at provider",
+		ReferenceID:     &donation.ID,
+	})
+
+	return nil
 }
 
 func (h *Handlers) subscriptionEnded(data []byte) error {

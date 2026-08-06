@@ -17,6 +17,7 @@ const (
 	KindDonationStarted     Kind = "donation_started"
 	KindDonationCancelled   Kind = "donation_cancelled"
 	KindPaymentReceived     Kind = "payment_received"
+	KindPaymentFailed       Kind = "payment_failed"
 	KindMemberEnrolled      Kind = "member_enrolled"
 	KindEnrollmentCancelled Kind = "enrollment_cancelled"
 	KindBatchPlanned        Kind = "payout_batch_planned"
