@@ -147,3 +147,52 @@ func seedTestMember(t *testing.T, ctx context.Context, pool *pgxpool.Pool) uuid.
 
 	return memberID
 }
+
+// The front page asked for "once" and "monthly" by name, so a daily fund was
+// open, collecting, and invisible to the donors it needed. Naming frequencies
+// individually is the same mistake reconciliation made, and it fails silently
+// both times: nothing errors, the fund is simply not there.
+func TestFrontPageListsEveryFrequency(t *testing.T) {
+	ctx := context.Background()
+
+	container, pool, err := pg.SetupTestDatabase()
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = container.Terminate(ctx) })
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	store := donationsstore.NewDonationStore(pool)
+	events := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
+	svc := donations.NewDonationService(store, stubDocumentStorage{}, &mocks.PaymentsProviderMock{}, events, nil, logger)
+
+	insertWithFrequency := func(t *testing.T, name, frequency string) {
+		t.Helper()
+
+		fundID := uuid.New()
+		_, errFund := pool.Exec(ctx,
+			`INSERT INTO fund (id, name, description, provider_id, provider_name, payout_frequency, active, next_payment)
+			 VALUES ($1, $2, 'd', $3, 'paypal', $4::payout_frequency, true, now())`,
+			fundID, name, fundID.String(), frequency,
+		)
+		require.NoError(t, errFund)
+	}
+
+	// One of each, so a frequency dropped from the listing is a fund missing from
+	// the page rather than a subtle difference in ordering.
+	for _, frequency := range donations.PayoutFrequencies {
+		insertWithFrequency(t, "fund-"+string(frequency), string(frequency))
+	}
+
+	listed, err := svc.ListActiveFunds(ctx)
+	require.NoError(t, err)
+
+	byName := fundNames(listed)
+
+	for _, frequency := range donations.PayoutFrequencies {
+		name := "fund-" + string(frequency)
+
+		if _, ok := byName[name]; !ok {
+			t.Errorf("a %s fund is open and does not appear on the front page", frequency)
+		}
+	}
+}
