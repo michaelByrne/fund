@@ -293,12 +293,13 @@ func (s DonationStore) SetDonationPaymentRefunded(ctx context.Context, providerP
 	row := rows[0]
 
 	return &donations.RefundedPayment{
-		PaymentID:     row.PaymentID,
-		DonationID:    row.DonationID,
-		FundID:        row.FundID,
-		DonorID:       row.DonorID,
-		AmountCents:   row.AmountCents,
-		RefundedCents: row.RefundedCents,
+		PaymentID:               row.PaymentID,
+		DonationID:              row.DonationID,
+		FundID:                  row.FundID,
+		DonorID:                 row.DonorID,
+		AmountCents:             row.AmountCents,
+		RefundedCents:           row.RefundedCents,
+		PreviouslyRefundedCents: row.PreviouslyRefundedCents,
 	}, nil
 }
 

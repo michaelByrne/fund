@@ -71,13 +71,6 @@ func (h *Handlers) Subscribe(subscriber subscriber) error {
 	return errResult
 }
 
-// subscriptionPaymentFailed records a charge that did not go through.
-//
-// Deliberately no state change. Deactivating on one failed payment would cancel
-// donations that PayPal is about to collect successfully on its own retry, and
-// the fund would stop counting money it is still receiving. What matters is that
-// somebody can see a run of them against one donor, which is what the feed is
-// for.
 // paymentRefunded records money returned to the donor or taken back by their
 // bank.
 //
@@ -131,8 +124,10 @@ func (h *Handlers) paymentRefunded(data []byte) error {
 		slog.Int("refunded_cents", int(refundedCents)),
 	)
 
-	// Negative, because the feed reads as money moving and this moved out.
-	amount := -refundedCents
+	// Negative, because the feed reads as money moving and this moved out. The
+	// amount is what came back in this refund, not the running total: a second
+	// partial refund would otherwise report the whole refunded sum again.
+	amount := -refunded.NewlyRefundedCents()
 
 	h.events.Record(context.Background(), fundevents.Record{
 		FundID:          refunded.FundID,
@@ -147,6 +142,13 @@ func (h *Handlers) paymentRefunded(data []byte) error {
 	return nil
 }
 
+// subscriptionPaymentFailed records a charge that did not go through.
+//
+// Deliberately no state change. Deactivating on one failed payment would cancel
+// donations that PayPal is about to collect successfully on its own retry, and
+// the fund would stop counting money it is still receiving. What matters is that
+// somebody can see a run of them against one donor, which is what the feed is
+// for.
 func (h *Handlers) subscriptionPaymentFailed(data []byte) error {
 	var event SubscriptionEvent
 	if err := json.Unmarshal(data, &event); err != nil {

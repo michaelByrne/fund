@@ -90,12 +90,27 @@ func (r RefundEvent) RefundedTotal() string {
 // RefundedPayment is what a refund changed, carrying the fund and donor so the
 // activity entry can be written without a second lookup.
 type RefundedPayment struct {
-	PaymentID     uuid.UUID
-	DonationID    uuid.UUID
-	FundID        uuid.UUID
-	DonorID       uuid.UUID
-	AmountCents   int32
-	RefundedCents int32
+	PaymentID  uuid.UUID
+	DonationID uuid.UUID
+	FundID     uuid.UUID
+	DonorID    uuid.UUID
+
+	AmountCents int32
+
+	// RefundedCents is the cumulative total returned for this payment, and
+	// PreviouslyRefundedCents is what it was before this refund. The balance cares
+	// about the total; the activity feed cares about the difference.
+	RefundedCents           int32
+	PreviouslyRefundedCents int32
+}
+
+// NewlyRefundedCents is how much came back in this refund alone.
+//
+// The feed reads as money moving, and a second partial refund moves only its own
+// amount. Recording the running total instead would report the whole refunded sum
+// again every time, and summing the feed would double-count.
+func (r RefundedPayment) NewlyRefundedCents() int32 {
+	return r.RefundedCents - r.PreviouslyRefundedCents
 }
 
 type Fund struct {

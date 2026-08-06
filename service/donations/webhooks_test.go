@@ -381,7 +381,7 @@ func TestTheUnguardedHandlersSupplyADedupeKey(t *testing.T) {
 		store := &fakeDonationStore{deactivate: donation}
 
 		err := newHandlers(store, events).subscriptionEnded([]byte(`{"id":"SUB-1","status":"CANCELLED"}`))
-		require(t, err)
+		requireHandled(t, err)
 
 		key := events.records[0].DedupeKey
 		if key == "" {
@@ -393,7 +393,7 @@ func TestTheUnguardedHandlersSupplyADedupeKey(t *testing.T) {
 		suspended := &recordedEvents{}
 		err = newHandlers(&fakeDonationStore{deactivate: donation}, suspended).
 			subscriptionEnded([]byte(`{"id":"SUB-1","status":"SUSPENDED"}`))
-		require(t, err)
+		requireHandled(t, err)
 
 		if suspended.records[0].DedupeKey == key {
 			t.Error("two different subscription outcomes produced the same key")
@@ -404,7 +404,7 @@ func TestTheUnguardedHandlersSupplyADedupeKey(t *testing.T) {
 		first := &recordedEvents{}
 		err := newHandlers(&fakeDonationStore{donation: donation}, first).
 			subscriptionPaymentFailed([]byte(`{"id":"SUB-1","status_update_time":"2026-08-06T10:00:00Z"}`))
-		require(t, err)
+		requireHandled(t, err)
 
 		if first.records[0].DedupeKey == "" {
 			t.Fatal("a redelivery would record a second failure")
@@ -415,7 +415,7 @@ func TestTheUnguardedHandlersSupplyADedupeKey(t *testing.T) {
 		second := &recordedEvents{}
 		err = newHandlers(&fakeDonationStore{donation: donation}, second).
 			subscriptionPaymentFailed([]byte(`{"id":"SUB-1","status_update_time":"2026-08-13T10:00:00Z"}`))
-		require(t, err)
+		requireHandled(t, err)
 
 		if second.records[0].DedupeKey == first.records[0].DedupeKey {
 			t.Error("two separate failures share a key, so only the first would ever be recorded")
@@ -423,7 +423,7 @@ func TestTheUnguardedHandlersSupplyADedupeKey(t *testing.T) {
 	})
 }
 
-func require(t *testing.T, err error) {
+func requireHandled(t *testing.T, err error) {
 	t.Helper()
 
 	if err != nil {
@@ -468,6 +468,29 @@ func TestRefundsAreRecordedAgainstTheRightPayment(t *testing.T) {
 
 		if store.refundCalls != 1 {
 			t.Error("a reversal must still find its payment")
+		}
+	})
+
+	t.Run("records what came back this time, not the running total", func(t *testing.T) {
+		events := &recordedEvents{}
+
+		// 2000 already returned, 3000 in all: 1000 moved. Recording the total would
+		// report the whole refunded sum again, and summing the feed would
+		// double-count what left the fund.
+		partial := &RefundedPayment{
+			FundID: uuid.New(), DonorID: uuid.New(), DonationID: uuid.New(),
+			AmountCents: 5000, RefundedCents: 3000, PreviouslyRefundedCents: 2000,
+		}
+
+		payload := []byte(`{"id":"REF-3","sale_id":"SALE-1","amount":{"total":"10.00"},
+			"total_refunded_amount":{"value":"30.00"}}`)
+
+		if err := newHandlers(&fakeDonationStore{refunded: partial}, events).paymentRefunded(payload); err != nil {
+			t.Fatalf("paymentRefunded: %v", err)
+		}
+
+		if got := *events.records[0].AmountCents; got != -1000 {
+			t.Errorf("recorded %d, want -1000", got)
 		}
 	})
 

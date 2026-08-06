@@ -92,6 +92,30 @@ func TestRefundsLeaveTheFund(t *testing.T) {
 		assert.EqualValues(t, 2000, balance(t, fundID), "adding the two would have left 0")
 	})
 
+	t.Run("reports what changed as well as the new total", func(t *testing.T) {
+		_, paymentID := seedPaidDonation(t, 5000)
+
+		first, errFirst := store.SetDonationPaymentRefunded(ctx, paymentID, 2000)
+		require.NoError(t, errFirst)
+		require.NotNil(t, first)
+
+		assert.EqualValues(t, 0, first.PreviouslyRefundedCents)
+		assert.EqualValues(t, 2000, first.NewlyRefundedCents())
+
+		// The running total goes 2000 -> 3000, but only 1000 came back this time.
+		// The balance wants the total; the activity feed wants the difference, and
+		// recording the total there would report 3000 returned when 1000 did.
+		second, errSecond := store.SetDonationPaymentRefunded(ctx, paymentID, 3000)
+		require.NoError(t, errSecond)
+		require.NotNil(t, second)
+
+		assert.EqualValues(t, 2000, second.PreviouslyRefundedCents,
+			"the prior total must be read before the update overwrites it")
+		assert.EqualValues(t, 3000, second.RefundedCents)
+		assert.EqualValues(t, 1000, second.NewlyRefundedCents(),
+			"a second partial refund moved only its own amount")
+	})
+
 	t.Run("a redelivered refund reports nothing to do", func(t *testing.T) {
 		fundID, paymentID := seedPaidDonation(t, 5000)
 

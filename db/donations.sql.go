@@ -1269,15 +1269,18 @@ func (q *Queries) ReactivateSuspendedDonationBySubscriptionId(ctx context.Contex
 }
 
 const setDonationPaymentRefunded = `-- name: SetDonationPaymentRefunded :many
+WITH previous AS (SELECT prev.id, prev.refunded_cents
+                  FROM donation_payment prev
+                  WHERE prev.paypal_payment_id = $1)
 UPDATE donation_payment dp
 SET refunded_cents = $2,
     updated        = now()
-FROM donation d
-WHERE dp.donation_id = d.id
-  AND dp.paypal_payment_id = $1
+FROM donation d, previous p
+WHERE dp.id = p.id
+  AND dp.donation_id = d.id
   AND dp.refunded_cents <> $2
 RETURNING dp.id AS payment_id, d.id AS donation_id, d.fund_id, d.donor_id,
-    dp.amount_cents, dp.refunded_cents
+    dp.amount_cents, dp.refunded_cents, p.refunded_cents AS previously_refunded_cents
 `
 
 type SetDonationPaymentRefundedParams struct {
@@ -1286,12 +1289,13 @@ type SetDonationPaymentRefundedParams struct {
 }
 
 type SetDonationPaymentRefundedRow struct {
-	PaymentID     uuid.UUID
-	DonationID    uuid.UUID
-	FundID        uuid.UUID
-	DonorID       uuid.UUID
-	AmountCents   int32
-	RefundedCents int32
+	PaymentID               uuid.UUID
+	DonationID              uuid.UUID
+	FundID                  uuid.UUID
+	DonorID                 uuid.UUID
+	AmountCents             int32
+	RefundedCents           int32
+	PreviouslyRefundedCents int32
 }
 
 // Records money that came back, as a cumulative total rather than a delta: PayPal
@@ -1303,6 +1307,12 @@ type SetDonationPaymentRefundedRow struct {
 // the same money.
 // The donation is joined so the caller has the fund and donor the event needs,
 // rather than following the refund with a second lookup.
+//
+// The prior total is read before the update and returned alongside the new one.
+// refunded_cents is cumulative, so a second partial refund reports the running
+// total: without the previous value the caller cannot tell how much came back
+// this time, and recording the total would say three hundred dollars returned
+// when a hundred did.
 func (q *Queries) SetDonationPaymentRefunded(ctx context.Context, arg SetDonationPaymentRefundedParams) ([]SetDonationPaymentRefundedRow, error) {
 	rows, err := q.db.Query(ctx, setDonationPaymentRefunded, arg.PaypalPaymentID, arg.RefundedCents)
 	if err != nil {
@@ -1319,6 +1329,7 @@ func (q *Queries) SetDonationPaymentRefunded(ctx context.Context, arg SetDonatio
 			&i.DonorID,
 			&i.AmountCents,
 			&i.RefundedCents,
+			&i.PreviouslyRefundedCents,
 		); err != nil {
 			return nil, err
 		}
