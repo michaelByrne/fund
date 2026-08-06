@@ -162,3 +162,62 @@ ORDER BY fund_enrollment.created;
 SELECT active
 FROM fund
 WHERE id = $1;
+
+-- The planner runs daily and asks "what is due today", so a fund whose date has
+-- passed is included rather than skipped: a missed run must still pay out, late,
+-- instead of silently dropping a period. 'once' funds are advanced to NULL after
+-- planning, which is what keeps them from being picked up forever.
+-- name: GetFundsDueForPayout :many
+SELECT id, name, payout_frequency, next_payment
+FROM fund
+WHERE active = true
+  AND next_payment IS NOT NULL
+  AND next_payment <= now()
+ORDER BY next_payment;
+
+-- What the fund can actually pay out: everything donated, less everything already
+-- committed to a payout.
+--
+-- Committed deliberately includes payouts that have not settled yet. Money sent
+-- but still 'pending' at the provider is gone as far as the next batch is
+-- concerned, and counting only 'paid' would let two batches in the same week
+-- promise the same cents twice.
+--
+-- 'failed' and 'cancelled' never left, and 'returned' came back, so all three are
+-- available again.
+-- name: GetFundBalanceCents :one
+-- The cast wraps the whole subtraction: applied to each operand instead, sqlc
+-- reads the result as int32 and a fund holding more than about $21m silently
+-- fails to scan.
+SELECT (COALESCE((SELECT SUM(dp.amount_cents)
+                  FROM donation
+                           JOIN donation_payment dp ON donation.id = dp.donation_id
+                  WHERE donation.fund_id = $1), 0)
+    - COALESCE((SELECT SUM(payout.amount_cents)
+                FROM payout
+                         JOIN batch_payout ON batch_payout.id = payout.batch_id
+                WHERE batch_payout.fund_id = $1
+                  AND payout.status NOT IN ('failed', 'cancelled', 'returned')), 0))::bigint
+           AS available_cents;
+
+-- Moves the fund to its next scheduled payout, anchored on the existing date
+-- rather than stepped one month at a time: adding a month repeatedly walks the
+-- 31st to the 28th and then leaves it there, so a fund that paid on the 31st
+-- would quietly become a fund that pays on the 28th.
+--
+-- Multiplying the original date instead means February clamps for February only.
+-- generate_series bounds the search at 60 months, which is only reachable if the
+-- planner has not run in five years.
+--
+-- A 'once' fund gets NULL: it has paid, and there is no next time.
+-- name: AdvanceFundNextPayment :one
+UPDATE fund
+SET next_payment = CASE
+                       WHEN payout_frequency = 'once' THEN NULL
+                       ELSE next_payment + (interval '1 month' * (SELECT MIN(n)
+                                                                  FROM generate_series(1, 60) n
+                                                                  WHERE next_payment + (interval '1 month' * n) > now()))
+    END,
+    updated      = now()
+WHERE id = $1
+RETURNING *;

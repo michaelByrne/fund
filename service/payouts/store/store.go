@@ -162,3 +162,17 @@ func (s PayoutStore) SetPayoutResult(ctx context.Context, arg payouts.SetPayoutR
 func (s PayoutStore) SetPayoutStatusByProviderItemID(ctx context.Context, arg payouts.SetPayoutStatusByItem) (*payouts.Payout, error) {
 	return pg.UpdateOne(ctx, arg, s.queries.SetPayoutStatusByProviderItemId, toDBSetPayoutStatusByItemParams, fromDBPayout)
 }
+
+func (s PayoutStore) GetFundsDueForPayout(ctx context.Context) ([]payouts.DueFund, error) {
+	return pg.FetchAll(ctx, s.queries.GetFundsDueForPayout, fromDBDueFund)
+}
+
+func (s PayoutStore) GetFundBalanceCents(ctx context.Context, fundID uuid.UUID) (int64, error) {
+	return s.queries.GetFundBalanceCents(ctx, fundID)
+}
+
+func (s PayoutStore) AdvanceFundNextPayment(ctx context.Context, fundID uuid.UUID) error {
+	_, err := s.queries.AdvanceFundNextPayment(ctx, fundID)
+
+	return err
+}

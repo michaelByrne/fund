@@ -187,3 +187,12 @@ func toDBSetPayoutStatusByItemParams(arg payouts.SetPayoutStatusByItem) db.SetPa
 		ProviderFeeCents:     arg.ProviderFeeCents,
 	}
 }
+
+func fromDBDueFund(dbFund db.GetFundsDueForPayoutRow) payouts.DueFund {
+	return payouts.DueFund{
+		ID:          dbFund.ID,
+		Name:        dbFund.Name,
+		Frequency:   string(dbFund.PayoutFrequency),
+		NextPayment: dbFund.NextPayment.Time,
+	}
+}

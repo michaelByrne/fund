@@ -36,6 +36,9 @@ func PayoutCmd(runConfig *root.RunConfig) *cobra.Command {
 		submitCmd(runConfig),
 		sweepCmd(runConfig),
 		reconcileCmd(runConfig),
+		planDueCmd(runConfig),
+		submitApprovedCmd(runConfig),
+		reconcilePendingCmd(runConfig),
 	)
 
 	return cmd

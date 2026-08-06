@@ -1,0 +1,18 @@
+# Cron service config. Selected per-service in Railway under
+# Settings -> Config as Code, because settings defined in a config file override
+# the dashboard: without a file of its own, a cron service inherits
+# startCommand = "./fund" from railway.toml and quietly runs a second web server
+# on a schedule instead of the job.
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "go build -o fund ./cmd"
+
+[deploy]
+startCommand = "./fund payout plan-due"
+# 09:00 UTC. Railway cron is always UTC, never the project timezone.
+cronSchedule = "0 9 * * *"
+numReplicas = 1
+# NEVER, not ON_FAILURE: a failed run must wait for its next slot. Restarting a
+# planner that failed halfway means retrying against funds it already advanced.
+restartPolicyType = "NEVER"

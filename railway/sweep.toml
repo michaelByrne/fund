@@ -1,0 +1,13 @@
+# See railway/plan-due.toml for why each cron needs its own config file.
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "go build -o fund ./cmd"
+
+[deploy]
+startCommand = "./fund payout sweep"
+# Hourly on the hour. Expiry is time-based, so running it often keeps a cancelled
+# batch from lingering as "awaiting approval" in the admin UI.
+cronSchedule = "0 * * * *"
+numReplicas = 1
+restartPolicyType = "NEVER"

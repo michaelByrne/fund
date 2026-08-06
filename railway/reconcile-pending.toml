@@ -1,0 +1,13 @@
+# See railway/plan-due.toml for why each cron needs its own config file.
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "go build -o fund ./cmd"
+
+[deploy]
+startCommand = "./fund payout reconcile-pending"
+# Offset again, and late in the hour: this is the safety net for webhooks that
+# never arrived, so it is most useful after submissions have had time to settle.
+cronSchedule = "45 * * * *"
+numReplicas = 1
+restartPolicyType = "NEVER"
