@@ -4,6 +4,7 @@ import (
 	"boardfund/cmd/root"
 	"boardfund/cmd/root/audit"
 	donationsaudit "boardfund/cmd/root/audit/donations"
+	"boardfund/cmd/root/fundcmd"
 	"boardfund/cmd/root/payout"
 	"context"
 	"log"
@@ -127,6 +128,7 @@ func main() {
 	auditCmd.AddCommand(donationsAuditCmd)
 	rootCmd.AddCommand(auditCmd)
 	rootCmd.AddCommand(payout.PayoutCmd(runConfig))
+	rootCmd.AddCommand(fundcmd.FundCmd(runConfig))
 
 	// Surface a non-zero exit code: scheduled audit runs are otherwise
 	// indistinguishable from successful ones.

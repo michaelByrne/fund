@@ -27,6 +27,7 @@ const (
 	FundEventKindPayoutBatchSubmitted FundEventKind = "payout_batch_submitted"
 	FundEventKindPayoutBatchSettled   FundEventKind = "payout_batch_settled"
 	FundEventKindPayoutBatchExpired   FundEventKind = "payout_batch_expired"
+	FundEventKindFundClosed           FundEventKind = "fund_closed"
 )
 
 func (e *FundEventKind) Scan(src interface{}) error {

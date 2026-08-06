@@ -80,9 +80,10 @@ templ FundRow(fund donations.Fund) {
 		hx-get={ fmt.Sprintf("/admin/fund?fund=%s", fund.ID.String()) }
 	>
 		<div class="flex items-center w-full">
-			<div class="flex flex-col w-full md:flex-row md:items-center">
-				<span class="font-medium">{ fund.Name }</span>
-				<span class="text-sm text-gray-600 md:ml-auto">{ string(fund.PayoutFrequency) }</span>
+			<div class="flex flex-col w-full md:flex-row md:items-center md:gap-2 min-w-0">
+				<span class={ "font-medium truncate", templ.KV("text-gray-500", fund.Closed()) }>{ fund.Name }</span>
+				@FundState(fund)
+				<span class="text-sm text-gray-600 md:ml-auto shrink-0">{ string(fund.PayoutFrequency) }</span>
 			</div>
 			<div class="relative" onclick="event.stopPropagation()">
 				<span
@@ -105,15 +106,17 @@ templ FundRow(fund donations.Fund) {
 					</div>
 				</div>
 			</div>
-			<div
-				hx-post={ fmt.Sprintf("/admin/fund/deactivate/%s", fund.ID.String()) }
-				hx-confirm={ fmt.Sprintf("deactivate %s?", fund.Name) }
-				hx-trigger="click consume"
-				hx-swap="outerHTML"
-				class="text-title/90 hover:text-red-500 text-lg font-bold ml-4"
-			>
-				&#215;
-			</div>
+			if !fund.Closed() {
+				<div
+					hx-post={ fmt.Sprintf("/admin/fund/deactivate/%s", fund.ID.String()) }
+					hx-confirm={ fmt.Sprintf("deactivate %s?", fund.Name) }
+					hx-trigger="click consume"
+					hx-swap="outerHTML"
+					class="text-title/90 hover:text-red-500 text-lg font-bold ml-4"
+				>
+					&#215;
+				</div>
+			}
 		</div>
 		<script type="application/javascript">
             me().on("fundDeactivated", (ev) => {
@@ -280,4 +283,16 @@ func makeAuditURL(fundID uuid.UUID, date time.Time, auditType string) string {
 	urlOut += "&type=" + auditType
 
 	return urlOut
+}
+
+// FundState labels a fund that no longer takes donations. Expiry and
+// deactivation are shown separately: one happened on its own, the other is
+// something a person did, and a treasurer looking at a fund that stopped
+// collecting needs to know which.
+templ FundState(fund donations.Fund) {
+	if !fund.Active {
+		<span class="text-xs px-1 bg-gray-200 text-gray-700 shrink-0">closed</span>
+	} else if fund.Expired() {
+		<span class="text-xs px-1 bg-gray-200 text-gray-700 shrink-0">expired</span>
+	}
 }

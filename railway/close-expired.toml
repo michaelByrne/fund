@@ -1,0 +1,16 @@
+# See railway/plan-due.toml for why each cron needs its own config file.
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "go build -o fund ./cmd"
+
+[deploy]
+startCommand = "./fund funds close-expired --confirm"
+# Two hours after plan-due, and that ordering is load-bearing rather than tidy.
+# Closing a fund stops new batches being planned for it, so on the day a fund
+# expires the planner must get there first or the fund never pays its final
+# period. Already-approved batches are unaffected -- submission does not check
+# whether the fund is still open.
+cronSchedule = "0 11 * * *"
+numReplicas = 1
+restartPolicyType = "NEVER"

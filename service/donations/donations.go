@@ -66,15 +66,25 @@ func (s DonationService) ListActiveFunds(ctx context.Context) ([]Fund, error) {
 
 	funds := append(onceFunds, recurringFunds...)
 
-	for _, fund := range funds {
-		monthly, err := s.donationStore.GetMonthlyDonationTotalsForFund(ctx, fund.ID)
-		if err != nil {
-			s.logger.Error("failed to get monthly donation totals for fund", slog.String("error", err.Error()))
+	// The monthly breakdown is deliberately not loaded here. This used to run a
+	// query per fund and assign the result to `fund`, which is a copy of the slice
+	// element, so every row was fetched and discarded. Nothing consumes Monthly
+	// from a list -- the charts are on the fund detail page, which loads its own.
+	return funds, nil
+}
 
-			return nil, err
-		}
+// ListAllFunds returns every fund, including closed and expired ones.
+//
+// Separate from ListActiveFunds rather than a flag on it, because the two have
+// opposite defaults for a reason: the public page must not offer a donor a fund
+// that is closed, and the admin page must not lose one. A shared function with a
+// boolean would make it easy to get that backwards at a call site.
+func (s DonationService) ListAllFunds(ctx context.Context) ([]Fund, error) {
+	funds, err := s.donationStore.GetAllFundsWithStats(ctx)
+	if err != nil {
+		s.logger.Error("failed to list all funds", slog.String("error", err.Error()))
 
-		fund.Stats.Monthly = monthly
+		return nil, err
 	}
 
 	return funds, nil
@@ -99,7 +109,11 @@ var ErrSubscriptionsNotCancelled = errors.New("could not cancel all subscription
 // Partial cancellation is refused rather than half-applied. Closing a fund while
 // some donors keep paying into it is worse than not closing it, and "nothing
 // happened, try again" is a state an admin can act on.
-func (s DonationService) DeactivateFund(ctx context.Context, id, actorID uuid.UUID) error {
+// actorID is a pointer because a fund can close without anyone closing it. The
+// expiry job passes nil, which the event feed renders as automatic rather than
+// attributing the closure to a person who was not involved -- and a zero uuid
+// here would fail fund_event's foreign key to member anyway.
+func (s DonationService) DeactivateFund(ctx context.Context, id uuid.UUID, actorID *uuid.UUID) error {
 	recurring, err := s.donationStore.GetRecurringDonationsForFund(ctx, GetRecurringDonationsForFundRequest{
 		FundID: id,
 		Active: true,
@@ -146,6 +160,15 @@ func (s DonationService) DeactivateFund(ctx context.Context, id, actorID uuid.UU
 		return err
 	}
 
+	// The closure itself, recorded whether or not anyone was subscribed. Without
+	// this a fund with no recurring donors closed silently, which is the case the
+	// expiry job produces most often.
+	s.events.Record(ctx, fundevents.Record{
+		FundID:        id,
+		Kind:          fundevents.KindFundClosed,
+		ActorMemberID: actorID,
+	})
+
 	// Recorded only once everything has actually happened. They used to be
 	// written before the provider was called, so a cancellation that failed and
 	// was rolled back left the history asserting a donation had been cancelled
@@ -154,7 +177,7 @@ func (s DonationService) DeactivateFund(ctx context.Context, id, actorID uuid.UU
 		s.events.Record(ctx, fundevents.Record{
 			FundID:          cancelled.FundID,
 			Kind:            fundevents.KindDonationCancelled,
-			ActorMemberID:   &actorID,
+			ActorMemberID:   actorID,
 			SubjectMemberID: &cancelled.DonorID,
 			Detail:          "fund deactivated",
 			ReferenceID:     &cancelled.ID,
@@ -439,4 +462,109 @@ func uncancelledSubscriptions(cancelled []string, all []string) []string {
 	}
 
 	return uncancelled
+}
+
+// CloseExpiredFunds deactivates every fund whose end date has passed.
+//
+// Expiry used to hide a fund from the public listing and nothing else, so a fund
+// past its end date kept collecting: recurring subscriptions were never
+// cancelled, and donors carried on being charged for something that had already
+// finished, with no page left in the UI to notice it on.
+//
+// This runs the same DeactivateFund a person would, so the provider is called
+// before anything is written and partial cancellation is refused. A fund that
+// fails to close stays open and is retried on the next run, which is the right
+// outcome: leaving it open is visible, whereas closing it locally while donors
+// keep paying is not.
+//
+// Ordering matters against the payout planner. Closing a fund stops new batches
+// being planned for it, so the planner must run first on the day a fund expires
+// or its final period is never paid. Already-approved batches are unaffected --
+// submission does not check whether the fund is still open.
+func (s DonationService) CloseExpiredFunds(ctx context.Context) (int, error) {
+	expired, err := s.ListExpiredOpenFunds(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	closed := 0
+	for _, fund := range expired {
+		// No actor: nobody closed this, the date did. DeactivateFund records the
+		// event with a nil actor, which is what makes the feed distinguish it from
+		// a treasurer shutting a fund down.
+		if errClose := s.DeactivateFund(ctx, fund.ID, nil); errClose != nil {
+			s.logger.Error("failed to close expired fund",
+				slog.String("error", errClose.Error()),
+				slog.String("fund_id", fund.ID.String()),
+				slog.String("fund", fund.Name),
+			)
+
+			continue
+		}
+
+		s.logger.Info("closed expired fund",
+			slog.String("fund_id", fund.ID.String()),
+			slog.String("fund", fund.Name),
+		)
+
+		closed++
+	}
+
+	s.logger.Info("expired fund closure complete",
+		slog.Int("expired", len(expired)),
+		slog.Int("closed", closed),
+	)
+
+	return closed, nil
+}
+
+// ListExpiredOpenFunds is what CloseExpiredFunds would act on, for the dry run.
+// Shared with the closer rather than re-derived, so the preview cannot describe
+// a different set than the one that gets closed.
+func (s DonationService) ListExpiredOpenFunds(ctx context.Context) ([]Fund, error) {
+	expired, err := s.donationStore.GetExpiredActiveFunds(ctx)
+	if err != nil {
+		s.logger.Error("failed to get expired funds", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	return expired, nil
+}
+
+// ListClosedFunds returns the public archive of funds that have ended, each with
+// what it collected and what it paid out.
+func (s DonationService) ListClosedFunds(ctx context.Context) ([]ClosedFund, error) {
+	// One query, aggregates included. This drives the front page and the archive
+	// only grows, so a stats lookup per closed fund would cost a round-trip per
+	// row on every home page load, forever.
+	funds, err := s.donationStore.GetClosedFundsWithStats(ctx)
+	if err != nil {
+		s.logger.Error("failed to list closed funds", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	return funds, nil
+}
+
+// GetClosedFund is the summary page for one ended fund: what came in, what went
+// out, and the month-by-month breakdown a recurring fund is worth seeing.
+func (s DonationService) GetClosedFund(ctx context.Context, fundID uuid.UUID) (*ClosedFund, error) {
+	fund, err := s.GetFundByID(ctx, fundID)
+	if err != nil {
+		return nil, err
+	}
+
+	stats, err := s.donationStore.GetFundPayoutStats(ctx, fundID)
+	if err != nil {
+		s.logger.Error("failed to get payout stats for fund",
+			slog.String("error", err.Error()),
+			slog.String("fund_id", fundID.String()),
+		)
+
+		return nil, err
+	}
+
+	return &ClosedFund{Fund: *fund, Payouts: stats}, nil
 }

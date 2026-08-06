@@ -301,3 +301,19 @@ func (s DonationStore) UpdatePaymentPaypalFee(ctx context.Context, arg donations
 
 	return pg.UpdateOne(ctx, arg, query, toDBUpdatePaymentPaypalFeeParams, fromDBDonationPayment)
 }
+
+func (s DonationStore) GetAllFundsWithStats(ctx context.Context) ([]donations.Fund, error) {
+	return pg.FetchAll(ctx, s.queries.GetAllFundsWithStats, fromDBAllFundsRow)
+}
+
+func (s DonationStore) GetClosedFundsWithStats(ctx context.Context) ([]donations.ClosedFund, error) {
+	return pg.FetchAll(ctx, s.queries.GetClosedFundsWithStats, fromDBClosedFundRow)
+}
+
+func (s DonationStore) GetExpiredActiveFunds(ctx context.Context) ([]donations.Fund, error) {
+	return pg.FetchAll(ctx, s.queries.GetExpiredActiveFunds, fromDBExpiredFund)
+}
+
+func (s DonationStore) GetFundPayoutStats(ctx context.Context, fundID uuid.UUID) (donations.PayoutStats, error) {
+	return pg.FetchScalar(ctx, fundID, s.queries.GetFundPayoutStats, fromDBPayoutStats)
+}

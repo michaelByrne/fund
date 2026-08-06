@@ -557,7 +557,7 @@ func (h *AdminHandlers) deactivateFund(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.donationService.DeactivateFund(ctx, idUUID, member.ID)
+	err = h.donationService.DeactivateFund(ctx, idUUID, &member.ID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		common.ErrorMessage(nil, "failed to deactivate fund", r.URL.Path, r.URL.Path).Render(ctx, w)
@@ -643,7 +643,10 @@ func (h *AdminHandlers) fundsPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	funds, err := h.donationService.ListActiveFunds(ctx)
+	// Everything, not just what is open. A fund vanished from this tab the moment
+	// it expired, taking its payout history and enrolled payees out of reach on
+	// the very day a treasurer would go looking for them.
+	funds, err := h.donationService.ListAllFunds(ctx)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		common.ErrorMessage(&member, "failed to get funds", r.URL.Path, r.URL.Path).Render(ctx, w)

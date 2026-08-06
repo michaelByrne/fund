@@ -404,3 +404,50 @@ type UpdatePaymentPaypalFee struct {
 	ID               uuid.UUID
 	ProviderFeeCents int32
 }
+
+// Expired reports whether the fund is past its end date. Distinct from Active,
+// which is set by a person closing the fund: a fund can reach its expiry without
+// anyone having touched it, and the admin listing shows the two differently
+// because "it ran its course" and "someone shut it down" are not the same event.
+func (f Fund) Expired() bool {
+	return f.Expires != nil && !f.Expires.After(time.Now())
+}
+
+// Closed reports whether the fund still accepts donations.
+func (f Fund) Closed() bool {
+	return !f.Active || f.Expired()
+}
+
+// PayoutStats is what a fund disbursed. Reported alongside FundStats, which
+// covers what came in: a finished fund is only legible with both halves, and
+// "collected $500" on its own says nothing about whether it reached anyone.
+type PayoutStats struct {
+	TotalPaidCents  int64
+	TotalRecipients int64
+	TotalPayouts    int64
+	LastPayoutDate  *time.Time
+}
+
+// ClosedFund is a fund that has ended, with both sides of its ledger.
+type ClosedFund struct {
+	Fund
+	Payouts PayoutStats
+}
+
+// ClosedOn is when the fund stopped taking donations: its expiry if it had one,
+// and otherwise the time it was last updated, which for a deactivated fund is
+// when someone closed it.
+func (c ClosedFund) ClosedOn() time.Time {
+	if c.Expires != nil {
+		return *c.Expires
+	}
+
+	return c.Updated
+}
+
+// Undisbursed is what was collected but never paid out. Non-zero is not
+// necessarily wrong -- a fund can close holding a remainder too small to split
+// -- but it is the first thing worth seeing on a fund that has ended.
+func (c ClosedFund) Undisbursed() int64 {
+	return int64(c.Stats.TotalDonated) - c.Payouts.TotalPaidCents
+}

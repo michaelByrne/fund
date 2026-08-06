@@ -119,7 +119,7 @@ func TestDonationService_DeactivateFund(t *testing.T) {
 		err = donationTestService.CompleteRecurringDonation(ctx, member.ID, completeDonationTwo)
 		require.NoError(t, err)
 
-		err = donationTestService.DeactivateFund(ctx, fund.ID, member.ID)
+		err = donationTestService.DeactivateFund(ctx, fund.ID, &member.ID)
 		require.NoError(t, err)
 
 		fund, err = donationTestService.GetFundByID(ctx, fund.ID)
@@ -199,7 +199,7 @@ func TestDeactivateFundLeavesTheFundOpenIfCancellationFails(t *testing.T) {
 		return nil, nil
 	}
 
-	err = svc.DeactivateFund(ctx, fund.ID, member.ID)
+	err = svc.DeactivateFund(ctx, fund.ID, &member.ID)
 	require.Error(t, err, "a fund must not close while its subscriptions are still live")
 
 	after, err := svc.GetFundByID(ctx, fund.ID)
@@ -349,7 +349,7 @@ func TestDeactivateFundRejectsMismatchedCancellations(t *testing.T) {
 	_, err = svc.GetFundByID(ctx, fund.ID)
 	require.NoError(t, err)
 
-	err = svc.DeactivateFund(ctx, fund.ID, member.ID)
+	err = svc.DeactivateFund(ctx, fund.ID, &member.ID)
 	require.ErrorIs(t, err, donations.ErrSubscriptionsNotCancelled)
 
 	after, err := svc.GetFundByID(ctx, fund.ID)

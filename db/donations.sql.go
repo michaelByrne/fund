@@ -97,6 +97,217 @@ func (q *Queries) GetActiveFunds(ctx context.Context, payoutFrequency PayoutFreq
 	return items, nil
 }
 
+const getAllFundsWithStats = `-- name: GetAllFundsWithStats :many
+WITH FundStats AS (SELECT fund_id,
+                          COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+                          COUNT(*)                                AS total_donations,
+                          CASE
+                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+                              ELSE 0
+                              END                                 AS average_donation,
+                          COUNT(DISTINCT donor_id)                AS total_donors
+                   FROM donation
+                            JOIN member m ON donation.donor_id = m.id
+                            LEFT JOIN donation_payment dp ON donation.id = dp.donation_id
+                   GROUP BY fund_id)
+SELECT f.id, f.name, f.description, f.provider_id, f.provider_name, f.goal_cents, f.payout_frequency, f.active, f.principal, f.expires, f.next_payment, f.created, f.updated,
+       fs.total_donated,
+       fs.total_donations,
+       fs.average_donation,
+       fs.total_donors
+FROM fund f
+         LEFT JOIN FundStats fs ON f.id = fs.fund_id
+ORDER BY (f.active = false OR (f.expires IS NOT NULL AND f.expires <= NOW())),
+         f.created DESC
+`
+
+type GetAllFundsWithStatsRow struct {
+	ID              uuid.UUID
+	Name            string
+	Description     string
+	ProviderID      string
+	ProviderName    string
+	GoalCents       pgtype.Int4
+	PayoutFrequency PayoutFrequency
+	Active          bool
+	Principal       uuid.NullUUID
+	Expires         NullDBTime
+	NextPayment     DBTime
+	Created         pgtype.Timestamptz
+	Updated         pgtype.Timestamptz
+	TotalDonated    pgtype.Int4
+	TotalDonations  pgtype.Int8
+	AverageDonation pgtype.Int4
+	TotalDonors     pgtype.Int8
+}
+
+// The admin listing, deliberately unfiltered.
+//
+// GetActiveFunds hides anything inactive or past its expiry, which is right for
+// the public page: a donor should not be offered a fund that is closed. Applied
+// to the admin tab it meant a fund vanished from the treasurer's view at the
+// moment it expired -- taking its payout history, its event feed and its enrolled
+// payees with it, on exactly the day someone would want to look at them.
+//
+// Closed funds sort last so the working set stays at the top of the list.
+func (q *Queries) GetAllFundsWithStats(ctx context.Context) ([]GetAllFundsWithStatsRow, error) {
+	rows, err := q.db.Query(ctx, getAllFundsWithStats)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAllFundsWithStatsRow
+	for rows.Next() {
+		var i GetAllFundsWithStatsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.ProviderID,
+			&i.ProviderName,
+			&i.GoalCents,
+			&i.PayoutFrequency,
+			&i.Active,
+			&i.Principal,
+			&i.Expires,
+			&i.NextPayment,
+			&i.Created,
+			&i.Updated,
+			&i.TotalDonated,
+			&i.TotalDonations,
+			&i.AverageDonation,
+			&i.TotalDonors,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getClosedFundsWithStats = `-- name: GetClosedFundsWithStats :many
+WITH FundStats AS (SELECT fund_id,
+                          COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+                          COUNT(*)                                AS total_donations,
+                          CASE
+                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+                              ELSE 0
+                              END                                 AS average_donation,
+                          COUNT(DISTINCT donor_id)                AS total_donors
+                   FROM donation
+                            JOIN member m ON donation.donor_id = m.id
+                            LEFT JOIN donation_payment dp ON donation.id = dp.donation_id
+                   GROUP BY fund_id),
+     -- Aggregated here rather than queried per fund. This drives the front page,
+     -- and the archive only ever grows, so a round-trip per row turns a page load
+     -- into one query plus one per closed fund forever.
+     PayoutStats AS (SELECT bp.fund_id,
+                            SUM(p.amount_cents)         AS total_paid_cents,
+                            COUNT(DISTINCT fe.member_id) AS total_recipients,
+                            COUNT(p.id)                  AS total_payouts,
+                            MAX(p.payout_date)           AS last_payout_date
+                     FROM payout p
+                              JOIN batch_payout bp ON bp.id = p.batch_id
+                              JOIN fund_enrollment fe ON fe.id = p.fund_enrollment_id
+                     WHERE p.status = 'paid'
+                     GROUP BY bp.fund_id)
+SELECT f.id, f.name, f.description, f.provider_id, f.provider_name, f.goal_cents, f.payout_frequency, f.active, f.principal, f.expires, f.next_payment, f.created, f.updated,
+       fs.total_donated,
+       fs.total_donations,
+       fs.average_donation,
+       fs.total_donors,
+       -- COALESCE because the join is outer: a fund that closed without paying
+       -- anyone has no row here, and those figures are zero rather than unknown.
+       COALESCE(ps.total_paid_cents, 0)::bigint AS total_paid_cents,
+       COALESCE(ps.total_recipients, 0)::bigint AS total_recipients,
+       COALESCE(ps.total_payouts, 0)::bigint    AS total_payouts,
+       -- Left nullable: "never paid out" is not a date, and a zero time would
+       -- render as a real one.
+       ps.last_payout_date::timestamptz         AS last_payout_date
+FROM fund f
+         LEFT JOIN FundStats fs ON f.id = fs.fund_id
+         LEFT JOIN PayoutStats ps ON f.id = ps.fund_id
+WHERE f.active = false
+   OR (f.expires IS NOT NULL AND f.expires <= now())
+ORDER BY COALESCE(f.expires, f.updated) DESC
+`
+
+type GetClosedFundsWithStatsRow struct {
+	ID              uuid.UUID
+	Name            string
+	Description     string
+	ProviderID      string
+	ProviderName    string
+	GoalCents       pgtype.Int4
+	PayoutFrequency PayoutFrequency
+	Active          bool
+	Principal       uuid.NullUUID
+	Expires         NullDBTime
+	NextPayment     DBTime
+	Created         pgtype.Timestamptz
+	Updated         pgtype.Timestamptz
+	TotalDonated    pgtype.Int4
+	TotalDonations  pgtype.Int8
+	AverageDonation pgtype.Int4
+	TotalDonors     pgtype.Int8
+	TotalPaidCents  int64
+	TotalRecipients int64
+	TotalPayouts    int64
+	LastPayoutDate  pgtype.Timestamptz
+}
+
+// The public archive: funds that have ended, newest first.
+//
+// Kept separate from the admin listing because this one is shown to donors, so
+// it must never include a fund that is merely inactive-by-accident -- only ones
+// that genuinely ran their course or were closed deliberately. Both qualify, but
+// the distinction is worth stating: the filter here is the inverse of the
+// active-funds filter, and the two must stay in step.
+func (q *Queries) GetClosedFundsWithStats(ctx context.Context) ([]GetClosedFundsWithStatsRow, error) {
+	rows, err := q.db.Query(ctx, getClosedFundsWithStats)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetClosedFundsWithStatsRow
+	for rows.Next() {
+		var i GetClosedFundsWithStatsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.ProviderID,
+			&i.ProviderName,
+			&i.GoalCents,
+			&i.PayoutFrequency,
+			&i.Active,
+			&i.Principal,
+			&i.Expires,
+			&i.NextPayment,
+			&i.Created,
+			&i.Updated,
+			&i.TotalDonated,
+			&i.TotalDonations,
+			&i.AverageDonation,
+			&i.TotalDonors,
+			&i.TotalPaidCents,
+			&i.TotalRecipients,
+			&i.TotalPayouts,
+			&i.LastPayoutDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDonationById = `-- name: GetDonationById :one
 SELECT id, recurring, donor_id, donation_plan_id, provider_order_id, created, updated, fund_id, active, provider_subscription_id, inactive_reason
 FROM donation
@@ -376,6 +587,44 @@ func (q *Queries) GetDonationsByMemberPaypalEmail(ctx context.Context, paypalEma
 	return items, nil
 }
 
+const getExpiredActiveFunds = `-- name: GetExpiredActiveFunds :many
+SELECT id, name
+FROM fund
+WHERE active = true
+  AND expires IS NOT NULL
+  AND expires <= now()
+ORDER BY expires
+`
+
+type GetExpiredActiveFundsRow struct {
+	ID   uuid.UUID
+	Name string
+}
+
+// Funds whose end date has passed but which are still open. The closer walks
+// these and runs the same deactivation a person would, so donations stop and
+// recurring subscriptions are cancelled at the provider rather than continuing
+// to charge donors for a fund that has ended.
+func (q *Queries) GetExpiredActiveFunds(ctx context.Context) ([]GetExpiredActiveFundsRow, error) {
+	rows, err := q.db.Query(ctx, getExpiredActiveFunds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetExpiredActiveFundsRow
+	for rows.Next() {
+		var i GetExpiredActiveFundsRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getFundById = `-- name: GetFundById :one
 WITH FundStats AS (SELECT fund_id,
                           COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
@@ -440,6 +689,43 @@ func (q *Queries) GetFundById(ctx context.Context, id uuid.UUID) (GetFundByIdRow
 		&i.TotalDonations,
 		&i.AverageDonation,
 		&i.TotalDonors,
+	)
+	return i, err
+}
+
+const getFundPayoutStats = `-- name: GetFundPayoutStats :one
+SELECT COALESCE(SUM(p.amount_cents), 0)::bigint          AS total_paid_cents,
+       COUNT(DISTINCT fe.member_id)::bigint              AS total_recipients,
+       COUNT(p.id)::bigint                               AS total_payouts,
+       MAX(p.payout_date)::timestamptz                   AS last_payout_date
+FROM payout p
+         JOIN batch_payout bp ON bp.id = p.batch_id
+         JOIN fund_enrollment fe ON fe.id = p.fund_enrollment_id
+WHERE bp.fund_id = $1
+  AND p.status = 'paid'
+`
+
+type GetFundPayoutStatsRow struct {
+	TotalPaidCents  int64
+	TotalRecipients int64
+	TotalPayouts    int64
+	LastPayoutDate  pgtype.Timestamptz
+}
+
+// What a fund actually disbursed.
+//
+// Counts only 'paid'. A summary of a finished fund is a statement of what was
+// handed out, so money still pending, unclaimed or returned does not belong in
+// it -- unlike the planner's balance check, which must count anything committed
+// precisely because it has not resolved yet.
+func (q *Queries) GetFundPayoutStats(ctx context.Context, fundID uuid.UUID) (GetFundPayoutStatsRow, error) {
+	row := q.db.QueryRow(ctx, getFundPayoutStats, fundID)
+	var i GetFundPayoutStatsRow
+	err := row.Scan(
+		&i.TotalPaidCents,
+		&i.TotalRecipients,
+		&i.TotalPayouts,
+		&i.LastPayoutDate,
 	)
 	return i, err
 }
