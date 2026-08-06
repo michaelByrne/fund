@@ -66,15 +66,25 @@ func (s DonationService) ListActiveFunds(ctx context.Context) ([]Fund, error) {
 
 	funds := append(onceFunds, recurringFunds...)
 
-	for _, fund := range funds {
-		monthly, err := s.donationStore.GetMonthlyDonationTotalsForFund(ctx, fund.ID)
-		if err != nil {
-			s.logger.Error("failed to get monthly donation totals for fund", slog.String("error", err.Error()))
+	// The monthly breakdown is deliberately not loaded here. This used to run a
+	// query per fund and assign the result to `fund`, which is a copy of the slice
+	// element, so every row was fetched and discarded. Nothing consumes Monthly
+	// from a list -- the charts are on the fund detail page, which loads its own.
+	return funds, nil
+}
 
-			return nil, err
-		}
+// ListAllFunds returns every fund, including closed and expired ones.
+//
+// Separate from ListActiveFunds rather than a flag on it, because the two have
+// opposite defaults for a reason: the public page must not offer a donor a fund
+// that is closed, and the admin page must not lose one. A shared function with a
+// boolean would make it easy to get that backwards at a call site.
+func (s DonationService) ListAllFunds(ctx context.Context) ([]Fund, error) {
+	funds, err := s.donationStore.GetAllFundsWithStats(ctx)
+	if err != nil {
+		s.logger.Error("failed to list all funds", slog.String("error", err.Error()))
 
-		fund.Stats.Monthly = monthly
+		return nil, err
 	}
 
 	return funds, nil

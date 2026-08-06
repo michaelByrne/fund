@@ -301,3 +301,7 @@ func (s DonationStore) UpdatePaymentPaypalFee(ctx context.Context, arg donations
 
 	return pg.UpdateOne(ctx, arg, query, toDBUpdatePaymentPaypalFeeParams, fromDBDonationPayment)
 }
+
+func (s DonationStore) GetAllFundsWithStats(ctx context.Context) ([]donations.Fund, error) {
+	return pg.FetchAll(ctx, s.queries.GetAllFundsWithStats, fromDBAllFundsRow)
+}

@@ -404,3 +404,16 @@ type UpdatePaymentPaypalFee struct {
 	ID               uuid.UUID
 	ProviderFeeCents int32
 }
+
+// Expired reports whether the fund is past its end date. Distinct from Active,
+// which is set by a person closing the fund: a fund can reach its expiry without
+// anyone having touched it, and the admin listing shows the two differently
+// because "it ran its course" and "someone shut it down" are not the same event.
+func (f Fund) Expired() bool {
+	return f.Expires != nil && !f.Expires.After(time.Now())
+}
+
+// Closed reports whether the fund still accepts donations.
+func (f Fund) Closed() bool {
+	return !f.Active || f.Expired()
+}

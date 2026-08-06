@@ -97,6 +97,97 @@ func (q *Queries) GetActiveFunds(ctx context.Context, payoutFrequency PayoutFreq
 	return items, nil
 }
 
+const getAllFundsWithStats = `-- name: GetAllFundsWithStats :many
+WITH FundStats AS (SELECT fund_id,
+                          COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+                          COUNT(*)                                AS total_donations,
+                          CASE
+                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+                              ELSE 0
+                              END                                 AS average_donation,
+                          COUNT(DISTINCT donor_id)                AS total_donors
+                   FROM donation
+                            JOIN member m ON donation.donor_id = m.id
+                            LEFT JOIN donation_payment dp ON donation.id = dp.donation_id
+                   GROUP BY fund_id)
+SELECT f.id, f.name, f.description, f.provider_id, f.provider_name, f.goal_cents, f.payout_frequency, f.active, f.principal, f.expires, f.next_payment, f.created, f.updated,
+       fs.total_donated,
+       fs.total_donations,
+       fs.average_donation,
+       fs.total_donors
+FROM fund f
+         LEFT JOIN FundStats fs ON f.id = fs.fund_id
+ORDER BY (f.active = false OR (f.expires IS NOT NULL AND f.expires <= NOW())),
+         f.created DESC
+`
+
+type GetAllFundsWithStatsRow struct {
+	ID              uuid.UUID
+	Name            string
+	Description     string
+	ProviderID      string
+	ProviderName    string
+	GoalCents       pgtype.Int4
+	PayoutFrequency PayoutFrequency
+	Active          bool
+	Principal       uuid.NullUUID
+	Expires         NullDBTime
+	NextPayment     DBTime
+	Created         pgtype.Timestamptz
+	Updated         pgtype.Timestamptz
+	TotalDonated    pgtype.Int4
+	TotalDonations  pgtype.Int8
+	AverageDonation pgtype.Int4
+	TotalDonors     pgtype.Int8
+}
+
+// The admin listing, deliberately unfiltered.
+//
+// GetActiveFunds hides anything inactive or past its expiry, which is right for
+// the public page: a donor should not be offered a fund that is closed. Applied
+// to the admin tab it meant a fund vanished from the treasurer's view at the
+// moment it expired -- taking its payout history, its event feed and its enrolled
+// payees with it, on exactly the day someone would want to look at them.
+//
+// Closed funds sort last so the working set stays at the top of the list.
+func (q *Queries) GetAllFundsWithStats(ctx context.Context) ([]GetAllFundsWithStatsRow, error) {
+	rows, err := q.db.Query(ctx, getAllFundsWithStats)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAllFundsWithStatsRow
+	for rows.Next() {
+		var i GetAllFundsWithStatsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.ProviderID,
+			&i.ProviderName,
+			&i.GoalCents,
+			&i.PayoutFrequency,
+			&i.Active,
+			&i.Principal,
+			&i.Expires,
+			&i.NextPayment,
+			&i.Created,
+			&i.Updated,
+			&i.TotalDonated,
+			&i.TotalDonations,
+			&i.AverageDonation,
+			&i.TotalDonors,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDonationById = `-- name: GetDonationById :one
 SELECT id, recurring, donor_id, donation_plan_id, provider_order_id, created, updated, fund_id, active, provider_subscription_id, inactive_reason
 FROM donation

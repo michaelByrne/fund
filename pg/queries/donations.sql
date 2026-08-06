@@ -283,3 +283,35 @@ WHERE d.active = $1
 
 
 
+
+-- The admin listing, deliberately unfiltered.
+--
+-- GetActiveFunds hides anything inactive or past its expiry, which is right for
+-- the public page: a donor should not be offered a fund that is closed. Applied
+-- to the admin tab it meant a fund vanished from the treasurer's view at the
+-- moment it expired -- taking its payout history, its event feed and its enrolled
+-- payees with it, on exactly the day someone would want to look at them.
+--
+-- Closed funds sort last so the working set stays at the top of the list.
+-- name: GetAllFundsWithStats :many
+WITH FundStats AS (SELECT fund_id,
+                          COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+                          COUNT(*)                                AS total_donations,
+                          CASE
+                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+                              ELSE 0
+                              END                                 AS average_donation,
+                          COUNT(DISTINCT donor_id)                AS total_donors
+                   FROM donation
+                            JOIN member m ON donation.donor_id = m.id
+                            LEFT JOIN donation_payment dp ON donation.id = dp.donation_id
+                   GROUP BY fund_id)
+SELECT f.*,
+       fs.total_donated,
+       fs.total_donations,
+       fs.average_donation,
+       fs.total_donors
+FROM fund f
+         LEFT JOIN FundStats fs ON f.id = fs.fund_id
+ORDER BY (f.active = false OR (f.expires IS NOT NULL AND f.expires <= NOW())),
+         f.created DESC;
