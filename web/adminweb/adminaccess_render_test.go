@@ -13,8 +13,8 @@ import (
 func TestAdminAccessControl(t *testing.T) {
 	viewed := members.Member{ID: uuid.New(), BCOName: "michael"}
 
-	promote := "hx-post=\"/admin/member/" + viewed.ID.String() + "/admin\""
-	revoke := "hx-delete=\"/admin/member/" + viewed.ID.String() + "/admin\""
+	promote := "hx-post=\"/admin/member/promote/" + viewed.ID.String() + "\""
+	revoke := "hx-post=\"/admin/member/demote/" + viewed.ID.String() + "\""
 
 	cases := []struct {
 		name       string

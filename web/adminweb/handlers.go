@@ -65,8 +65,11 @@ func (h *AdminHandlers) Register(r *mux.Router) {
 	r.HandleFunc("POST /admin/fund/deactivate/{id}", h.withAdmin(h.deactivateFund))
 	r.HandleFunc("POST /admin/member/deactivate/{id}", h.withAdmin(h.deactivateMember))
 	r.HandleFunc("GET /admin/member/{id}", h.withAdmin(h.memberPage))
-	r.HandleFunc("POST /admin/member/{id}/admin", h.withAdmin(h.grantAdmin))
-	r.HandleFunc("DELETE /admin/member/{id}/admin", h.withAdmin(h.revokeAdmin))
+	// verb/{id}, like deactivate above, and not /member/{id}/admin: a wildcard in
+	// the third segment overlaps every literal one, and ServeMux rejects the
+	// ambiguity by panicking as it registers.
+	r.HandleFunc("POST /admin/member/promote/{id}", h.withAdmin(h.grantAdmin))
+	r.HandleFunc("POST /admin/member/demote/{id}", h.withAdmin(h.revokeAdmin))
 	r.HandleFunc("GET /admin/fund/audits/{id}", h.withAdmin(h.availableAudits))
 	r.HandleFunc("GET /admin/fund/audit", h.withAdmin(h.fundAudit))
 	r.HandleFunc("GET /admin/fund", h.withAdmin(h.fundPage))
