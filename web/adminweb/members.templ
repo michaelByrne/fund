@@ -133,7 +133,7 @@ templ MemberRow(member members.Member) {
 	</li>
 }
 
-templ Member(viewedMember members.Member, member *members.Member, path string) {
+templ Member(viewedMember members.Member, member *members.Member, path string, state AdminAccessState) {
 	@Admin(member, path) {
 		<div id="admin-member" class="w-[95%] mx-auto h-full mt-4 blue-boxy-filter">
 			<h3 class="text-base font-semibold bg-high inline-flex p-2">member: { viewedMember.BCOName }</h3>
@@ -150,10 +150,7 @@ templ Member(viewedMember members.Member, member *members.Member, path string) {
 					<h4 class="font-semibold p-2">total contributions:</h4>
 					<span class="ml-auto p-2">${ centsToDecimalString(viewedMember.GetTotalDonatedCents()) }</span>
 				</div>
-				<div class="flex flex-row items-center my-2">
-					<h4 class="font-semibold p-2">roles:</h4>
-					<span class="ml-auto p-2">{ rolesToCommaString(viewedMember.Roles) }</span>
-				</div>
+				@AdminAccess(viewedMember, state)
 			</div>
 		</div>
 		<div class="my-4 w-[95%] mx-auto blue-boxy-filter">
@@ -161,6 +158,67 @@ templ Member(viewedMember members.Member, member *members.Member, path string) {
 			@DonationsList(viewedMember.Donations)
 		</div>
 	}
+}
+
+// AdminAccess is both the row on the member page and the fragment the toggle
+// swaps itself for, so the control always redraws from the state the server just
+// read back rather than from what the click assumed.
+//
+// It reports Cognito group membership, not member.roles. The roles column
+// authorises nothing and nothing writes ADMIN to it, so rendering it here would
+// have shown "no" for every admin in the system.
+templ AdminAccess(viewedMember members.Member, state AdminAccessState) {
+	<div id="member-admin-access" class="flex flex-col my-2">
+		<div class="flex flex-row items-center">
+			<h4 class="font-semibold p-2">admin access:</h4>
+			<span class="ml-auto p-2 flex items-center gap-3">
+				if state.Unknown {
+					<span class="text-gray-500">unavailable</span>
+				} else if state.IsAdmin {
+					<span>yes</span>
+				} else {
+					<span>no</span>
+				}
+				if state.Unknown {
+					// No control: the only honest options are a button that might
+					// undo what someone just did, or nothing.
+				} else if state.IsSelf {
+					// Revoking your own access is how an admin locks everyone out of a
+					// fund with one admin. The server refuses it too; this just stops
+					// the button existing.
+					<span class="text-xs text-gray-500">(you)</span>
+				} else if state.IsAdmin {
+					<button
+						hx-delete={ fmt.Sprintf("/admin/member/%s/admin", viewedMember.ID.String()) }
+						hx-target="#member-admin-access"
+						hx-swap="outerHTML"
+						hx-confirm={ fmt.Sprintf("revoke admin access for %s?", viewedMember.BCOName) }
+						class="px-2 py-1 text-xs text-gray-500 hover:text-red-500"
+					>
+						revoke
+					</button>
+				} else {
+					<button
+						hx-post={ fmt.Sprintf("/admin/member/%s/admin", viewedMember.ID.String()) }
+						hx-target="#member-admin-access"
+						hx-swap="outerHTML"
+						hx-confirm={ fmt.Sprintf("make %s an admin?", viewedMember.BCOName) }
+						class="px-2 py-1 text-xs text-gray-500 hover:text-blue-500"
+					>
+						make admin
+					</button>
+				}
+			</span>
+		</div>
+		if state.Changed {
+			// Cognito stamps groups into the ID token at login, so the member's
+			// current session is unchanged. Without this the page looks like it
+			// did nothing.
+			<span class="px-2 pb-2 text-xs text-gray-500">
+				takes effect the next time { viewedMember.BCOName } logs in
+			</span>
+		}
+	</div>
 }
 
 templ DonationsList(donations []donations.Donation) {
@@ -246,11 +304,3 @@ templ LastPayment(payment *donations.DonationPayment) {
 	}
 }
 
-func rolesToCommaString(roles []members.MemberRole) string {
-	var roleStrings []string
-	for _, role := range roles {
-		roleStrings = append(roleStrings, strings.ToLower(string(role)))
-	}
-
-	return strings.Join(roleStrings, ", ")
-}

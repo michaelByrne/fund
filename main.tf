@@ -307,6 +307,10 @@ resource "aws_iam_access_key" "fund_app" {
 data "aws_iam_policy_document" "fund_app" {
   # Registration, password reset and login. Scoped to this pool: the app has no
   # reason to touch another, and AdminDeleteUser is destructive enough to bound.
+  #
+  # The group actions are what let an admin promote another member from the admin
+  # UI. Group membership is the only thing that grants admin -- see the comment on
+  # jwtauth.AdminGroup -- so these three are effectively "manage who is an admin".
   statement {
     sid = "CognitoUserAdministration"
 
@@ -316,6 +320,9 @@ data "aws_iam_policy_document" "fund_app" {
       "cognito-idp:AdminDeleteUser",
       "cognito-idp:AdminGetUser",
       "cognito-idp:InitiateAuth",
+      "cognito-idp:AdminAddUserToGroup",
+      "cognito-idp:AdminRemoveUserFromGroup",
+      "cognito-idp:AdminListGroupsForUser",
     ]
 
     effect    = "Allow"
