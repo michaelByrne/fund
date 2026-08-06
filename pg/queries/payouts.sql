@@ -189,7 +189,10 @@ ORDER BY next_payment;
 -- The cast wraps the whole subtraction: applied to each operand instead, sqlc
 -- reads the result as int32 and a fund holding more than about $21m silently
 -- fails to scan.
-SELECT (COALESCE((SELECT SUM(dp.amount_cents)
+-- Refunds are subtracted, not excluded. A partial refund leaves the rest of the
+-- payment available, and a payment refunded in full contributes nothing while
+-- still existing as a record of what happened.
+SELECT (COALESCE((SELECT SUM(dp.amount_cents - dp.refunded_cents)
                   FROM donation
                            JOIN donation_payment dp ON donation.id = dp.donation_id
                   WHERE donation.fund_id = $1), 0)

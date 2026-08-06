@@ -27,6 +27,7 @@ type donationStore interface {
 	GetDonationByProviderSubscriptionID(ctx context.Context, id string) (*Donation, error)
 	SetDonationToInactiveBySubscriptionID(ctx context.Context, arg DeactivateDonationBySubscription) (*Donation, error)
 	ReactivateSuspendedDonation(ctx context.Context, subscriptionID string) (*Donation, error)
+	SetDonationPaymentRefunded(ctx context.Context, providerPaymentID string, refundedCents int32) (*RefundedPayment, error)
 }
 
 //go:generate moq -pkg mocks -out ../mocks/payments_moq.go . PaymentsProvider

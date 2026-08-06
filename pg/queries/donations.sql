@@ -136,6 +136,26 @@ VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (paypal_payment_id) DO NOTHING
 RETURNING *;
 
+-- Records money that came back, as a cumulative total rather than a delta: PayPal
+-- reports total_refunded_amount, so setting it is idempotent across redeliveries
+-- and correct when a second partial refund follows a first.
+--
+-- The inequality is what makes a redelivery report "nothing to do" -- no rows,
+-- and the caller skips the fund event rather than recording a second refund for
+-- the same money.
+-- The donation is joined so the caller has the fund and donor the event needs,
+-- rather than following the refund with a second lookup.
+-- name: SetDonationPaymentRefunded :many
+UPDATE donation_payment dp
+SET refunded_cents = $2,
+    updated        = now()
+FROM donation d
+WHERE dp.donation_id = d.id
+  AND dp.paypal_payment_id = $1
+  AND dp.refunded_cents <> $2
+RETURNING dp.id AS payment_id, d.id AS donation_id, d.fund_id, d.donor_id,
+    dp.amount_cents, dp.refunded_cents;
+
 -- name: UpdateDonationPaymentPaypalFee :one
 UPDATE donation_payment
 SET provider_fee_cents = $2
@@ -166,10 +186,10 @@ ORDER BY created;
 
 -- name: GetFundById :one
 WITH FundStats AS (SELECT fund_id,
-                          COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+                          COALESCE(SUM(amount_cents - refunded_cents), 0)::INTEGER AS total_donated,
                           COUNT(*)                                AS total_donations,
                           CASE
-                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents - refunded_cents), 0) / COUNT(*)
                               ELSE 0
                               END                                 AS average_donation,
                           COUNT(DISTINCT donor_id)                AS total_donors
@@ -221,10 +241,10 @@ RETURNING *;
 
 -- name: GetActiveFunds :many
 WITH FundStats AS (SELECT fund_id,
-                          COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+                          COALESCE(SUM(amount_cents - refunded_cents), 0)::INTEGER AS total_donated,
                           COUNT(*)                                AS total_donations,
                           CASE
-                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents - refunded_cents), 0) / COUNT(*)
                               ELSE 0
                               END                                 AS average_donation,
                           COUNT(DISTINCT donor_id)                AS total_donors
@@ -257,20 +277,20 @@ WHERE fund_id = $1
 group by dp.created;
 
 -- name: GetTotalDonatedByMember :one
-SELECT sum(amount_cents)
+SELECT sum(amount_cents - refunded_cents)
 FROM donation
          JOIN donation_payment dp on donation.id = dp.donation_id
 WHERE donor_id = $1;
 
 -- name: GetTotalDonatedByFund :one
-SELECT sum(amount_cents)
+SELECT sum(amount_cents - refunded_cents)
 FROM donation
          JOIN donation_payment dp on donation.id = dp.donation_id
 WHERE fund_id = $1;
 
 -- name: GetMonthlyTotalsByFund :many
 WITH monthly_totals AS (SELECT DATE_TRUNC('month', dp.created) AS month_year,
-                               SUM(dp.amount_cents)            AS total,
+                               SUM(dp.amount_cents - dp.refunded_cents) AS total,
                                COUNT(DISTINCT d.donor_id)      AS unique_donors
                         FROM fund f
                                  JOIN donation d ON f.id = d.fund_id
@@ -329,10 +349,10 @@ WHERE d.active = $1
 -- Closed funds sort last so the working set stays at the top of the list.
 -- name: GetAllFundsWithStats :many
 WITH FundStats AS (SELECT fund_id,
-                          COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+                          COALESCE(SUM(amount_cents - refunded_cents), 0)::INTEGER AS total_donated,
                           COUNT(*)                                AS total_donations,
                           CASE
-                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents - refunded_cents), 0) / COUNT(*)
                               ELSE 0
                               END                                 AS average_donation,
                           COUNT(DISTINCT donor_id)                AS total_donors
@@ -371,10 +391,10 @@ ORDER BY expires;
 -- active-funds filter, and the two must stay in step.
 -- name: GetClosedFundsWithStats :many
 WITH FundStats AS (SELECT fund_id,
-                          COALESCE(SUM(amount_cents), 0)::INTEGER AS total_donated,
+                          COALESCE(SUM(amount_cents - refunded_cents), 0)::INTEGER AS total_donated,
                           COUNT(*)                                AS total_donations,
                           CASE
-                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents), 0) / COUNT(*)
+                              WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_cents - refunded_cents), 0) / COUNT(*)
                               ELSE 0
                               END                                 AS average_donation,
                           COUNT(DISTINCT donor_id)                AS total_donors

@@ -274,6 +274,34 @@ func (s DonationStore) ReactivateSuspendedDonation(ctx context.Context, subscrip
 	return &donation, nil
 }
 
+// SetDonationPaymentRefunded records money returned for a payment. Returns nil
+// when the payment is unknown, or already carries this refunded total -- which is
+// what a redelivered refund webhook looks like.
+func (s DonationStore) SetDonationPaymentRefunded(ctx context.Context, providerPaymentID string, refundedCents int32) (*donations.RefundedPayment, error) {
+	rows, err := s.queries.SetDonationPaymentRefunded(ctx, db.SetDonationPaymentRefundedParams{
+		PaypalPaymentID: providerPaymentID,
+		RefundedCents:   refundedCents,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rows) == 0 {
+		return nil, nil
+	}
+
+	row := rows[0]
+
+	return &donations.RefundedPayment{
+		PaymentID:     row.PaymentID,
+		DonationID:    row.DonationID,
+		FundID:        row.FundID,
+		DonorID:       row.DonorID,
+		AmountCents:   row.AmountCents,
+		RefundedCents: row.RefundedCents,
+	}, nil
+}
+
 func (s DonationStore) InsertDonationPayment(ctx context.Context, payment donations.InsertDonationPayment) (*donations.DonationPayment, error) {
 	query := s.queries.InsertDonationPayment
 

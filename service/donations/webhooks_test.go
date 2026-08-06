@@ -31,6 +31,11 @@ type fakeDonationStore struct {
 	resumeErr  error
 	resumeCall int
 
+	refunded    *RefundedPayment
+	refundErr   error
+	refundCents int32
+	refundCalls int
+
 	calls int
 }
 
@@ -38,6 +43,13 @@ func (f *fakeDonationStore) ReactivateSuspendedDonation(context.Context, string)
 	f.resumeCall++
 
 	return f.resumed, f.resumeErr
+}
+
+func (f *fakeDonationStore) SetDonationPaymentRefunded(_ context.Context, _ string, cents int32) (*RefundedPayment, error) {
+	f.refundCalls++
+	f.refundCents = cents
+
+	return f.refunded, f.refundErr
 }
 
 func (f *fakeDonationStore) GetDonationByProviderSubscriptionID(context.Context, string) (*Donation, error) {
@@ -253,6 +265,8 @@ func TestSubscribesToEveryDonationEvent(t *testing.T) {
 		messaging.SubscriptionCancelled,
 		messaging.SubscriptionSuspended,
 		messaging.SubscriptionPaymentFailed,
+		messaging.PaymentRefunded,
+		messaging.PaymentReversed,
 	} {
 		if !registered[event] {
 			t.Errorf("%s is never subscribed, so it would accumulate in the stream unread", event)
@@ -415,4 +429,109 @@ func require(t *testing.T, err error) {
 	if err != nil {
 		t.Fatalf("handler: %v", err)
 	}
+}
+
+// Nothing was subscribed to refunds or reversals, so money returned to a donor
+// went on counting toward the balance the payout planner divides up.
+func TestRefundsAreRecordedAgainstTheRightPayment(t *testing.T) {
+	refunded := &RefundedPayment{
+		PaymentID: uuid.New(), DonationID: uuid.New(),
+		FundID: uuid.New(), DonorID: uuid.New(),
+		AmountCents: 5000, RefundedCents: 5000,
+	}
+
+	t.Run("prefers the running total over this refund's own amount", func(t *testing.T) {
+		store := &fakeDonationStore{refunded: refunded}
+
+		// A second partial refund: 10.00 now, 30.00 in all. Recording 10 would
+		// leave the fund believing it still holds money it has returned.
+		payload := []byte(`{"id":"REF-2","sale_id":"SALE-1",
+			"amount":{"total":"10.00"},"total_refunded_amount":{"value":"30.00"}}`)
+
+		if err := newHandlers(store, &recordedEvents{}).paymentRefunded(payload); err != nil {
+			t.Fatalf("paymentRefunded: %v", err)
+		}
+
+		if store.refundCents != 3000 {
+			t.Errorf("recorded %d cents refunded, want 3000", store.refundCents)
+		}
+	})
+
+	t.Run("a reversal reports the sale in id rather than sale_id", func(t *testing.T) {
+		store := &fakeDonationStore{refunded: refunded}
+
+		payload := []byte(`{"id":"SALE-1","amount":{"total":"50.00"}}`)
+
+		if err := newHandlers(store, &recordedEvents{}).paymentRefunded(payload); err != nil {
+			t.Fatalf("paymentRefunded: %v", err)
+		}
+
+		if store.refundCalls != 1 {
+			t.Error("a reversal must still find its payment")
+		}
+	})
+
+	t.Run("records the money as leaving", func(t *testing.T) {
+		events := &recordedEvents{}
+
+		payload := []byte(`{"id":"REF-1","sale_id":"SALE-1","amount":{"total":"50.00"}}`)
+
+		if err := newHandlers(&fakeDonationStore{refunded: refunded}, events).paymentRefunded(payload); err != nil {
+			t.Fatalf("paymentRefunded: %v", err)
+		}
+
+		if len(events.records) != 1 {
+			t.Fatalf("recorded %d events, want 1", len(events.records))
+		}
+
+		record := events.records[0]
+
+		if record.Kind != fundevents.KindPaymentRefunded {
+			t.Errorf("kind = %s, want %s", record.Kind, fundevents.KindPaymentRefunded)
+		}
+
+		// The feed reads as money moving, and this moved out.
+		if record.AmountCents == nil || *record.AmountCents >= 0 {
+			t.Errorf("amount = %v, want a negative figure", record.AmountCents)
+		}
+	})
+
+	t.Run("a payment we do not know records nothing", func(t *testing.T) {
+		events := &recordedEvents{}
+		store := &fakeDonationStore{refunded: nil}
+
+		payload := []byte(`{"id":"REF-1","sale_id":"SOMEBODY-ELSES","amount":{"total":"50.00"}}`)
+
+		if err := newHandlers(store, events).paymentRefunded(payload); err != nil {
+			t.Fatalf("an unknown sale is ordinary on a shared account: %v", err)
+		}
+
+		if len(events.records) != 0 {
+			t.Error("a refund that changed nothing should not appear in the feed")
+		}
+	})
+
+	t.Run("a database failure is retried", func(t *testing.T) {
+		store := &fakeDonationStore{refundErr: errors.New("deadlock")}
+
+		payload := []byte(`{"id":"REF-1","sale_id":"SALE-1","amount":{"total":"50.00"}}`)
+
+		if err := newHandlers(store, &recordedEvents{}).paymentRefunded(payload); err == nil {
+			t.Error("losing a refund leaves the fund paying out money it returned")
+		}
+	})
+
+	t.Run("an unreadable amount is discarded", func(t *testing.T) {
+		store := &fakeDonationStore{refunded: refunded}
+
+		payload := []byte(`{"id":"REF-1","sale_id":"SALE-1","amount":{"total":"loads"}}`)
+
+		if err := newHandlers(store, &recordedEvents{}).paymentRefunded(payload); err != nil {
+			t.Errorf("no retry makes 'loads' a number: %v", err)
+		}
+
+		if store.refundCalls != 0 {
+			t.Error("nothing should have been written")
+		}
+	})
 }

@@ -409,7 +409,7 @@ func (q *Queries) GetBatchPayoutsNeedingReminder(ctx context.Context, remindWith
 }
 
 const getFundBalanceCents = `-- name: GetFundBalanceCents :one
-SELECT (COALESCE((SELECT SUM(dp.amount_cents)
+SELECT (COALESCE((SELECT SUM(dp.amount_cents - dp.refunded_cents)
                   FROM donation
                            JOIN donation_payment dp ON donation.id = dp.donation_id
                   WHERE donation.fund_id = $1), 0)
@@ -434,6 +434,9 @@ SELECT (COALESCE((SELECT SUM(dp.amount_cents)
 // The cast wraps the whole subtraction: applied to each operand instead, sqlc
 // reads the result as int32 and a fund holding more than about $21m silently
 // fails to scan.
+// Refunds are subtracted, not excluded. A partial refund leaves the rest of the
+// payment available, and a payment refunded in full contributes nothing while
+// still existing as a record of what happened.
 func (q *Queries) GetFundBalanceCents(ctx context.Context, fundID uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, getFundBalanceCents, fundID)
 	var available_cents int64

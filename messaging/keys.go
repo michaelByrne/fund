@@ -2,7 +2,14 @@ package messaging
 
 // Paypal webhook event types, used as subjects on this bus.
 const (
-	PaymentCompleted          = "PAYMENT.SALE.COMPLETED"
+	PaymentCompleted = "PAYMENT.SALE.COMPLETED"
+
+	// A refund is money returned to the donor; a reversal is money taken back by
+	// PayPal or the donor's bank, usually a chargeback. They arrive with the same
+	// shape and mean the same thing to a fund balance: it is not ours.
+	PaymentRefunded = "PAYMENT.SALE.REFUNDED"
+	PaymentReversed = "PAYMENT.SALE.REVERSED"
+
 	SubscriptionExpired       = "BILLING.SUBSCRIPTION.EXPIRED"
 	SubscriptionSuspended     = "BILLING.SUBSCRIPTION.SUSPENDED"
 	SubscriptionCancelled     = "BILLING.SUBSCRIPTION.CANCELLED"

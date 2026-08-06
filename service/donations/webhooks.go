@@ -53,6 +53,15 @@ func (h *Handlers) Subscribe(subscriber subscriber) error {
 		errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", messaging.SubscriptionSuspended, err))
 	}
 
+	// Money coming back. Refund and reversal are the same thing to a balance --
+	// one returned by us, one taken back by the donor's bank -- and neither was
+	// subscribed, so a refunded donation went on being paid out.
+	for _, event := range []string{messaging.PaymentRefunded, messaging.PaymentReversed} {
+		if err := subscriber.Subscribe(event, h.paymentRefunded); err != nil {
+			errResult = multierror.Append(err, fmt.Errorf("failed to subscribe to %s: %w", event, err))
+		}
+	}
+
 	// A failed payment is not an ended subscription. PayPal retries, and most
 	// recover, so this records and changes nothing.
 	if err := subscriber.Subscribe(messaging.SubscriptionPaymentFailed, h.subscriptionPaymentFailed); err != nil {
@@ -69,6 +78,75 @@ func (h *Handlers) Subscribe(subscriber subscriber) error {
 // the fund would stop counting money it is still receiving. What matters is that
 // somebody can see a run of them against one donor, which is what the feed is
 // for.
+// paymentRefunded records money returned to the donor or taken back by their
+// bank.
+//
+// The fund balance is what the planner divides between enrollees, so a refund
+// that is not subtracted leaves the fund paying out money it no longer holds --
+// from a PayPal balance shared with every other fund. The payment row survives:
+// it happened, and an audit trail that erases what it reverses is not one.
+func (h *Handlers) paymentRefunded(data []byte) error {
+	var event RefundEvent
+	if err := json.Unmarshal(data, &event); err != nil {
+		h.logger.Error("discarding unparseable refund event", slog.String("error", err.Error()))
+
+		return nil
+	}
+
+	paymentID := event.PaymentID()
+	if paymentID == "" {
+		h.logger.Error("discarding refund event with no payment to attribute it to")
+
+		return nil
+	}
+
+	refundedCents, err := dollarStringToCents(event.RefundedTotal())
+	if err != nil {
+		h.logger.Error("discarding refund with an unreadable amount",
+			slog.String("amount", event.RefundedTotal()),
+			slog.String("error", err.Error()),
+		)
+
+		return nil
+	}
+
+	refunded, err := h.donationStore.SetDonationPaymentRefunded(context.Background(), paymentID, refundedCents)
+	if err != nil {
+		return fmt.Errorf("failed to record refund for payment %s: %w", paymentID, err)
+	}
+
+	// Nil means the payment is unknown to us, or already carries this refunded
+	// total. The first is somebody else's sale on a shared account; the second is
+	// a redelivery. Neither is a failure, and neither should record an event.
+	if refunded == nil {
+		h.logger.Info("refund recorded nothing",
+			slog.String("provider_payment_id", paymentID),
+		)
+
+		return nil
+	}
+
+	h.logger.Info("recorded a refund against a payment",
+		slog.String("provider_payment_id", paymentID),
+		slog.Int("refunded_cents", int(refundedCents)),
+	)
+
+	// Negative, because the feed reads as money moving and this moved out.
+	amount := -refundedCents
+
+	h.events.Record(context.Background(), fundevents.Record{
+		FundID:          refunded.FundID,
+		Kind:            fundevents.KindPaymentRefunded,
+		OccurredAt:      event.CreateTime,
+		SubjectMemberID: &refunded.DonorID,
+		AmountCents:     &amount,
+		Detail:          "refunded at provider",
+		ReferenceID:     &refunded.DonationID,
+	})
+
+	return nil
+}
+
 func (h *Handlers) subscriptionPaymentFailed(data []byte) error {
 	var event SubscriptionEvent
 	if err := json.Unmarshal(data, &event); err != nil {
