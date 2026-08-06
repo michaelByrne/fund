@@ -1,0 +1,15 @@
+# See railway/plan-due.toml for why each cron needs its own config file.
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "go build -o fund ./cmd"
+
+[deploy]
+# --confirm is what makes this send. Without it the command is a dry run, which
+# as a cron entry would report what it would have done, hourly, forever.
+startCommand = "./fund payout submit-approved --confirm"
+# Offset from sweep deliberately: running both at :00 races the expiry cancel
+# against the submission of the batch it is cancelling.
+cronSchedule = "15 * * * *"
+numReplicas = 1
+restartPolicyType = "NEVER"
