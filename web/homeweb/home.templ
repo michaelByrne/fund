@@ -5,6 +5,7 @@ import (
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -13,7 +14,7 @@ templ FundsTitle() {
 	<h2 class="font-semibold text-lg p-2 inline-block bg-high shadow-blue-boxy-thin mt-4 mx-4">current active funds</h2>
 }
 
-templ Funds(funds []donations.Fund, member *members.Member, path string) {
+templ Funds(funds []donations.Fund, closed []donations.ClosedFund, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div id="funds">
 			<div class="w-[95%] mx-auto">
@@ -70,6 +71,63 @@ templ Funds(funds []donations.Fund, member *members.Member, path string) {
 						}
 					</div>
 				</div>
+				@ClosedFunds(closed)
+			</div>
+		</div>
+	}
+}
+
+// ClosedFunds is the archive under the active list. Rendered as nothing at all
+// when empty rather than as an empty table with a heading, which on a new
+// instance would read as a fault.
+templ ClosedFunds(funds []donations.ClosedFund) {
+	if len(funds) > 0 {
+		<h2 class="font-semibold text-lg p-2 inline-block bg-high shadow-blue-boxy-thin mt-8 mx-4">closed funds</h2>
+		<div class="ml-4 mb-5 mt-4 bl">
+			<div class="hidden lg:table max-h-[300px] w-[90%] overflow-y-auto">
+				<table class="table-auto w-full border-collapse text-sm leading-relaxed blue-boxy-filter">
+					<thead class="bg-even">
+						<tr>
+							<th class="p-2 text-left font-semibold w-[30%]">name</th>
+							<th class="p-2 text-left font-semibold w-[10%]">donors</th>
+							<th class="p-2 text-left font-semibold w-[12%]">collected</th>
+							<th class="p-2 text-left font-semibold w-[12%]">paid out</th>
+							<th class="p-2 text-left font-semibold w-[12%]">recipients</th>
+							<th class="p-2 text-left font-semibold w-[15%]">closed</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, fund := range funds {
+							<tr
+								hx-get={ fmt.Sprintf("/fund/%s/summary", fund.ID.String()) }
+								class="clickable odd:bg-odd odd:hover:bg-odd-hover even:bg-even even:hover:bg-even-hover"
+							>
+								<td class="p-2">{ fund.Name }</td>
+								<td class="p-2">{ fmt.Sprintf("%d", fund.Stats.TotalDonors) }</td>
+								<td class="p-2 tabular-nums">${ centsToDecimalString(fund.Stats.TotalDonated) }</td>
+								<td class="p-2 tabular-nums">${ centsToDecimalString64(fund.Payouts.TotalPaidCents) }</td>
+								<td class="p-2 tabular-nums">{ fmt.Sprintf("%d", fund.Payouts.TotalRecipients) }</td>
+								<td class="p-2">{ fund.ClosedOn().Format("01-02-2006") }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			<div class="block lg:hidden space-y-4 text-sm">
+				for _, fund := range funds {
+					<div
+						hx-get={ fmt.Sprintf("/fund/%s/summary", fund.ID.String()) }
+						class="clickable mb-4 p-4 odd:bg-odd even:bg-even hover:shadow-blue-boxy-thin shadow-blue-boxy"
+					>
+						<p class="font-semibold text-lg mb-2">{ fund.Name }</p>
+						<div>
+							<p><span class="font-bold">collected:</span> ${ centsToDecimalString(fund.Stats.TotalDonated) }</p>
+							<p><span class="font-bold">paid out:</span> ${ centsToDecimalString64(fund.Payouts.TotalPaidCents) }</p>
+							<p><span class="font-bold">recipients:</span> { fmt.Sprintf("%d", fund.Payouts.TotalRecipients) }</p>
+							<p><span class="font-bold">closed:</span> { fund.ClosedOn().Format("01-02-2006") }</p>
+						</div>
+					</div>
+				}
 			</div>
 		</div>
 	}
@@ -130,4 +188,44 @@ func centsToDecimalString(cents int32) string {
 	}
 
 	return integerPart + "." + decimalPart
+}
+
+
+// centsToDecimalString64 formats a bigint total. Payout sums come back as int64
+// because a fund's lifetime disbursement is not bounded by the int32 that holds
+// a single donation, so narrowing here would silently wrap the one number this
+// exists to display.
+//
+// Integer division rather than float64: past 2^53 cents a float loses whole
+// cents, and a total that reads $0.01 short is worse than one that is merely
+// large.
+func centsToDecimalString64(cents int64) string {
+	sign := ""
+	if cents < 0 {
+		sign = "-"
+		cents = -cents
+	}
+
+	whole := cents / 100
+	frac := cents % 100
+
+	return sign + addThousandsSeparators(strconv.FormatInt(whole, 10)) + fmt.Sprintf(".%02d", frac)
+}
+
+func addThousandsSeparators(digits string) string {
+	n := len(digits)
+	if n <= 3 {
+		return digits
+	}
+
+	var result strings.Builder
+	for i, digit := range digits {
+		if (n-i)%3 == 0 && i != 0 {
+			result.WriteString(",")
+		}
+
+		result.WriteRune(digit)
+	}
+
+	return result.String()
 }

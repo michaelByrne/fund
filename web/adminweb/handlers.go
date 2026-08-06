@@ -557,7 +557,7 @@ func (h *AdminHandlers) deactivateFund(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.donationService.DeactivateFund(ctx, idUUID, member.ID)
+	err = h.donationService.DeactivateFund(ctx, idUUID, &member.ID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		common.ErrorMessage(nil, "failed to deactivate fund", r.URL.Path, r.URL.Path).Render(ctx, w)

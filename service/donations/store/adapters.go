@@ -315,3 +315,53 @@ func fromDBAllFundsRow(fund db.GetAllFundsWithStatsRow) donations.Fund {
 
 	return fundOut
 }
+
+func fromDBClosedFundRow(fund db.GetClosedFundsWithStatsRow) donations.Fund {
+	fundOut := donations.Fund{
+		ID:              fund.ID,
+		Name:            fund.Name,
+		Description:     fund.Description,
+		ProviderName:    fund.ProviderName,
+		ProviderID:      fund.ProviderID,
+		Active:          fund.Active,
+		PayoutFrequency: donations.PayoutFrequency(fund.PayoutFrequency),
+		NextPayment:     fund.NextPayment.Time,
+		GoalCents:       fund.GoalCents.Int32,
+		Created:         fund.Created.Time,
+		Updated:         fund.Updated.Time,
+		Principal:       fund.Principal,
+		Stats: donations.FundStats{
+			TotalDonated:    fund.TotalDonated.Int32,
+			TotalDonations:  int32(fund.TotalDonations.Int64),
+			AverageDonation: fund.AverageDonation.Int32,
+			TotalDonors:     int32(fund.TotalDonors.Int64),
+		},
+	}
+
+	if !fund.Expires.Time.IsZero() {
+		fundOut.Expires = &fund.Expires.Time
+	}
+
+	return fundOut
+}
+
+func fromDBPayoutStats(stats db.GetFundPayoutStatsRow) donations.PayoutStats {
+	out := donations.PayoutStats{
+		TotalPaidCents:  stats.TotalPaidCents,
+		TotalRecipients: stats.TotalRecipients,
+		TotalPayouts:    stats.TotalPayouts,
+	}
+
+	// A fund that never paid out has no last payout date, which the aggregate
+	// returns as NULL rather than as a zero time.
+	if stats.LastPayoutDate.Valid {
+		last := stats.LastPayoutDate.Time
+		out.LastPayoutDate = &last
+	}
+
+	return out
+}
+
+func fromDBExpiredFund(fund db.GetExpiredActiveFundsRow) donations.Fund {
+	return donations.Fund{ID: fund.ID, Name: fund.Name}
+}

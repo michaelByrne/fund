@@ -6,9 +6,11 @@ import (
 	"boardfund/web/common"
 	"boardfund/web/mux"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/alexedwards/scs/v2"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -54,6 +56,7 @@ func (h *FundHandlers) Register(r *mux.Router) {
 	r.HandleFunc("/error", h.error)
 	r.HandleFunc("/ping", h.ping)
 	r.HandleFunc("/about", h.about)
+	r.HandleFunc("/fund/{fundId}/summary", h.withAuth(h.closedFundSummary))
 	r.HandleFunc("/", h.withAuth(h.home))
 }
 
@@ -587,7 +590,62 @@ func (h *FundHandlers) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	Funds(funds, &member, r.URL.Path).Render(ctx, w)
+	closed, err := h.donationService.ListClosedFunds(ctx)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
+
+		return
+	}
+
+	Funds(funds, closed, &member, r.URL.Path).Render(ctx, w)
+}
+
+// closedFundSummary is the archive page for one ended fund. A fund that is still
+// open is redirected to its donation page rather than shown a summary that says
+// it has closed.
+func (h *FundHandlers) closedFundSummary(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		common.ErrorMessage(&member, "unauthorized", "/", r.URL.Path).Render(ctx, w)
+
+		return
+	}
+
+	fundID, err := uuid.Parse(r.PathValue("fundId"))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		common.ErrorMessage(&member, "that is not a fund id", "/", r.URL.Path).Render(ctx, w)
+
+		return
+	}
+
+	fund, err := h.donationService.GetClosedFund(ctx, fundID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			w.WriteHeader(http.StatusNotFound)
+			common.ErrorMessage(&member, "no such fund", "/", r.URL.Path).Render(ctx, w)
+
+			return
+		}
+
+		w.WriteHeader(http.StatusInternalServerError)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
+
+		return
+	}
+
+	if !fund.Closed() {
+		// Still taking donations, so the donation page is the honest destination.
+		http.Redirect(w, r, "/donate/"+fundID.String(), http.StatusSeeOther)
+
+		return
+	}
+
+	ClosedFundSummary(*fund, fund.Stats, &member, r.URL.Path).Render(ctx, w)
 }
 
 func sendJSON(w http.ResponseWriter, status int, v any) {

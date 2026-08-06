@@ -132,3 +132,18 @@ func TestAdminListingSortsClosedFundsLast(t *testing.T) {
 	assert.True(t, all[1].Closed())
 	assert.True(t, all[2].Closed())
 }
+
+func seedTestMember(t *testing.T, ctx context.Context, pool *pgxpool.Pool) uuid.UUID {
+	t.Helper()
+
+	memberID := uuid.New()
+
+	_, err := pool.Exec(ctx,
+		`INSERT INTO member (id, bco_name, email, provider_payer_id, active)
+		 VALUES ($1, $2, $3, $4, true)`,
+		memberID, memberID.String()[:8], memberID.String()+"@test.example", memberID.String(),
+	)
+	require.NoError(t, err)
+
+	return memberID
+}

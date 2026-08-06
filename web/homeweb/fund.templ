@@ -4,6 +4,7 @@ import (
 	"boardfund/service/donations"
 	"boardfund/service/members"
 	"boardfund/web/common"
+	"fmt"
 )
 
 func donationURL(freq donations.PayoutFrequency) string {
@@ -99,4 +100,70 @@ templ Description(text string) {
 
 templ Title(text string) {
 	<h2 class="font-semibold bg-high inline-flex text-lg px-2 py-4">donate to&nbsp;<span class="underline underline-offset-4 decoration-[#333333]">{ text }</span></h2>
+}
+
+// ClosedFundSummary is the read-only counterpart to Fund: the same statistics
+// and the same chart, with the donation form replaced by what the fund did.
+// A closed fund still has a story worth reading, and until this existed the only
+// way to see it was a page that offered to take money for a fund that had ended.
+templ ClosedFundSummary(fund donations.ClosedFund, fundStats donations.FundStats, member *members.Member, path string) {
+	@common.Layout(member, path) {
+		<div class="p-5 mt-2">
+			<span class="blue-boxy-filter">
+				@Title(fund.Name)
+			</span>
+			<div class="mt-2 mb-4">
+				<span class="text-xs px-2 py-1 bg-gray-200 text-gray-700">
+					closed { fund.ClosedOn().Format("January 2, 2006") }
+				</span>
+			</div>
+			<hr class="border-odd"/>
+			@Description(fund.Description)
+			<hr class="border-odd"/>
+			@ClosedFundLedger(fund)
+			<div class="grid grid-cols-1 lg:grid-cols-3 gap-2">
+				@common.FundStatus(fund.Fund, fundStats)
+				if len(fundStats.Monthly) > 0 {
+					<div class="col-span-2 my-2 blue-boxy-filter">
+						<div class="text-md font-semibold p-2 inline-block bg-high">month-by-month</div>
+						<canvas class="bg-odd">
+							@MonthlyTotalsChart(fundStats)
+						</canvas>
+					</div>
+				}
+			</div>
+		</div>
+	}
+}
+
+// ClosedFundLedger shows both sides at once. Collected on its own says nothing
+// about whether the money reached anyone, which is the question a finished fund
+// exists to answer.
+templ ClosedFundLedger(fund donations.ClosedFund) {
+	<div class="my-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+		@LedgerFigure("collected", "$"+centsToDecimalString(fund.Stats.TotalDonated))
+		@LedgerFigure("paid out", "$"+centsToDecimalString64(fund.Payouts.TotalPaidCents))
+		@LedgerFigure("recipients", fmt.Sprintf("%d", fund.Payouts.TotalRecipients))
+		@LedgerFigure("payouts", fmt.Sprintf("%d", fund.Payouts.TotalPayouts))
+	</div>
+	if fund.Undisbursed() != 0 {
+		<p class="text-sm text-gray-600 mb-4">
+			// Shown rather than hidden. A remainder is usually just what would not
+			// divide evenly among recipients, but it is the one figure on this page
+			// that could indicate money never went where it was meant to.
+			{ "$" + centsToDecimalString64(fund.Undisbursed()) } was collected but not paid out.
+		</p>
+	}
+	if fund.Payouts.LastPayoutDate != nil {
+		<p class="text-sm text-gray-600 mb-4">
+			last payout { fund.Payouts.LastPayoutDate.Format("January 2, 2006") }.
+		</p>
+	}
+}
+
+templ LedgerFigure(label, value string) {
+	<div class="p-3 bg-odd">
+		<div class="text-xs text-gray-600">{ label }</div>
+		<div class="text-lg font-semibold tabular-nums">{ value }</div>
+	</div>
 }

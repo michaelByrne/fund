@@ -205,6 +205,8 @@ func eventLabel(kind fundevents.Kind) string {
 		return "payout batch submitted"
 	case fundevents.KindBatchSettled:
 		return "payout batch settled"
+	case fundevents.KindFundClosed:
+		return "fund closed"
 	default:
 		// A kind added to the enum but not here still renders legibly rather
 		// than as a blank row.

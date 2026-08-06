@@ -25,6 +25,7 @@ const (
 	KindBatchExpired        Kind = "payout_batch_expired"
 	KindBatchSubmitted      Kind = "payout_batch_submitted"
 	KindBatchSettled        Kind = "payout_batch_settled"
+	KindFundClosed          Kind = "fund_closed"
 )
 
 // Record is one thing that happened.
