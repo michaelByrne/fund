@@ -165,6 +165,26 @@ resource "aws_ses_domain_dkim" "fund_domain_dkim" {
   domain = aws_ses_domain_identity.fund_domain.domain
 }
 
+# Without this, SES uses amazonses.com as the envelope sender. Mail still passes
+# SPF -- against Amazon's domain, not ours -- so it does not align, and DMARC
+# then rests entirely on DKIM. A custom MAIL FROM aligns both.
+#
+# The DNS this needs is already published: an MX for mail.bcofund.org pointing at
+# feedback-smtp.us-west-2.amazonses.com, and a TXT with
+# "v=spf1 include:amazonses.com ~all". The subdomain is deliberate -- SPF is
+# checked against the envelope sender, so the apex record covering Cloudflare's
+# mail routing is unaffected and does not need amazonses added to it.
+#
+# UseDefaultValue on MX failure, not RejectMessage: if the records go missing,
+# SES falls back to amazonses.com and mail still arrives unaligned. The
+# alternative is invitations bouncing, and stale DNS is exactly the failure this
+# domain has already had.
+resource "aws_ses_domain_mail_from" "fund_domain_mail_from" {
+  domain                 = aws_ses_domain_identity.fund_domain.domain
+  mail_from_domain       = "mail.${var.domain}"
+  behavior_on_mx_failure = "UseDefaultValue"
+}
+
 resource "aws_ses_email_identity" "welcome_email" {
   email = "welcome@${var.domain}"
 }
