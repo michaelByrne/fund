@@ -144,6 +144,52 @@ func (p Paypal) InitiateDonation(ctx context.Context, fund donations.Fund, amoun
 	return orderResponse.ID, nil
 }
 
+// GetOrder reads an order back from PayPal so a one-time donation can be
+// recorded from what the provider says happened rather than from what the
+// browser reports.
+//
+// Everything that matters is already ours: the reference id is the fund we set
+// when the order was created, and the capture is the money PayPal actually took.
+// The client only needs to name the order.
+func (p Paypal) GetOrder(ctx context.Context, orderID string) (*donations.ProviderOrder, error) {
+	orderBytes, err := p.client.get(ctx, "/v2/checkout/orders/"+orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	var order PaymentCaptureResponse
+	if err = json.Unmarshal(orderBytes, &order); err != nil {
+		return nil, err
+	}
+
+	result := donations.ProviderOrder{
+		Status: order.Status,
+	}
+
+	if len(order.PurchaseUnits) == 0 {
+		return &result, nil
+	}
+
+	unit := order.PurchaseUnits[0]
+	result.FundReferenceID = unit.ReferenceID
+
+	// The captured amount, not the requested one. An order can be authorised for
+	// one figure and captured for another, and only what was captured is money the
+	// fund actually holds.
+	for _, capture := range unit.Payments.Captures {
+		if capture.Status != "COMPLETED" {
+			continue
+		}
+
+		result.ProviderPaymentID = capture.ID
+		result.AmountCents = decimalDollarStringToCents(capture.Amount.Value)
+
+		break
+	}
+
+	return &result, nil
+}
+
 func (p Paypal) GetProviderDonationSubscriptionStatus(ctx context.Context, providerSubscriptionID string) (string, error) {
 	subscriptionBytes, err := p.client.get(ctx, "/v1/billing/subscriptions/"+providerSubscriptionID)
 	if err != nil {

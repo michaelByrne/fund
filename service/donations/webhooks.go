@@ -122,9 +122,20 @@ func (h *Handlers) paymentSaleCompleted(data []byte) {
 		ProviderFeeCents:  feeAmountCents,
 	}
 
-	_, err = h.donationStore.InsertDonationPayment(context.Background(), insertPayment)
+	recorded, err := h.donationStore.InsertDonationPayment(context.Background(), insertPayment)
 	if err != nil {
 		h.logger.Error("failed to insert donation payment", slog.String("error", err.Error()))
+
+		return
+	}
+
+	// Already on record, so this is a redelivery. Returning here keeps the fund
+	// event out of the audit trail too: the payment is counted once, and the feed
+	// should not show it arriving twice.
+	if recorded == nil {
+		h.logger.Info("payment already recorded, ignoring redelivery",
+			slog.String("provider_payment_id", paymentSale.ID),
+		)
 
 		return
 	}

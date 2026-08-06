@@ -319,7 +319,47 @@ func (s DonationService) InitiateDonation(ctx context.Context, fundID uuid.UUID,
 	return orderID, nil
 }
 
+// CompleteDonation records a one-time donation from the provider's account of the
+// order, not the browser's.
+//
+// Only the order id is taken from the caller. The amount, the payment id and the
+// fund all come back from PayPal, so a request cannot claim money that was never
+// captured. The recurring path has always worked this way -- it records from a
+// signed PAYMENT.SALE.COMPLETED webhook -- and this closes the same gap on the
+// one-time path, which trusted the form outright.
 func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUID, completion OneTimeCompletion) error {
+	order, err := s.paymentsProvider.GetOrder(ctx, completion.ProviderOrderID)
+	if err != nil {
+		s.logger.Error("failed to read order from provider",
+			slog.String("order_id", completion.ProviderOrderID),
+			slog.String("error", err.Error()),
+		)
+
+		return err
+	}
+
+	if order.Status != "COMPLETED" || order.ProviderPaymentID == "" || order.AmountCents <= 0 {
+		s.logger.Error("order is not a completed payment",
+			slog.String("order_id", completion.ProviderOrderID),
+			slog.String("status", order.Status),
+			slog.Int("amount_cents", int(order.AmountCents)),
+		)
+
+		return ErrOrderNotComplete
+	}
+
+	// The reference id was set to the fund when the order was created, so this
+	// catches an order for one fund being completed against another.
+	if order.FundReferenceID != completion.FundID.String() {
+		s.logger.Error("order belongs to a different fund",
+			slog.String("order_id", completion.ProviderOrderID),
+			slog.String("claimed_fund_id", completion.FundID.String()),
+			slog.String("order_fund_id", order.FundReferenceID),
+		)
+
+		return ErrOrderFundMismatch
+	}
+
 	insertDonation := InsertDonation{
 		ID:              uuid.New(),
 		DonorID:         memberID,
@@ -329,24 +369,38 @@ func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUI
 
 	insertPayment := InsertDonationPayment{
 		ID:                uuid.New(),
-		AmountCents:       completion.AmountCents,
-		ProviderPaymentID: completion.ProviderPaymentID,
+		AmountCents:       order.AmountCents,
+		ProviderPaymentID: order.ProviderPaymentID,
 		DonationID:        insertDonation.ID,
 	}
 
-	_, err := s.donationStore.InsertDonationWithPayment(ctx, insertDonation, insertPayment)
+	_, err = s.donationStore.InsertDonationWithPayment(ctx, insertDonation, insertPayment)
 	if err != nil {
+		// Already recorded, so the money is accounted for and the second request
+		// has nothing to do. Reporting a failure here would show the donor an
+		// error for a donation that went through.
+		if errors.Is(err, ErrPaymentAlreadyRecorded) {
+			s.logger.Info("one-time donation already recorded",
+				slog.String("provider_payment_id", order.ProviderPaymentID),
+			)
+
+			return nil
+		}
+
 		s.logger.Error("failed to create donation with payment", slog.String("error", err.Error()))
 
 		return err
 	}
 
+	// The provider's figure, not the caller's. The audit trail is read to answer
+	// where the money went, so recording a number nobody verified would put the
+	// same lie into the record it was just kept out of the ledger.
 	s.events.Record(ctx, fundevents.Record{
 		FundID:          completion.FundID,
 		Kind:            fundevents.KindDonationStarted,
 		ActorMemberID:   &memberID,
 		SubjectMemberID: &memberID,
-		AmountCents:     &completion.AmountCents,
+		AmountCents:     &order.AmountCents,
 		Detail:          "one-time",
 		ReferenceID:     &insertDonation.ID,
 	})
@@ -356,7 +410,7 @@ func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUI
 		Kind:            fundevents.KindPaymentReceived,
 		ActorMemberID:   &memberID,
 		SubjectMemberID: &memberID,
-		AmountCents:     &completion.AmountCents,
+		AmountCents:     &order.AmountCents,
 		ReferenceID:     &insertDonation.ID,
 	})
 

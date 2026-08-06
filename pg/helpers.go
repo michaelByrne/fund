@@ -11,6 +11,7 @@ import (
 )
 
 type insertOne[DBArg any, DB any] func(ctx context.Context, arg DBArg) (DB, error)
+type insertIfNew[DBArg any, DB any] func(ctx context.Context, arg DBArg) ([]DB, error)
 type upsertOne[DBArg any, DB any] func(ctx context.Context, arg DBArg) (DB, error)
 type getOne[In any, Out any] func(ctx context.Context, arg In) (Out, error)
 type updateOne[In any, Out any] func(ctx context.Context, arg In) (Out, error)
@@ -34,6 +35,28 @@ func UpdateMany[DBArg any, StoreArg, Realm any, DB any](ctx context.Context, arg
 	}
 
 	return result, nil
+}
+
+// CreateOneIfNew inserts a row that may already exist, returning nil rather than
+// an error when it does.
+//
+// Pairs with ON CONFLICT DO NOTHING ... RETURNING, which yields no rows on a
+// conflict. That is the ordinary case for a provider webhook: PayPal redelivers
+// on any non-2xx and on its own schedule, so "we have already recorded this" is
+// a success, not a failure to report.
+func CreateOneIfNew[DBArg any, StoreArg, Realm any, DB any](ctx context.Context, arg StoreArg, insert insertIfNew[DBArg, DB], transformIn transform[StoreArg, DBArg], transformOut transform[DB, Realm]) (*Realm, error) {
+	dbRes, err := insert(ctx, transformIn(arg))
+	if err != nil {
+		return nil, err
+	}
+
+	if len(dbRes) == 0 {
+		return nil, nil
+	}
+
+	result := transformOut(dbRes[0])
+
+	return &result, nil
 }
 
 func CreateOne[DBArg any, StoreArg, Realm any, DB any](ctx context.Context, arg StoreArg, insert insertOne[DBArg, DB], transformIn transform[StoreArg, DBArg], transformOut transform[DB, Realm]) (*Realm, error) {

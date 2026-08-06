@@ -32,6 +32,23 @@ func (f PayoutFrequency) Recurring() bool {
 	return f == PayoutFrequencyMonthly || f == PayoutFrequencyDaily
 }
 
+// ProviderOrder is an order as the provider reports it, which is the only
+// account of a one-time donation worth recording.
+//
+// The browser used to supply the amount and the payment id directly, and they
+// were written to the database unchecked. A member could name any figure, and
+// the fund balance is what the planner divides between enrollees -- so an
+// invented donation disbursed real money, out of a PayPal balance shared with
+// every other fund.
+type ProviderOrder struct {
+	Status string
+	// FundReferenceID is the reference we set when creating the order, so it
+	// cannot be chosen by whoever completes it.
+	FundReferenceID   string
+	ProviderPaymentID string
+	AmountCents       int32
+}
+
 type Fund struct {
 	ID              uuid.UUID       `json:"id"`
 	Principal       uuid.NullUUID   `json:"principal"`
