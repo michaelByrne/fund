@@ -404,3 +404,9 @@ type Session struct {
 	Data   []byte
 	Expiry pgtype.Timestamptz
 }
+
+type WebhookDelivery struct {
+	TransmissionID string
+	EventType      string
+	ReceivedAt     pgtype.Timestamptz
+}

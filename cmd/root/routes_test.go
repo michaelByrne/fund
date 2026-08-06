@@ -31,7 +31,7 @@ func TestAllRoutesRegisterWithoutConflict(t *testing.T) {
 	adminHandlers := adminweb.NewAdminHandlers(
 		passthrough, nil, nil, nil, nil, nil, nil, nil, nil, nil, "",
 	)
-	webhooksHandlers := hooksweb.NewWebhooksHandlers(nil, nil, nil, nil, "")
+	webhooksHandlers := hooksweb.NewWebhooksHandlers(nil, nil, nil, nil, nil, "")
 
 	router := mux.NewRouter(http.NewServeMux())
 

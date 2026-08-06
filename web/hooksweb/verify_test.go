@@ -1,6 +1,7 @@
 package hooksweb
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -119,11 +120,41 @@ func (s *stubPublisher) Publish(event string, _ []byte) error {
 	return s.err
 }
 
+// stubDeliveries reports every transmission as new unless told otherwise, which
+// is the ordinary case.
+type stubDeliveries struct {
+	seen map[string]bool
+	err  error
+}
+
+func (s *stubDeliveries) RecordDelivery(_ context.Context, transmissionID, _ string) (bool, error) {
+	if s.err != nil {
+		return false, s.err
+	}
+
+	if s.seen == nil {
+		s.seen = map[string]bool{}
+	}
+
+	if s.seen[transmissionID] {
+		return false, nil
+	}
+
+	s.seen[transmissionID] = true
+
+	return true, nil
+}
+
 func newTestHandlers(pub publisher) WebhooksHandlers {
+	return newTestHandlersWith(pub, &stubDeliveries{})
+}
+
+func newTestHandlersWith(pub publisher, seen deliveries) WebhooksHandlers {
 	return WebhooksHandlers{
-		publisher: pub,
-		logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
-		webhookID: "WH-TEST",
+		publisher:  pub,
+		deliveries: seen,
+		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		webhookID:  "WH-TEST",
 	}
 }
 
@@ -226,4 +257,79 @@ type failingTransport struct{}
 
 func (failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
 	return nil, errors.New("certificate host unreachable")
+}
+
+// A valid signature says PayPal sent this. It does not say we have not already
+// handled it: a captured request replays for as long as its certificate
+// verifies. Recorded before publishing, so a replay never reaches the stream.
+func TestAcceptRefusesToPublishAReplay(t *testing.T) {
+	body := []byte(`{"event_type":"PAYMENT.SALE.COMPLETED","resource":{}}`)
+
+	t.Run("a first delivery is published", func(t *testing.T) {
+		pub := &stubPublisher{}
+		rec := httptest.NewRecorder()
+
+		newTestHandlersWith(pub, &stubDeliveries{}).
+			accept(context.Background(), rec, "tx-1", body)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("status = %d, want 200", rec.Code)
+		}
+
+		if len(pub.published) != 1 {
+			t.Fatalf("published %v, want one event", pub.published)
+		}
+	})
+
+	t.Run("the same transmission again is not", func(t *testing.T) {
+		seen := &stubDeliveries{}
+		pub := &stubPublisher{}
+
+		first := httptest.NewRecorder()
+		newTestHandlersWith(pub, seen).accept(context.Background(), first, "tx-2", body)
+
+		second := httptest.NewRecorder()
+		newTestHandlersWith(pub, seen).accept(context.Background(), second, "tx-2", body)
+
+		// 200, because a replay is not something PayPal should send again.
+		if second.Code != http.StatusOK {
+			t.Errorf("status = %d, want 200", second.Code)
+		}
+
+		if len(pub.published) != 1 {
+			t.Errorf("published %d times, want 1 -- the replay reached the stream", len(pub.published))
+		}
+	})
+
+	t.Run("a different transmission of the same event still is", func(t *testing.T) {
+		// PayPal sends distinct transmission ids for distinct events, so keying on
+		// the id must not collapse two real payments into one.
+		seen := &stubDeliveries{}
+		pub := &stubPublisher{}
+
+		newTestHandlersWith(pub, seen).accept(context.Background(), httptest.NewRecorder(), "tx-3", body)
+		newTestHandlersWith(pub, seen).accept(context.Background(), httptest.NewRecorder(), "tx-4", body)
+
+		if len(pub.published) != 2 {
+			t.Errorf("published %d, want 2", len(pub.published))
+		}
+	})
+}
+
+// The record is what makes the replay check meaningful, so failing to write it is
+// a reason to be asked again rather than to press on unprotected.
+func TestAcceptAsksForRedeliveryWhenItCannotRecord(t *testing.T) {
+	pub := &stubPublisher{}
+	rec := httptest.NewRecorder()
+
+	newTestHandlersWith(pub, &stubDeliveries{err: errors.New("connection refused")}).
+		accept(context.Background(), rec, "tx-5", []byte(`{"event_type":"PAYMENT.SALE.COMPLETED"}`))
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", rec.Code)
+	}
+
+	if len(pub.published) != 0 {
+		t.Error("nothing should be published when we cannot tell a replay from a first delivery")
+	}
 }
