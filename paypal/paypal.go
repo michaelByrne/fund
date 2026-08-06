@@ -190,6 +190,30 @@ func (p Paypal) GetOrder(ctx context.Context, orderID string) (*donations.Provid
 	return &result, nil
 }
 
+// GetSubscription reads a subscription back so a recurring donation can be
+// recorded from what the provider says it is, rather than from what the browser
+// claims.
+//
+// plan_id is the part that matters. It is ours, created for one fund, so it is
+// what ties a subscription to the fund whose balance its payments will join.
+func (p Paypal) GetSubscription(ctx context.Context, subscriptionID string) (*donations.ProviderSubscription, error) {
+	subscriptionBytes, err := p.client.get(ctx, "/v1/billing/subscriptions/"+subscriptionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var subscription Subscription
+	if err = json.Unmarshal(subscriptionBytes, &subscription); err != nil {
+		return nil, err
+	}
+
+	return &donations.ProviderSubscription{
+		Status:         subscription.Status,
+		ProviderPlanID: subscription.PlanID,
+		AmountCents:    decimalDollarStringToCents(subscription.BillingInfo.LastPayment.Amount.Value),
+	}, nil
+}
+
 func (p Paypal) GetProviderDonationSubscriptionStatus(ctx context.Context, providerSubscriptionID string) (string, error) {
 	subscriptionBytes, err := p.client.get(ctx, "/v1/billing/subscriptions/"+providerSubscriptionID)
 	if err != nil {

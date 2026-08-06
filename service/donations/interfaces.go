@@ -25,6 +25,7 @@ type donationStore interface {
 	GetRecurringDonationsForFund(ctx context.Context, arg GetRecurringDonationsForFundRequest) ([]Donation, error)
 	GetMonthlyDonationTotalsForFund(ctx context.Context, id uuid.UUID) ([]MonthTotal, error)
 	GetDonationByProviderSubscriptionID(ctx context.Context, id string) (*Donation, error)
+	GetDonationPlanByID(ctx context.Context, id uuid.UUID) (*DonationPlan, error)
 	SetDonationToInactiveBySubscriptionID(ctx context.Context, arg DeactivateDonationBySubscription) (*Donation, error)
 	ReactivateSuspendedDonation(ctx context.Context, subscriptionID string) (*Donation, error)
 	SetDonationPaymentRefunded(ctx context.Context, providerPaymentID string, refundedCents int32) (*RefundedPayment, error)
@@ -36,6 +37,7 @@ type PaymentsProvider interface {
 	CreateFund(ctx context.Context, name, description string) (string, error)
 	InitiateDonation(ctx context.Context, fund Fund, amountCents int32) (string, error)
 	GetOrder(ctx context.Context, orderID string) (*ProviderOrder, error)
+	GetSubscription(ctx context.Context, subscriptionID string) (*ProviderSubscription, error)
 	CancelSubscriptions(ctx context.Context, ids []string) ([]string, error)
 }
 
