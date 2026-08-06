@@ -12,7 +12,7 @@ import (
 )
 
 type subscriber interface {
-	Subscribe(event string, cb func(data []byte)) error
+	Subscribe(event string, cb func(data []byte) error) error
 }
 
 // PayoutItemEvent is the resource carried by PAYMENT.PAYOUTS-ITEM.* webhooks.
@@ -97,18 +97,20 @@ func (h *Handlers) Subscribe(sub subscriber) error {
 	return errResult
 }
 
-func (h *Handlers) payoutItemUpdated(data []byte) {
+func (h *Handlers) payoutItemUpdated(data []byte) error {
 	var event PayoutItemEvent
 	if err := json.Unmarshal(data, &event); err != nil {
-		h.logger.Error("failed to unmarshal payout item event", slog.String("error", err.Error()))
+		// Unparseable now is unparseable on every redelivery, so it is
+		// acknowledged rather than retried to exhaustion.
+		h.logger.Error("discarding unparseable payout item event", slog.String("error", err.Error()))
 
-		return
+		return nil
 	}
 
 	if event.PayoutItemID == "" {
-		h.logger.Error("payout item event has no payout_item_id")
+		h.logger.Error("discarding payout item event with no payout_item_id")
 
-		return
+		return nil
 	}
 
 	var failureReason string
@@ -137,14 +139,7 @@ func (h *Handlers) payoutItemUpdated(data []byte) {
 			ProviderFeeCents:     feeCents,
 		})
 		if err != nil {
-			h.logger.Error("failed to apply payout item event",
-				slog.String("error", err.Error()),
-				slog.String("payout_id", payoutID.String()),
-				slog.String("payout_item_id", event.PayoutItemID),
-				slog.String("transaction_status", event.TransactionStatus),
-			)
-
-			return
+			return fmt.Errorf("failed to apply payout item event for payout %s: %w", payoutID, err)
 		}
 
 		h.logger.Info("applied payout item event",
@@ -152,7 +147,7 @@ func (h *Handlers) payoutItemUpdated(data []byte) {
 			slog.String("transaction_status", event.TransactionStatus),
 		)
 
-		return
+		return nil
 	}
 
 	// No usable sender_item_id. Fall back to the provider's own ID, which resolves
@@ -164,57 +159,52 @@ func (h *Handlers) payoutItemUpdated(data []byte) {
 		ProviderFeeCents:     feeCents,
 	})
 	if err != nil {
-		// Not fatal: the reconciler polls the provider and will settle this item
-		// regardless. Logged so a systematically failing webhook is visible.
-		h.logger.Error("failed to apply payout item event by provider item id",
-			slog.String("error", err.Error()),
-			slog.String("payout_item_id", event.PayoutItemID),
-			slog.String("transaction_status", event.TransactionStatus),
-		)
-
-		return
+		// Returned rather than swallowed so the message comes back. The reconciler
+		// is still the backstop, but it polls on a schedule and a redelivery is
+		// both sooner and cheaper than a full reconcile.
+		return fmt.Errorf("failed to apply payout item event %s: %w", event.PayoutItemID, err)
 	}
 
 	h.logger.Info("applied payout item event",
 		slog.String("payout_item_id", event.PayoutItemID),
 		slog.String("transaction_status", event.TransactionStatus),
 	)
+
+	return nil
 }
 
-func (h *Handlers) payoutBatchUpdated(data []byte) {
+func (h *Handlers) payoutBatchUpdated(data []byte) error {
 	var event PayoutBatchEvent
 	if err := json.Unmarshal(data, &event); err != nil {
-		h.logger.Error("failed to unmarshal payout batch event", slog.String("error", err.Error()))
+		h.logger.Error("discarding unparseable payout batch event", slog.String("error", err.Error()))
 
-		return
+		return nil
 	}
 
 	senderBatchID := event.BatchHeader.SenderBatchHeader.SenderBatchID
 	if senderBatchID == "" {
-		h.logger.Error("payout batch event has no sender_batch_id")
+		h.logger.Error("discarding payout batch event with no sender_batch_id")
 
-		return
+		return nil
 	}
 
 	senderBatchUUID, err := uuidFromString(senderBatchID)
 	if err != nil {
 		// Not one of ours: the same PayPal account may be used for payouts we did
-		// not originate.
+		// not originate. Acknowledged rather than retried -- a batch id that is not
+		// a uuid will not become one, and redelivering it four times before parking
+		// it would turn somebody else's payouts into our error log.
 		h.logger.Warn("payout batch event sender_batch_id is not a known batch",
 			slog.String("sender_batch_id", senderBatchID),
 		)
 
-		return
+		//nolint:nilerr // the error is the answer: this batch is not ours to handle.
+		return nil
 	}
 
 	batch, err := h.payoutStore.GetBatchBySenderBatchID(context.Background(), senderBatchUUID)
 	if err != nil {
-		h.logger.Error("failed to look up batch by sender batch id",
-			slog.String("error", err.Error()),
-			slog.String("sender_batch_id", senderBatchID),
-		)
-
-		return
+		return fmt.Errorf("failed to look up batch by sender batch id %s: %w", senderBatchID, err)
 	}
 
 	_, err = h.payoutStore.SetBatchStatus(context.Background(), SetBatchStatus{
@@ -222,16 +212,13 @@ func (h *Handlers) payoutBatchUpdated(data []byte) {
 		Status:  ProviderStatusToStatus(event.BatchHeader.BatchStatus),
 	})
 	if err != nil {
-		h.logger.Error("failed to apply payout batch event",
-			slog.String("error", err.Error()),
-			slog.String("batch_id", batch.ID.String()),
-		)
-
-		return
+		return fmt.Errorf("failed to apply payout batch event for batch %s: %w", batch.ID, err)
 	}
 
 	h.logger.Info("applied payout batch event",
 		slog.String("batch_id", batch.ID.String()),
 		slog.String("batch_status", event.BatchHeader.BatchStatus),
 	)
+
+	return nil
 }

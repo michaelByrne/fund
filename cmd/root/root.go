@@ -48,6 +48,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -77,7 +78,11 @@ type RunConfig struct {
 	CognitoClientID   string
 	CognitoUserPoolID string
 
-	EnableNATSLogging                bool
+	EnableNATSLogging bool
+
+	// NATSStoreDir is where JetStream keeps the webhook stream. Must be on a
+	// mounted volume; see runNATS.
+	NATSStoreDir                     string
 	DonationsPaymentsReportsS3Bucket string
 
 	ReportTypes []string
@@ -116,14 +121,26 @@ func RootCmd(ctx context.Context, runConfig RunConfig) *cobra.Command {
 }
 
 func run(ctx context.Context, runConfig RunConfig) error {
-	nc, ns, err := runNATS(runConfig.EnableNATSLogging)
+	jsonHandler := slog.NewJSONHandler(os.Stdout, nil)
+	logger := slog.New(jsonHandler)
+
+	storeDir := runConfig.NATSStoreDir
+	if storeDir == "" {
+		// Not fatal, because a webhook bus that will not start is worse than one
+		// that is not durable. Logged at error so it cannot pass for normal:
+		// without a mounted volume this is the old behaviour with extra steps.
+		storeDir = filepath.Join(os.TempDir(), "fund-jetstream")
+
+		logger.Error("NATS_STORE_DIR is not set, so webhook events will not survive a deploy",
+			slog.String("falling_back_to", storeDir),
+		)
+	}
+
+	nc, ns, err := runNATS(runConfig.EnableNATSLogging, storeDir)
 	if err != nil {
 		return err
 	}
 	defer nc.Close()
-
-	jsonHandler := slog.NewJSONHandler(os.Stdout, nil)
-	logger := slog.New(jsonHandler)
 
 	dbURI := fmt.Sprintf(
 		"postgresql://%s:%s@%s:%s/%s",
@@ -195,7 +212,11 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	}
 	verifier := jwtauth.NewToken(kset)
 
-	messageBroker := messaging.NewNATSMessageBroker(nc)
+	messageBroker, err := messaging.NewBroker(ctx, nc, logger)
+	if err != nil {
+		return err
+	}
+	defer messageBroker.Close()
 
 	fundEvents := fundevents.NewService(eventStore, logger)
 
@@ -233,17 +254,17 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, payoutService, fundEvents, sessionManager, runConfig.PayPal.ClientID,
 	)
 	webhooksHandlers := hooksweb.NewWebhooksHandlers(
-		donationService, memberService, &messageBroker, logger, runConfig.PayPal.WebhookID,
+		donationService, memberService, messageBroker, logger, runConfig.PayPal.WebhookID,
 	)
 
 	donationWebhookHandlers := donations.NewHandlers(donationStore, fundEvents, logger)
-	err = donationWebhookHandlers.Subscribe(&messageBroker)
+	err = donationWebhookHandlers.Subscribe(messageBroker)
 	if err != nil {
 		return err
 	}
 
 	payoutWebhookHandlers := payouts.NewHandlers(payoutStore, logger)
-	err = payoutWebhookHandlers.Subscribe(&messageBroker)
+	err = payoutWebhookHandlers.Subscribe(messageBroker)
 	if err != nil {
 		return err
 	}
@@ -329,8 +350,21 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	return nil
 }
 
-func runNATS(enableLogging bool) (*nats.Conn, *server.Server, error) {
-	opts := server.Options{DontListen: true}
+// runNATS starts the embedded server with JetStream on disk.
+//
+// storeDir must be on a mounted volume. Railway's container filesystem is
+// replaced on every deploy, so JetStream pointed anywhere else is durable across
+// a process restart and nothing else -- which is the failure mode this change
+// exists to remove, wearing a persistence badge.
+//
+// DontListen stays: the server has never opened a port, and nothing outside this
+// process connects to it.
+func runNATS(enableLogging bool, storeDir string) (*nats.Conn, *server.Server, error) {
+	opts := server.Options{
+		DontListen: true,
+		JetStream:  true,
+		StoreDir:   storeDir,
+	}
 
 	ns, err := server.NewServer(&opts)
 	if err != nil {

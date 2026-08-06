@@ -491,12 +491,12 @@ func TestProviderStatusToStatus(t *testing.T) {
 // captureSubscriber records the callbacks Handlers registers, so a test can drive
 // a webhook payload through the real subscription wiring.
 type captureSubscriber struct {
-	handlers map[string]func([]byte)
+	handlers map[string]func([]byte) error
 }
 
-func (c *captureSubscriber) Subscribe(event string, cb func(data []byte)) error {
+func (c *captureSubscriber) Subscribe(event string, cb func(data []byte) error) error {
 	if c.handlers == nil {
-		c.handlers = map[string]func([]byte){}
+		c.handlers = map[string]func([]byte) error{}
 	}
 
 	c.handlers[event] = cb

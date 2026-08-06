@@ -38,7 +38,7 @@ type PaymentsProvider interface {
 }
 
 type subscriber interface {
-	Subscribe(event string, cb func(data []byte)) error
+	Subscribe(event string, cb func(data []byte) error) error
 }
 
 type documentStorage interface {
