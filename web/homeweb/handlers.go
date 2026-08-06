@@ -5,6 +5,7 @@ import (
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"boardfund/web/mux"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -303,50 +304,85 @@ func (h *FundHandlers) cancelMyDonation(w http.ResponseWriter, r *http.Request) 
 
 	err = h.donationService.CancelDonationForMember(ctx, donationID, member.ID)
 	if err != nil {
-		if errors.Is(err, donations.ErrDonationNotYours) {
-			// Not-found rather than forbidden: whether the id exists is not a
-			// caller's business.
-			w.WriteHeader(http.StatusNotFound)
-			common.ErrorMessage(&member, "no such donation", "/donations", r.URL.Path).Render(ctx, w)
-
-			return
-		}
-
-		h.logger.Error("failed to cancel donation",
-			slog.String("donation_id", donationID.String()),
-			slog.String("error", err.Error()),
-		)
-
-		// Deliberately specific. The subscription is still live, and a donor told
-		// only "something went wrong" would reasonably assume it had stopped.
-		w.WriteHeader(http.StatusInternalServerError)
-		common.ErrorMessage(&member,
-			"we could not stop this donation with PayPal, so it is still running. please try again.",
-			"/donations", r.URL.Path).Render(ctx, w)
+		h.cancelFailed(ctx, w, r, member, donationID, err)
 
 		return
 	}
 
 	// Re-read so the row redraws from what is now true rather than from what the
 	// click assumed.
-	updated, err := h.donationService.ListDonationsForMember(ctx, member.ID)
-	if err != nil {
-		w.Header().Set("HX-Redirect", "/donations")
-		w.WriteHeader(http.StatusOK)
+	h.renderDonationRow(ctx, w, member, donationID, "")
+}
+
+// cancelFailed reports a failed cancellation to the donor.
+//
+// Each case gets its own status and its own words. Reporting a one-off donation
+// as a PayPal failure would be a lie about somebody's money, and telling a donor
+// only "something went wrong" after they pressed cancel invites them to assume it
+// worked -- which for a live subscription is the expensive assumption.
+func (h *FundHandlers) cancelFailed(ctx context.Context, w http.ResponseWriter, r *http.Request,
+	member members.Member, donationID uuid.UUID, err error) {
+	switch {
+	case errors.Is(err, donations.ErrDonationNotYours):
+		// Not-found rather than forbidden: whether the id exists is not a caller's
+		// business.
+		h.renderCancelError(ctx, w, r, member, donationID,
+			http.StatusNotFound, "no such donation")
+
+	case errors.Is(err, donations.ErrDonationNotCancellable):
+		// A one-off donation, or one already ended. No provider call was made and
+		// none would have helped.
+		h.renderCancelError(ctx, w, r, member, donationID,
+			http.StatusBadRequest, "that donation cannot be cancelled")
+
+	default:
+		h.logger.Error("failed to cancel donation",
+			slog.String("donation_id", donationID.String()),
+			slog.String("error", err.Error()),
+		)
+
+		h.renderCancelError(ctx, w, r, member, donationID, http.StatusInternalServerError,
+			"we could not stop this donation with PayPal, so it is still running. please try again.")
+	}
+}
+
+// renderCancelError writes the failure where the donor will see it.
+//
+// A fragment for htmx, because the response is swapped into one row: rendering
+// the full page shell there would nest a whole page inside a div. A full page for
+// an ordinary navigation, which has nowhere to put a fragment.
+func (h *FundHandlers) renderCancelError(ctx context.Context, w http.ResponseWriter, r *http.Request,
+	member members.Member, donationID uuid.UUID, status int, message string) {
+	if !common.IsHTMX(r) {
+		w.WriteHeader(status)
+		common.ErrorMessage(&member, message, "/donations", r.URL.Path).Render(ctx, w)
 
 		return
 	}
 
-	for _, donation := range updated {
-		if donation.ID == donationID {
-			MyDonationRow(donation).Render(ctx, w)
+	w.WriteHeader(status)
+	h.renderDonationRow(ctx, w, member, donationID, message)
+}
 
-			return
+// renderDonationRow redraws one donation, optionally carrying a failure.
+//
+// Re-read rather than reused, so the row reflects what the server did. When the
+// donation cannot be found -- which is the not-yours case -- there is no row to
+// draw, so the page reloads and shows the donor what they actually have.
+func (h *FundHandlers) renderDonationRow(ctx context.Context, w http.ResponseWriter,
+	member members.Member, donationID uuid.UUID, failure string) {
+	forMember, err := h.donationService.ListDonationsForMember(ctx, member.ID)
+	if err == nil {
+		for _, donation := range forMember {
+			if donation.ID == donationID {
+				MyDonationRow(donation, failure).Render(ctx, w)
+
+				return
+			}
 		}
 	}
 
 	w.Header().Set("HX-Redirect", "/donations")
-	w.WriteHeader(http.StatusOK)
 }
 
 func (h *FundHandlers) ping(w http.ResponseWriter, r *http.Request) {
