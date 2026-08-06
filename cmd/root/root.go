@@ -23,6 +23,7 @@ import (
 	payoutstore "boardfund/service/payouts/store"
 	"boardfund/web/adminweb"
 	"boardfund/web/authweb"
+	"boardfund/web/common"
 	"boardfund/web/homeweb"
 	"boardfund/web/hooksweb"
 	"boardfund/web/middlewares"
@@ -47,6 +48,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -249,19 +251,32 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	router := mux.NewRouter(http.NewServeMux())
 	router.Use(sessionManager.LoadAndSave)
 
-	// no-cache means "revalidate before reusing", not "do not store": the browser
-	// still caches, it just asks first, and gets a 304 with no body almost every
-	// time. Without this header there is no freshness information at all, so a
-	// browser is free to invent one -- typically a tenth of the file's age, which
-	// for a stylesheet last touched a year ago is weeks of serving a stale copy
-	// without ever contacting the server.
-	//
-	// These files are small, unversioned, and change with the deploy that ships
-	// them. A conditional request per asset is the right price for a CSS fix
-	// actually being visible once it is deployed.
+	// Assets are linked by a URL containing a hash of their contents, so a changed
+	// file is a new URL. Asking politely for revalidation was not enough: the
+	// origin sends no-cache and Cloudflare rewrites it to a four-hour max-age, so
+	// the browser was handed a stylesheet older than the markup that needed it.
+	// A cached copy of a hashed URL can only be of the bytes that URL names, which
+	// makes any TTL correct rather than something to argue with.
+	if err = common.LoadAssets("public"); err != nil {
+		return err
+	}
+
 	staticFiles := http.StripPrefix("/static/", http.FileServer(http.Dir("public")))
 	router.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-cache")
+		requested := strings.TrimPrefix(r.URL.Path, "/static/")
+
+		file, hashed := common.ResolveAsset(requested)
+		if hashed {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			// Serve the file the hash names. Rewriting the path rather than
+			// redirecting keeps it one request.
+			r.URL.Path = "/static/" + file
+		} else {
+			// An unhashed URL still means whatever the file holds today, so it has
+			// to be revalidated. no-cache is "ask first", not "do not store".
+			w.Header().Set("Cache-Control", "no-cache")
+		}
+
 		staticFiles.ServeHTTP(w, r)
 	})
 
