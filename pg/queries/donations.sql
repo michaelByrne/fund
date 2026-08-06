@@ -43,6 +43,34 @@ SELECT *
 FROM donation
 WHERE donor_id = $1;
 
+-- What a donor sees on their own donations page: one row per donation, with the
+-- fund it supports, what they have given to it, and what it costs them.
+--
+-- Refunds are subtracted from the total for the same reason they are everywhere
+-- else -- money that came back is not money they gave.
+-- name: GetDonationsForDonor :many
+SELECT d.id,
+       d.fund_id,
+       f.name                                                        AS fund_name,
+       f.active                                                      AS fund_active,
+       d.recurring,
+       d.active,
+       d.inactive_reason,
+       d.provider_subscription_id,
+       d.created,
+       COALESCE(SUM(dp.amount_cents - dp.refunded_cents), 0)::bigint AS total_given_cents,
+       MAX(dp.created)::timestamptz                                  AS last_payment_at,
+       p.amount_cents                                                AS plan_amount_cents,
+       p.interval_unit                                               AS plan_interval_unit
+FROM donation d
+         JOIN fund f ON f.id = d.fund_id
+         LEFT JOIN donation_payment dp ON dp.donation_id = d.id
+         LEFT JOIN donation_plan p ON p.id = d.donation_plan_id
+WHERE d.donor_id = $1
+GROUP BY d.id, f.name, f.active, p.amount_cents, p.interval_unit
+-- Live donations first, because those are the ones with a decision attached.
+ORDER BY d.active DESC, d.created DESC;
+
 -- name: GetDonationsByMemberPaypalEmail :many
 SELECT donation.*
 FROM donation

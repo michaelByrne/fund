@@ -26,6 +26,8 @@ type donationStore interface {
 	GetMonthlyDonationTotalsForFund(ctx context.Context, id uuid.UUID) ([]MonthTotal, error)
 	GetDonationByProviderSubscriptionID(ctx context.Context, id string) (*Donation, error)
 	GetDonationPlanByID(ctx context.Context, id uuid.UUID) (*DonationPlan, error)
+	GetDonationsForDonor(ctx context.Context, donorID uuid.UUID) ([]MemberDonation, error)
+	GetDonationByID(ctx context.Context, id uuid.UUID) (*Donation, error)
 	SetDonationToInactiveBySubscriptionID(ctx context.Context, arg DeactivateDonationBySubscription) (*Donation, error)
 	ReactivateSuspendedDonation(ctx context.Context, subscriptionID string) (*Donation, error)
 	SetDonationPaymentRefunded(ctx context.Context, providerPaymentID string, refundedCents int32) (*RefundedPayment, error)

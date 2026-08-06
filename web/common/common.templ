@@ -52,6 +52,9 @@ templ Links(member *members.Member, currentPath string) {
 					<a href="/admin" class={ "hover:text-gray-500 text-links", templ.KV("link-disabled", strings.HasPrefix(currentPath, "/admin")) }>admin</a>
 				</span>
 			}
+			<span class="text-xs order-3 ml-1">
+				<a href="/donations" class={ "hover:text-gray-500 text-links", templ.KV("link-disabled", currentPath == "/donations") }>my donations</a>
+			</span>
 			<span class="text-xs hover:text-gray-500 text-links order-3 ml-1"><a href="/logout">logout</a></span>
 		} else {
 			// Public pages otherwise offered no way in: / redirects to /login, but

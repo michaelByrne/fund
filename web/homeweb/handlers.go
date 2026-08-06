@@ -5,6 +5,7 @@ import (
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"boardfund/web/mux"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -52,6 +53,8 @@ func (h *FundHandlers) Register(r *mux.Router) {
 	r.HandleFunc("/donation/once/complete", h.withAuth(h.completeOneTimeDonation))
 	r.HandleFunc("/donation/once/initiate", h.withAuth(h.initiateOneTimeDonation))
 	r.HandleFunc("/donation/success", h.withAuth(h.donationSuccess))
+	r.HandleFunc("GET /donations", h.withAuth(h.myDonations))
+	r.HandleFunc("POST /donation/cancel/{id}", h.withAuth(h.cancelMyDonation))
 	r.HandleFunc("/donate/{fundId}", h.withAuth(h.donate))
 	r.HandleFunc("/error", h.error)
 	r.HandleFunc("/ping", h.ping)
@@ -252,6 +255,134 @@ func (h *FundHandlers) donate(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("HX-Redirect", r.URL.Path)
 	Fund(*fund, fund.Stats, &member, r.URL.Path).Render(ctx, w)
+}
+
+// myDonations is a donor's own record, and the only place they can stop giving.
+func (h *FundHandlers) myDonations(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		common.Redirect(w, r, "/login")
+
+		return
+	}
+
+	donationsForMember, err := h.donationService.ListDonationsForMember(ctx, member.ID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
+
+		return
+	}
+
+	MyDonations(donationsForMember, &member, r.URL.Path).Render(ctx, w)
+}
+
+// cancelMyDonation stops a recurring donation at the provider and then here.
+//
+// The member id comes from the session and never from the request, so the only
+// donation a caller can name is one of their own -- the service refuses anything
+// else, and refuses it as not-found so a member cannot learn which ids exist.
+func (h *FundHandlers) cancelMyDonation(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		common.Redirect(w, r, "/login")
+
+		return
+	}
+
+	donationID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		common.ErrorMessage(&member, "that is not a donation id", "/donations", r.URL.Path).Render(ctx, w)
+
+		return
+	}
+
+	err = h.donationService.CancelDonationForMember(ctx, donationID, member.ID)
+	if err != nil {
+		h.cancelFailed(ctx, w, r, member, donationID, err)
+
+		return
+	}
+
+	// Re-read so the row redraws from what is now true rather than from what the
+	// click assumed.
+	h.renderDonationRow(ctx, w, member, donationID, "")
+}
+
+// cancelFailed reports a failed cancellation to the donor.
+//
+// Each case gets its own status and its own words. Reporting a one-off donation
+// as a PayPal failure would be a lie about somebody's money, and telling a donor
+// only "something went wrong" after they pressed cancel invites them to assume it
+// worked -- which for a live subscription is the expensive assumption.
+func (h *FundHandlers) cancelFailed(ctx context.Context, w http.ResponseWriter, r *http.Request,
+	member members.Member, donationID uuid.UUID, err error) {
+	switch {
+	case errors.Is(err, donations.ErrDonationNotYours):
+		// Not-found rather than forbidden: whether the id exists is not a caller's
+		// business.
+		h.renderCancelError(ctx, w, r, member, donationID,
+			http.StatusNotFound, "no such donation")
+
+	case errors.Is(err, donations.ErrDonationNotCancellable):
+		// A one-off donation, or one already ended. No provider call was made and
+		// none would have helped.
+		h.renderCancelError(ctx, w, r, member, donationID,
+			http.StatusBadRequest, "that donation cannot be cancelled")
+
+	default:
+		h.logger.Error("failed to cancel donation",
+			slog.String("donation_id", donationID.String()),
+			slog.String("error", err.Error()),
+		)
+
+		h.renderCancelError(ctx, w, r, member, donationID, http.StatusInternalServerError,
+			"we could not stop this donation with PayPal, so it is still running. please try again.")
+	}
+}
+
+// renderCancelError writes the failure where the donor will see it.
+//
+// A fragment for htmx, because the response is swapped into one row: rendering
+// the full page shell there would nest a whole page inside a div. A full page for
+// an ordinary navigation, which has nowhere to put a fragment.
+func (h *FundHandlers) renderCancelError(ctx context.Context, w http.ResponseWriter, r *http.Request,
+	member members.Member, donationID uuid.UUID, status int, message string) {
+	if !common.IsHTMX(r) {
+		w.WriteHeader(status)
+		common.ErrorMessage(&member, message, "/donations", r.URL.Path).Render(ctx, w)
+
+		return
+	}
+
+	w.WriteHeader(status)
+	h.renderDonationRow(ctx, w, member, donationID, message)
+}
+
+// renderDonationRow redraws one donation, optionally carrying a failure.
+//
+// Re-read rather than reused, so the row reflects what the server did. When the
+// donation cannot be found -- which is the not-yours case -- there is no row to
+// draw, so the page reloads and shows the donor what they actually have.
+func (h *FundHandlers) renderDonationRow(ctx context.Context, w http.ResponseWriter,
+	member members.Member, donationID uuid.UUID, failure string) {
+	forMember, err := h.donationService.ListDonationsForMember(ctx, member.ID)
+	if err == nil {
+		for _, donation := range forMember {
+			if donation.ID == donationID {
+				MyDonationRow(donation, failure).Render(ctx, w)
+
+				return
+			}
+		}
+	}
+
+	w.Header().Set("HX-Redirect", "/donations")
 }
 
 func (h *FundHandlers) ping(w http.ResponseWriter, r *http.Request) {

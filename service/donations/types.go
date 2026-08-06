@@ -60,6 +60,77 @@ type ProviderOrder struct {
 	AmountCents       int32
 }
 
+// MemberDonation is one row of a donor's own donations page.
+type MemberDonation struct {
+	ID     uuid.UUID
+	FundID uuid.UUID
+
+	FundName   string
+	FundActive bool
+
+	Recurring bool
+	Active    bool
+	// InactiveReason is the provider status that ended it, or the reason it was
+	// cancelled here. Shown so a donor who did not cancel can see who did.
+	InactiveReason string
+
+	TotalGivenCents  int64
+	PlanAmountCents  int32
+	PlanIntervalUnit IntervalUnit
+
+	Started     time.Time
+	LastPayment *time.Time
+
+	hasSubscription bool
+}
+
+// Cancellable reports whether the donor can end this from the page.
+//
+// A one-off donation has nothing to cancel -- the money has been given. An
+// inactive one has already stopped. And a recurring donation with no subscription
+// id recorded cannot be cancelled at the provider, so offering the control would
+// promise something that cannot be delivered.
+func (m MemberDonation) Cancellable() bool {
+	return m.Active && m.Recurring && m.hasSubscription
+}
+
+// MemberDonationRow is what a store hands NewMemberDonation. It exists so
+// hasSubscription stays unexported: whether a donation can be cancelled is a rule
+// of this package, not something a caller assembles for itself.
+type MemberDonationRow struct {
+	ID              uuid.UUID
+	FundID          uuid.UUID
+	FundName        string
+	FundActive      bool
+	Recurring       bool
+	Active          bool
+	InactiveReason  string
+	HasSubscription bool
+	TotalGivenCents int64
+	PlanAmountCents int32
+	PlanInterval    string
+	Started         time.Time
+	LastPayment     *time.Time
+}
+
+func NewMemberDonation(row MemberDonationRow) MemberDonation {
+	return MemberDonation{
+		ID:               row.ID,
+		FundID:           row.FundID,
+		FundName:         row.FundName,
+		FundActive:       row.FundActive,
+		Recurring:        row.Recurring,
+		Active:           row.Active,
+		InactiveReason:   row.InactiveReason,
+		TotalGivenCents:  row.TotalGivenCents,
+		PlanAmountCents:  row.PlanAmountCents,
+		PlanIntervalUnit: IntervalUnit(row.PlanInterval),
+		Started:          row.Started,
+		LastPayment:      row.LastPayment,
+		hasSubscription:  row.HasSubscription,
+	}
+}
+
 // ProviderSubscription is a subscription as the provider reports it.
 //
 // The browser used to supply the subscription id, the plan, the fund and the

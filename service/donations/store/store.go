@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"time"
 )
 
 type DonationStore struct {
@@ -247,6 +248,44 @@ func (s DonationStore) InsertDonation(ctx context.Context, donation donations.In
 	query := s.queries.InsertDonation
 
 	return pg.CreateOne(ctx, donation, query, toDBDonationInsertParams, fromDBDonation)
+}
+
+func (s DonationStore) GetDonationsForDonor(ctx context.Context, donorID uuid.UUID) ([]donations.MemberDonation, error) {
+	rows, err := s.queries.GetDonationsForDonor(ctx, donorID)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]donations.MemberDonation, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, donations.NewMemberDonation(donations.MemberDonationRow{
+			ID:              row.ID,
+			FundID:          row.FundID,
+			FundName:        row.FundName,
+			FundActive:      row.FundActive,
+			Recurring:       row.Recurring,
+			Active:          row.Active,
+			InactiveReason:  row.InactiveReason.String,
+			HasSubscription: row.ProviderSubscriptionID.Valid && row.ProviderSubscriptionID.String != "",
+			TotalGivenCents: row.TotalGivenCents,
+			PlanAmountCents: row.PlanAmountCents.Int32,
+			PlanInterval:    string(row.PlanIntervalUnit.IntervalUnit),
+			Started:         row.Created.Time,
+			LastPayment:     timePtr(row.LastPaymentAt),
+		}))
+	}
+
+	return out, nil
+}
+
+func timePtr(t pgtype.Timestamptz) *time.Time {
+	if !t.Valid {
+		return nil
+	}
+
+	out := t.Time
+
+	return &out
 }
 
 func (s DonationStore) GetDonationsByDonorID(ctx context.Context, donorID uuid.UUID) ([]donations.Donation, error) {
