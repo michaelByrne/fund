@@ -124,19 +124,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	jsonHandler := slog.NewJSONHandler(os.Stdout, nil)
 	logger := slog.New(jsonHandler)
 
-	storeDir := runConfig.NATSStoreDir
-	if storeDir == "" {
-		// Not fatal, because a webhook bus that will not start is worse than one
-		// that is not durable. Logged at error so it cannot pass for normal:
-		// without a mounted volume this is the old behaviour with extra steps.
-		storeDir = filepath.Join(os.TempDir(), "fund-jetstream")
-
-		logger.Error("NATS_STORE_DIR is not set, so webhook events will not survive a deploy",
-			slog.String("falling_back_to", storeDir),
-		)
-	}
-
-	nc, ns, err := runNATS(runConfig.EnableNATSLogging, storeDir)
+	nc, ns, err := runNATS(runConfig.EnableNATSLogging, resolveStoreDir(runConfig.NATSStoreDir, logger))
 	if err != nil {
 		return err
 	}
@@ -348,6 +336,57 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	<-serverCtx.Done()
 
 	return nil
+}
+
+// resolveStoreDir picks where JetStream keeps the webhook stream, and proves it
+// can write there before the server tries to.
+//
+// Neither an unset variable nor an unwritable volume is fatal. A webhook bus that
+// will not start is worse than one that is not durable -- the site goes down
+// either way, and a startup failure takes the donation pages with it. Both cases
+// log at error, because the failure they describe is silent otherwise: everything
+// works until a deploy, and then a week of events is gone.
+func resolveStoreDir(configured string, logger *slog.Logger) string {
+	fallback := filepath.Join(os.TempDir(), "fund-jetstream")
+
+	if configured == "" {
+		logger.Error("NATS_STORE_DIR is not set, so webhook events will not survive a deploy",
+			slog.String("falling_back_to", fallback),
+		)
+
+		return fallback
+	}
+
+	if err := checkWritable(configured); err != nil {
+		// Most likely the volume is not mounted, or is mounted somewhere else.
+		logger.Error("NATS_STORE_DIR is not writable, so webhook events will not survive a deploy",
+			slog.String("store_dir", configured),
+			slog.String("error", err.Error()),
+			slog.String("falling_back_to", fallback),
+		)
+
+		return fallback
+	}
+
+	logger.Info("webhook events are durable", slog.String("store_dir", configured))
+
+	return configured
+}
+
+// checkWritable creates the directory and writes a file, because a directory
+// that exists is not the same as one this process may write to -- which is
+// exactly what a volume mounted with the wrong ownership looks like.
+func checkWritable(dir string) error {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return err
+	}
+
+	probe := filepath.Join(dir, ".write-check")
+	if err := os.WriteFile(probe, []byte("ok"), 0o600); err != nil {
+		return err
+	}
+
+	return os.Remove(probe)
 }
 
 // runNATS starts the embedded server with JetStream on disk.
