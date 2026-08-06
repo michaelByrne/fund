@@ -124,7 +124,12 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	jsonHandler := slog.NewJSONHandler(os.Stdout, nil)
 	logger := slog.New(jsonHandler)
 
-	nc, ns, err := runNATS(runConfig.EnableNATSLogging, resolveStoreDir(runConfig.NATSStoreDir, logger))
+	storeDir, err := resolveStoreDir(runConfig.NATSStoreDir, runConfig.IsLive, logger)
+	if err != nil {
+		return err
+	}
+
+	nc, ns, err := runNATS(runConfig.EnableNATSLogging, storeDir)
 	if err != nil {
 		return err
 	}
@@ -341,36 +346,40 @@ func run(ctx context.Context, runConfig RunConfig) error {
 // resolveStoreDir picks where JetStream keeps the webhook stream, and proves it
 // can write there before the server tries to.
 //
-// Neither an unset variable nor an unwritable volume is fatal. A webhook bus that
-// will not start is worse than one that is not durable -- the site goes down
-// either way, and a startup failure takes the donation pages with it. Both cases
-// log at error, because the failure they describe is silent otherwise: everything
-// works until a deploy, and then a week of events is gone.
-func resolveStoreDir(configured string, logger *slog.Logger) string {
-	fallback := filepath.Join(os.TempDir(), "fund-jetstream")
-
+// A misconfigured volume refuses to boot rather than quietly falling back. The
+// failure it would otherwise cause is invisible: everything works, and then one
+// deploy replaces the container and a week of events is gone. A container that
+// will not start is loud, immediate, and cannot be mistaken for a working one.
+//
+// Outside production the variable may be unset, because a developer running this
+// locally has no volume and no events worth keeping. Inside it, unset is a
+// deployment that was never finished.
+func resolveStoreDir(configured string, isLive bool, logger *slog.Logger) (string, error) {
 	if configured == "" {
-		logger.Error("NATS_STORE_DIR is not set, so webhook events will not survive a deploy",
+		if isLive {
+			return "", errors.New("NATS_STORE_DIR must be set to a mounted volume: " +
+				"without one, webhook events do not survive a deploy")
+		}
+
+		fallback := filepath.Join(os.TempDir(), "fund-jetstream")
+
+		logger.Warn("NATS_STORE_DIR is not set, so webhook events will not survive a restart",
 			slog.String("falling_back_to", fallback),
 		)
 
-		return fallback
+		return fallback, nil
 	}
 
+	// Asked for a specific path, so it has to work. Most likely the volume is not
+	// mounted, or is mounted somewhere else.
 	if err := checkWritable(configured); err != nil {
-		// Most likely the volume is not mounted, or is mounted somewhere else.
-		logger.Error("NATS_STORE_DIR is not writable, so webhook events will not survive a deploy",
-			slog.String("store_dir", configured),
-			slog.String("error", err.Error()),
-			slog.String("falling_back_to", fallback),
-		)
-
-		return fallback
+		return "", fmt.Errorf("NATS_STORE_DIR %q is not writable, so webhook events "+
+			"would not survive a deploy: %w", configured, err)
 	}
 
 	logger.Info("webhook events are durable", slog.String("store_dir", configured))
 
-	return configured
+	return configured, nil
 }
 
 // checkWritable creates the directory and writes a file, because a directory

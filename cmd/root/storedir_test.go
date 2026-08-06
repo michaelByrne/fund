@@ -5,36 +5,58 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
 
-// The store directory is where a week of webhook events lives. Getting it wrong
-// is silent -- everything works until a deploy replaces the container, and then
-// the events are gone -- so the two ways of getting it wrong are checked here
-// rather than discovered in production.
+const (
+	live  = true
+	local = false
+)
+
+// The store directory is where a week of webhook events lives, and getting it
+// wrong is silent: everything works until a deploy replaces the container, and
+// then the events are gone. Production refuses to start rather than run in that
+// state, because a container that will not boot cannot be mistaken for a working
+// one.
 func TestResolveStoreDir(t *testing.T) {
 	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	t.Run("uses a writable configured directory", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "nats")
 
-		if got := resolveStoreDir(dir, quiet); got != dir {
+		got, err := resolveStoreDir(dir, live, quiet)
+		if err != nil {
+			t.Fatalf("resolveStoreDir: %v", err)
+		}
+
+		if got != dir {
 			t.Errorf("resolveStoreDir = %q, want %q", got, dir)
 		}
 
 		// Created rather than merely accepted: the volume mounts empty.
-		if _, err := os.Stat(dir); err != nil {
+		if _, err = os.Stat(dir); err != nil {
 			t.Errorf("directory should have been created: %v", err)
 		}
 	})
 
-	t.Run("falls back when unset", func(t *testing.T) {
-		got := resolveStoreDir("", quiet)
+	t.Run("refuses to start in production with no store dir", func(t *testing.T) {
+		_, err := resolveStoreDir("", live, quiet)
+		if err == nil {
+			t.Fatal("production must not boot without a volume")
+		}
 
-		if got == "" {
-			t.Fatal("an unset store dir must still yield somewhere to write")
+		if !strings.Contains(err.Error(), "NATS_STORE_DIR") {
+			t.Errorf("the error should name the variable to set, got: %v", err)
+		}
+	})
+
+	t.Run("allows an unset store dir outside production", func(t *testing.T) {
+		// A developer running this locally has no volume and no events worth
+		// keeping, and should not need to invent a path to start the server.
+		got, err := resolveStoreDir("", local, quiet)
+		if err != nil {
+			t.Fatalf("local runs should not require a volume: %v", err)
 		}
 
 		if !strings.HasPrefix(got, os.TempDir()) {
@@ -42,11 +64,7 @@ func TestResolveStoreDir(t *testing.T) {
 		}
 	})
 
-	t.Run("falls back when the path cannot be written to", func(t *testing.T) {
-		if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
-			t.Skip("permissions are checked differently here")
-		}
-
+	t.Run("refuses a configured path it cannot write to", func(t *testing.T) {
 		if os.Geteuid() == 0 {
 			t.Skip("root can write anywhere, which is how the container runs")
 		}
@@ -59,14 +77,10 @@ func TestResolveStoreDir(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = os.Chmod(parent, 0o700) })
 
-		unwritable := filepath.Join(parent, "nats")
-
-		got := resolveStoreDir(unwritable, quiet)
-
-		// The important part is that it does not return the bad path, because
-		// JetStream would then fail to start and take the whole site with it.
-		if got == unwritable {
-			t.Error("an unwritable store dir was accepted, so the server would fail to start")
+		// Refused even outside production: naming a path and having it silently
+		// ignored is worse than being told it does not work.
+		if _, err := resolveStoreDir(filepath.Join(parent, "nats"), local, quiet); err == nil {
+			t.Error("an unwritable store dir was accepted")
 		}
 	})
 }
