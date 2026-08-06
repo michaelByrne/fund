@@ -1208,6 +1208,61 @@ func (q *Queries) InsertFund(ctx context.Context, arg InsertFundParams) (Fund, e
 	return i, err
 }
 
+const reactivateSuspendedDonationBySubscriptionId = `-- name: ReactivateSuspendedDonationBySubscriptionId :many
+UPDATE donation
+SET active          = true,
+    inactive_reason = NULL,
+    updated         = now()
+FROM fund
+WHERE donation.fund_id = fund.id
+  AND donation.provider_subscription_id = $1
+  AND donation.active = false
+  AND donation.inactive_reason = 'SUSPENDED'
+  AND fund.active = true
+RETURNING donation.id, donation.recurring, donation.donor_id, donation.donation_plan_id, donation.provider_order_id, donation.created, donation.updated, donation.fund_id, donation.active, donation.provider_subscription_id, donation.inactive_reason
+`
+
+// Brings back a donation that suspension deactivated, and only that.
+//
+// The reason is checked because a donation can be inactive for reasons a payment
+// must not overturn: a member cancelled it, or the fund closed and cancelled
+// every subscription in it. A late or duplicate payment against one of those is
+// not evidence that anybody wants it running again.
+//
+// The fund is joined for the same reason. Reactivating a donation into a closed
+// fund would leave it collecting money the fund can no longer pay out.
+func (q *Queries) ReactivateSuspendedDonationBySubscriptionId(ctx context.Context, providerSubscriptionID pgtype.Text) ([]Donation, error) {
+	rows, err := q.db.Query(ctx, reactivateSuspendedDonationBySubscriptionId, providerSubscriptionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Donation
+	for rows.Next() {
+		var i Donation
+		if err := rows.Scan(
+			&i.ID,
+			&i.Recurring,
+			&i.DonorID,
+			&i.DonationPlanID,
+			&i.ProviderOrderID,
+			&i.Created,
+			&i.Updated,
+			&i.FundID,
+			&i.Active,
+			&i.ProviderSubscriptionID,
+			&i.InactiveReason,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setDonationToInactive = `-- name: SetDonationToInactive :one
 UPDATE donation
 SET active          = false,

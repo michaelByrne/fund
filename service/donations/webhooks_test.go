@@ -27,7 +27,17 @@ type fakeDonationStore struct {
 	deactivate *Donation
 	deactErr   error
 
+	resumed    *Donation
+	resumeErr  error
+	resumeCall int
+
 	calls int
+}
+
+func (f *fakeDonationStore) ReactivateSuspendedDonation(context.Context, string) (*Donation, error) {
+	f.resumeCall++
+
+	return f.resumed, f.resumeErr
 }
 
 func (f *fakeDonationStore) GetDonationByProviderSubscriptionID(context.Context, string) (*Donation, error) {
@@ -254,4 +264,93 @@ type subscriberFunc func(event string, cb func([]byte) error) error
 
 func (f subscriberFunc) Subscribe(event string, cb func(data []byte) error) error {
 	return f(event, cb)
+}
+
+// PayPal sends no "unsuspended" event, so a payment against a suspended
+// subscription is the only evidence it resumed. Without acting on it, suspending
+// a donation was permanent: the money kept arriving and being recorded while the
+// donation stayed inactive and the donor stopped counting as one.
+func TestAPaymentResumesASuspendedDonation(t *testing.T) {
+	fund, donor := uuid.New(), uuid.New()
+	suspended := &Donation{ID: uuid.New(), FundID: fund, DonorID: donor, Active: false}
+
+	payload := []byte(`{"id":"SALE-9","billing_agreement_id":"SUB-9",
+		"amount":{"total":"10.00"},"transaction_fee":{"value":"0.50"}}`)
+
+	t.Run("reactivates and says so in the feed", func(t *testing.T) {
+		store := &fakeDonationStore{
+			donation: suspended,
+			resumed:  &Donation{ID: suspended.ID, FundID: fund, DonorID: donor, Active: true},
+			inserted: &DonationPayment{},
+		}
+		events := &recordedEvents{}
+
+		if err := newHandlers(store, events).paymentSaleCompleted(payload); err != nil {
+			t.Fatalf("paymentSaleCompleted: %v", err)
+		}
+
+		var resumedRecords int
+		for _, record := range events.records {
+			if record.Kind == fundevents.KindDonationResumed {
+				resumedRecords++
+			}
+		}
+
+		if resumedRecords != 1 {
+			t.Errorf("recorded %d resumed events, want 1", resumedRecords)
+		}
+
+		// The payment is still recorded: the money arrived either way.
+		if store.calls != 1 {
+			t.Errorf("payment insert called %d times, want 1", store.calls)
+		}
+	})
+
+	t.Run("an active donation is left alone", func(t *testing.T) {
+		active := &Donation{ID: uuid.New(), FundID: fund, DonorID: donor, Active: true}
+		store := &fakeDonationStore{donation: active, inserted: &DonationPayment{}}
+
+		if err := newHandlers(store, &recordedEvents{}).paymentSaleCompleted(payload); err != nil {
+			t.Fatalf("paymentSaleCompleted: %v", err)
+		}
+
+		if store.resumeCall != 0 {
+			t.Error("an active donation should not be reactivated")
+		}
+	})
+
+	t.Run("a cancellation the payment must not overturn stays closed", func(t *testing.T) {
+		// nil resumed is what the store returns when the donation was cancelled by
+		// the member, or closed with its fund: the query matches only suspensions.
+		store := &fakeDonationStore{donation: suspended, resumed: nil, inserted: &DonationPayment{}}
+		events := &recordedEvents{}
+
+		if err := newHandlers(store, events).paymentSaleCompleted(payload); err != nil {
+			t.Fatalf("paymentSaleCompleted: %v", err)
+		}
+
+		for _, record := range events.records {
+			if record.Kind == fundevents.KindDonationResumed {
+				t.Error("a donation nobody wants running was reported as resumed")
+			}
+		}
+
+		// Still banked. The money arrived whatever the donation's state.
+		if store.calls != 1 {
+			t.Errorf("payment insert called %d times, want 1", store.calls)
+		}
+	})
+
+	t.Run("a failed reactivation is retried", func(t *testing.T) {
+		store := &fakeDonationStore{donation: suspended, resumeErr: errors.New("deadlock")}
+
+		if err := newHandlers(store, &recordedEvents{}).paymentSaleCompleted(payload); err == nil {
+			t.Error("a failed reactivation should come back rather than be acknowledged")
+		}
+
+		// And the payment is not recorded on that pass, so the retry does both.
+		if store.calls != 0 {
+			t.Errorf("payment insert called %d times before the reactivation succeeded, want 0", store.calls)
+		}
+	})
 }

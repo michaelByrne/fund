@@ -16,6 +16,7 @@ type Kind string
 const (
 	KindDonationStarted     Kind = "donation_started"
 	KindDonationCancelled   Kind = "donation_cancelled"
+	KindDonationResumed     Kind = "donation_resumed"
 	KindPaymentReceived     Kind = "payment_received"
 	KindPaymentFailed       Kind = "payment_failed"
 	KindMemberEnrolled      Kind = "member_enrolled"

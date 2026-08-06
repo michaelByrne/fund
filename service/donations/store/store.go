@@ -255,6 +255,25 @@ func (s DonationStore) GetDonationsByDonorID(ctx context.Context, donorID uuid.U
 	return pg.FetchMany(ctx, donorID, query, uuidIdentity, fromDBDonation)
 }
 
+// ReactivateSuspendedDonation returns the donation it brought back, or nil when
+// there was nothing to bring back -- the subscription is unknown, already active,
+// or was deactivated for a reason a payment must not overturn.
+func (s DonationStore) ReactivateSuspendedDonation(ctx context.Context, subscriptionID string) (*donations.Donation, error) {
+	rows, err := s.queries.ReactivateSuspendedDonationBySubscriptionId(ctx,
+		pgtype.Text{String: subscriptionID, Valid: true})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rows) == 0 {
+		return nil, nil
+	}
+
+	donation := fromDBDonation(rows[0])
+
+	return &donation, nil
+}
+
 func (s DonationStore) InsertDonationPayment(ctx context.Context, payment donations.InsertDonationPayment) (*donations.DonationPayment, error) {
 	query := s.queries.InsertDonationPayment
 

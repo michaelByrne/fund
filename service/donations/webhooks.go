@@ -154,6 +154,41 @@ func (h *Handlers) paymentSaleCompleted(data []byte) error {
 		return fmt.Errorf("no donation for provider subscription %s yet", paymentSale.BillingAgreementID)
 	}
 
+	// A payment against a suspended subscription is the provider telling us it
+	// resumed, and it is the only such evidence we get -- PayPal sends no
+	// "unsuspended" event. Without this, suspending a donation was permanent:
+	// the money kept arriving and being recorded, while the donation stayed
+	// inactive and the donor stopped counting as one.
+	//
+	// Before the payment is recorded rather than after, so that a delivery which
+	// records the payment and then fails still reactivates on its retry. The
+	// other order leaves the redelivery returning early on the duplicate payment,
+	// having never reached this.
+	if !parentDonation.Active {
+		resumed, errResume := h.donationStore.ReactivateSuspendedDonation(context.Background(), paymentSale.BillingAgreementID)
+		if errResume != nil {
+			return fmt.Errorf("failed to reactivate suspended donation: %w", errResume)
+		}
+
+		// nil means there was nothing to bring back: cancelled by the member, or
+		// closed with its fund. Those stay closed, and the payment is still
+		// recorded below, because the money did arrive.
+		if resumed != nil {
+			h.logger.Info("reactivated a suspended donation after a payment",
+				slog.String("donation_id", resumed.ID.String()),
+			)
+
+			h.events.Record(context.Background(), fundevents.Record{
+				FundID:          resumed.FundID,
+				Kind:            fundevents.KindDonationResumed,
+				OccurredAt:      paymentSale.CreateTime,
+				SubjectMemberID: &resumed.DonorID,
+				Detail:          "payment received after suspension",
+				ReferenceID:     &resumed.ID,
+			})
+		}
+	}
+
 	amountCents, err := dollarStringToCents(paymentSale.Amount.Total)
 	if err != nil {
 		h.logger.Error("discarding payment with an unreadable amount",

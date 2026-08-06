@@ -76,6 +76,28 @@ SET active          = false,
 WHERE provider_subscription_id = $1
 RETURNING *;
 
+-- Brings back a donation that suspension deactivated, and only that.
+--
+-- The reason is checked because a donation can be inactive for reasons a payment
+-- must not overturn: a member cancelled it, or the fund closed and cancelled
+-- every subscription in it. A late or duplicate payment against one of those is
+-- not evidence that anybody wants it running again.
+--
+-- The fund is joined for the same reason. Reactivating a donation into a closed
+-- fund would leave it collecting money the fund can no longer pay out.
+-- name: ReactivateSuspendedDonationBySubscriptionId :many
+UPDATE donation
+SET active          = true,
+    inactive_reason = NULL,
+    updated         = now()
+FROM fund
+WHERE donation.fund_id = fund.id
+  AND donation.provider_subscription_id = $1
+  AND donation.active = false
+  AND donation.inactive_reason = 'SUSPENDED'
+  AND fund.active = true
+RETURNING donation.*;
+
 -- name: SetDonationsToActive :many
 UPDATE donation
 SET active = true
