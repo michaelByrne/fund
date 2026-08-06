@@ -33,11 +33,12 @@ type PaymentsProvider interface {
 	CreatePlan(ctx context.Context, plan CreatePlan) (string, error)
 	CreateFund(ctx context.Context, name, description string) (string, error)
 	InitiateDonation(ctx context.Context, fund Fund, amountCents int32) (string, error)
+	GetOrder(ctx context.Context, orderID string) (*ProviderOrder, error)
 	CancelSubscriptions(ctx context.Context, ids []string) ([]string, error)
 }
 
 type subscriber interface {
-	Subscribe(event string, cb func(data []byte)) error
+	Subscribe(event string, cb func(data []byte) error) error
 }
 
 type documentStorage interface {

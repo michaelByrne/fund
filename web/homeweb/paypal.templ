@@ -32,22 +32,22 @@ templ Paypal(fund donations.Fund, amountCents int32, clientID string) {
 }
 
 templ ThankYou(member members.Member, path string) {
-    @common.Layout(&member, path) {
-        <div id="bouncing-elements" style="position: relative;">
-            <div id="bouncing-element" class="absolute font-semibold text-responsive">
-                <div class="inline-block">
-                    <div class="blingy p-4 text-white font-papyrus">
-                        Thank you { member.FirstName }!!!
-                    </div>
-                </div>
-            </div>
-            <div id="bouncing-element2" class="absolute font-semibold text-responsive-small">
-                <div class="bg-high p-4 text-blue-500 font-papyrus">
-                    <a href="/">donate more money</a>
-                </div>
-            </div>
-        </div>
-        <script>
+	@common.Layout(&member, path) {
+		<div id="bouncing-elements" style="position: relative;">
+			<div id="bouncing-element" class="absolute font-semibold text-responsive">
+				<div class="inline-block">
+					<div class="blingy p-4 text-white font-papyrus">
+						Thank you { member.FirstName }!!!
+					</div>
+				</div>
+			</div>
+			<div id="bouncing-element2" class="absolute font-semibold text-responsive-small">
+				<div class="bg-high p-4 text-blue-500 font-papyrus">
+					<a href="/">donate more money</a>
+				</div>
+			</div>
+		</div>
+		<script>
             function createBouncer(elementId, initialVelX, initialVelY) {
                 return {
                     element: document.getElementById(elementId),
@@ -169,5 +169,5 @@ templ ThankYou(member members.Member, path string) {
                 isAnimating = !document.hidden;
             });
         </script>
-    }
+	}
 }

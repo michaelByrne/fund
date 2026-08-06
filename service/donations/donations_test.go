@@ -82,6 +82,16 @@ func TestDonationService_DeactivateFund(t *testing.T) {
 		member, err := memberTestService.CreateMember(ctx, createMember)
 		require.NoError(t, err)
 
+		// The amount and payment id now come from the provider, not the caller.
+		paymentsMock.GetOrderFunc = func(ctx context.Context, orderID string) (*donations.ProviderOrder, error) {
+			return &donations.ProviderOrder{
+				Status:            "COMPLETED",
+				FundReferenceID:   fund.ID.String(),
+				ProviderPaymentID: "provider-payment-id",
+				AmountCents:       1000,
+			}, nil
+		}
+
 		completeDonationOne := donations.OneTimeCompletion{
 			AmountCents:       1000,
 			ProviderOrderID:   "provider-order-id",

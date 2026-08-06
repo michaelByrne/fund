@@ -46,12 +46,14 @@ func (h *Handlers) Subscribe(subscriber subscriber) error {
 	return errResult
 }
 
-func (h *Handlers) subscriptionEnded(data []byte) {
+func (h *Handlers) subscriptionEnded(data []byte) error {
 	var subscriptionEnded SubscriptionEvent
 	if err := json.Unmarshal(data, &subscriptionEnded); err != nil {
-		h.logger.Error("failed to unmarshal subscription ended event", slog.String("error", err.Error()))
+		// Nothing will make this parse on a second attempt, so it is acknowledged
+		// rather than redelivered until the consumer gives up on it.
+		h.logger.Error("discarding unparseable subscription ended event", slog.String("error", err.Error()))
 
-		return
+		return nil
 	}
 
 	deactivateSub := DeactivateDonationBySubscription{
@@ -61,9 +63,7 @@ func (h *Handlers) subscriptionEnded(data []byte) {
 
 	donation, err := h.donationStore.SetDonationToInactiveBySubscriptionID(context.Background(), deactivateSub)
 	if err != nil {
-		h.logger.Error("failed to deactivate donation by subscription id", slog.String("error", err.Error()))
-
-		return
+		return fmt.Errorf("failed to deactivate donation by subscription id: %w", err)
 	}
 
 	// No actor: the provider ended this, not a person. OccurredAt is the
@@ -77,41 +77,48 @@ func (h *Handlers) subscriptionEnded(data []byte) {
 		Detail:          "subscription " + strings.ToLower(subscriptionEnded.Status) + " at provider",
 		ReferenceID:     &donation.ID,
 	})
+
+	return nil
 }
 
-func (h *Handlers) paymentSaleCompleted(data []byte) {
+func (h *Handlers) paymentSaleCompleted(data []byte) error {
 	var paymentSale PaymentSaleEvent
 	if err := json.Unmarshal(data, &paymentSale); err != nil {
-		h.logger.Error("failed to unmarshal payment sale event", slog.String("error", err.Error()))
+		h.logger.Error("discarding unparseable payment sale event", slog.String("error", err.Error()))
 
-		return
+		return nil
 	}
 
 	parentDonation, err := h.donationStore.GetDonationByProviderSubscriptionID(context.Background(), paymentSale.BillingAgreementID)
 	if err != nil {
-		h.logger.Error("failed to get donation by provider subscription id", slog.String("error", err.Error()))
-
-		return
+		return fmt.Errorf("failed to get donation by provider subscription id: %w", err)
 	}
 
 	if parentDonation == nil {
-		h.logger.Error("failed to find donation by provider subscription id", slog.String("provider_subscription_id", paymentSale.BillingAgreementID))
-
-		return
+		// Retried rather than dropped: PayPal can report the first payment before
+		// the browser has finished telling us the subscription exists, and the
+		// money is real either way.
+		return fmt.Errorf("no donation for provider subscription %s yet", paymentSale.BillingAgreementID)
 	}
 
 	amountCents, err := dollarStringToCents(paymentSale.Amount.Total)
 	if err != nil {
-		h.logger.Error("failed to convert dollar amount to cents", slog.String("error", err.Error()))
+		h.logger.Error("discarding payment with an unreadable amount",
+			slog.String("amount", paymentSale.Amount.Total),
+			slog.String("error", err.Error()),
+		)
 
-		return
+		return nil
 	}
 
 	feeAmountCents, err := dollarStringToCents(paymentSale.TransactionFee.Value)
 	if err != nil {
-		h.logger.Error("failed to convert dollar fee amount to cents", slog.String("error", err.Error()))
+		h.logger.Error("discarding payment with an unreadable fee",
+			slog.String("fee", paymentSale.TransactionFee.Value),
+			slog.String("error", err.Error()),
+		)
 
-		return
+		return nil
 	}
 
 	insertPayment := InsertDonationPayment{
@@ -122,11 +129,20 @@ func (h *Handlers) paymentSaleCompleted(data []byte) {
 		ProviderFeeCents:  feeAmountCents,
 	}
 
-	_, err = h.donationStore.InsertDonationPayment(context.Background(), insertPayment)
+	recorded, err := h.donationStore.InsertDonationPayment(context.Background(), insertPayment)
 	if err != nil {
-		h.logger.Error("failed to insert donation payment", slog.String("error", err.Error()))
+		return fmt.Errorf("failed to insert donation payment: %w", err)
+	}
 
-		return
+	// Already on record, so this is a redelivery. Returning here keeps the fund
+	// event out of the audit trail too: the payment is counted once, and the feed
+	// should not show it arriving twice.
+	if recorded == nil {
+		h.logger.Info("payment already recorded, ignoring redelivery",
+			slog.String("provider_payment_id", paymentSale.ID),
+		)
+
+		return nil
 	}
 
 	h.events.Record(context.Background(), fundevents.Record{
@@ -138,6 +154,8 @@ func (h *Handlers) paymentSaleCompleted(data []byte) {
 		Detail:          "recurring",
 		ReferenceID:     &parentDonation.ID,
 	})
+
+	return nil
 }
 
 func dollarStringToCents(dollarStr string) (int32, error) {

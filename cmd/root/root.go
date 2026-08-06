@@ -48,6 +48,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -77,7 +78,11 @@ type RunConfig struct {
 	CognitoClientID   string
 	CognitoUserPoolID string
 
-	EnableNATSLogging                bool
+	EnableNATSLogging bool
+
+	// NATSStoreDir is where JetStream keeps the webhook stream. Must be on a
+	// mounted volume; see runNATS.
+	NATSStoreDir                     string
 	DonationsPaymentsReportsS3Bucket string
 
 	ReportTypes []string
@@ -116,14 +121,19 @@ func RootCmd(ctx context.Context, runConfig RunConfig) *cobra.Command {
 }
 
 func run(ctx context.Context, runConfig RunConfig) error {
-	nc, ns, err := runNATS(runConfig.EnableNATSLogging)
+	jsonHandler := slog.NewJSONHandler(os.Stdout, nil)
+	logger := slog.New(jsonHandler)
+
+	storeDir, err := resolveStoreDir(runConfig.NATSStoreDir, runConfig.IsLive, logger)
+	if err != nil {
+		return err
+	}
+
+	nc, ns, err := runNATS(runConfig.EnableNATSLogging, storeDir)
 	if err != nil {
 		return err
 	}
 	defer nc.Close()
-
-	jsonHandler := slog.NewJSONHandler(os.Stdout, nil)
-	logger := slog.New(jsonHandler)
 
 	dbURI := fmt.Sprintf(
 		"postgresql://%s:%s@%s:%s/%s",
@@ -195,7 +205,11 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	}
 	verifier := jwtauth.NewToken(kset)
 
-	messageBroker := messaging.NewNATSMessageBroker(nc)
+	messageBroker, err := messaging.NewBroker(ctx, nc, logger)
+	if err != nil {
+		return err
+	}
+	defer messageBroker.Close()
 
 	fundEvents := fundevents.NewService(eventStore, logger)
 
@@ -233,17 +247,17 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, payoutService, fundEvents, sessionManager, runConfig.PayPal.ClientID,
 	)
 	webhooksHandlers := hooksweb.NewWebhooksHandlers(
-		donationService, memberService, &messageBroker, logger, runConfig.PayPal.WebhookID,
+		donationService, memberService, messageBroker, logger, runConfig.PayPal.WebhookID,
 	)
 
 	donationWebhookHandlers := donations.NewHandlers(donationStore, fundEvents, logger)
-	err = donationWebhookHandlers.Subscribe(&messageBroker)
+	err = donationWebhookHandlers.Subscribe(messageBroker)
 	if err != nil {
 		return err
 	}
 
 	payoutWebhookHandlers := payouts.NewHandlers(payoutStore, logger)
-	err = payoutWebhookHandlers.Subscribe(&messageBroker)
+	err = payoutWebhookHandlers.Subscribe(messageBroker)
 	if err != nil {
 		return err
 	}
@@ -329,8 +343,76 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	return nil
 }
 
-func runNATS(enableLogging bool) (*nats.Conn, *server.Server, error) {
-	opts := server.Options{DontListen: true}
+// resolveStoreDir picks where JetStream keeps the webhook stream, and proves it
+// can write there before the server tries to.
+//
+// A misconfigured volume refuses to boot rather than quietly falling back. The
+// failure it would otherwise cause is invisible: everything works, and then one
+// deploy replaces the container and a week of events is gone. A container that
+// will not start is loud, immediate, and cannot be mistaken for a working one.
+//
+// Outside production the variable may be unset, because a developer running this
+// locally has no volume and no events worth keeping. Inside it, unset is a
+// deployment that was never finished.
+func resolveStoreDir(configured string, isLive bool, logger *slog.Logger) (string, error) {
+	if configured == "" {
+		if isLive {
+			return "", errors.New("NATS_STORE_DIR must be set to a mounted volume: " +
+				"without one, webhook events do not survive a deploy")
+		}
+
+		fallback := filepath.Join(os.TempDir(), "fund-jetstream")
+
+		logger.Warn("NATS_STORE_DIR is not set, so webhook events will not survive a restart",
+			slog.String("falling_back_to", fallback),
+		)
+
+		return fallback, nil
+	}
+
+	// Asked for a specific path, so it has to work. Most likely the volume is not
+	// mounted, or is mounted somewhere else.
+	if err := checkWritable(configured); err != nil {
+		return "", fmt.Errorf("NATS_STORE_DIR %q is not writable, so webhook events "+
+			"would not survive a deploy: %w", configured, err)
+	}
+
+	logger.Info("webhook events are durable", slog.String("store_dir", configured))
+
+	return configured, nil
+}
+
+// checkWritable creates the directory and writes a file, because a directory
+// that exists is not the same as one this process may write to -- which is
+// exactly what a volume mounted with the wrong ownership looks like.
+func checkWritable(dir string) error {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return err
+	}
+
+	probe := filepath.Join(dir, ".write-check")
+	if err := os.WriteFile(probe, []byte("ok"), 0o600); err != nil {
+		return err
+	}
+
+	return os.Remove(probe)
+}
+
+// runNATS starts the embedded server with JetStream on disk.
+//
+// storeDir must be on a mounted volume. Railway's container filesystem is
+// replaced on every deploy, so JetStream pointed anywhere else is durable across
+// a process restart and nothing else -- which is the failure mode this change
+// exists to remove, wearing a persistence badge.
+//
+// DontListen stays: the server has never opened a port, and nothing outside this
+// process connects to it.
+func runNATS(enableLogging bool, storeDir string) (*nats.Conn, *server.Server, error) {
+	opts := server.Options{
+		DontListen: true,
+		JetStream:  true,
+		StoreDir:   storeDir,
+	}
 
 	ns, err := server.NewServer(&opts)
 	if err != nil {

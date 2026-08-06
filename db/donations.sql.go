@@ -1051,9 +1051,10 @@ func (q *Queries) InsertDonation(ctx context.Context, arg InsertDonationParams) 
 	return i, err
 }
 
-const insertDonationPayment = `-- name: InsertDonationPayment :one
+const insertDonationPayment = `-- name: InsertDonationPayment :many
 INSERT INTO donation_payment (id, donation_id, paypal_payment_id, amount_cents, provider_fee_cents)
 VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (paypal_payment_id) DO NOTHING
 RETURNING id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents
 `
 
@@ -1065,25 +1066,46 @@ type InsertDonationPaymentParams struct {
 	ProviderFeeCents int32
 }
 
-func (q *Queries) InsertDonationPayment(ctx context.Context, arg InsertDonationPaymentParams) (DonationPayment, error) {
-	row := q.db.QueryRow(ctx, insertDonationPayment,
+// A redelivered webhook is expected, not exceptional: PayPal retries on any
+// non-2xx and on its own schedule. DO NOTHING rather than DO UPDATE, because the
+// first record of a payment is the one the fund balance has already been
+// computed from, and a webhook cannot tell us the amount changed -- only that it
+// is telling us again.
+//
+// :many rather than :one so a conflict returns no rows instead of ErrNoRows. The
+// caller reads an empty result as "already recorded", which is a success.
+func (q *Queries) InsertDonationPayment(ctx context.Context, arg InsertDonationPaymentParams) ([]DonationPayment, error) {
+	rows, err := q.db.Query(ctx, insertDonationPayment,
 		arg.ID,
 		arg.DonationID,
 		arg.PaypalPaymentID,
 		arg.AmountCents,
 		arg.ProviderFeeCents,
 	)
-	var i DonationPayment
-	err := row.Scan(
-		&i.ID,
-		&i.DonationID,
-		&i.PaypalPaymentID,
-		&i.AmountCents,
-		&i.Created,
-		&i.Updated,
-		&i.ProviderFeeCents,
-	)
-	return i, err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DonationPayment
+	for rows.Next() {
+		var i DonationPayment
+		if err := rows.Scan(
+			&i.ID,
+			&i.DonationID,
+			&i.PaypalPaymentID,
+			&i.AmountCents,
+			&i.Created,
+			&i.Updated,
+			&i.ProviderFeeCents,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertDonationPlan = `-- name: InsertDonationPlan :one

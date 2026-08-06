@@ -54,6 +54,7 @@ func loadRunConfig() (*root.RunConfig, error) {
 		CognitoUserPoolID: getEnvOrError("COGNITO_USER_POOL_ID", true),
 
 		EnableNATSLogging: getEnvAsBool("ENABLE_NATS_LOGGING", false),
+		NATSStoreDir:      getEnvOrDefault("NATS_STORE_DIR", ""),
 		ReportTypes:       getEnvAsSlice("ENABLED_REPORT_TYPES"),
 
 		PayoutApprovalWindow: getEnvAsDuration("PAYOUT_APPROVAL_WINDOW", 72*time.Hour),

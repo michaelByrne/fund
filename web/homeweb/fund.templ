@@ -33,7 +33,7 @@ templ Fund(fund donations.Fund, fundStats donations.FundStats, member *members.M
 				@common.FundStatus(fund, fundStats)
 				if len(fundStats.Monthly) > 0 {
 					<div class="col-span-2 my-2 blue-boxy-filter">
-					    <div class="text-md font-semibold p-2 inline-block bg-high">month-by-month</div>
+						<div class="text-md font-semibold p-2 inline-block bg-high">month-by-month</div>
 						<canvas class="bg-odd">
 							@MonthlyTotalsChart(fundStats)
 						</canvas>

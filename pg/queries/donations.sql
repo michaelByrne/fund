@@ -100,9 +100,18 @@ FROM donation_payment
          JOIN member ON member.id = donation.donor_id
 WHERE member.paypal_email = $1;
 
--- name: InsertDonationPayment :one
+-- A redelivered webhook is expected, not exceptional: PayPal retries on any
+-- non-2xx and on its own schedule. DO NOTHING rather than DO UPDATE, because the
+-- first record of a payment is the one the fund balance has already been
+-- computed from, and a webhook cannot tell us the amount changed -- only that it
+-- is telling us again.
+--
+-- :many rather than :one so a conflict returns no rows instead of ErrNoRows. The
+-- caller reads an empty result as "already recorded", which is a success.
+-- name: InsertDonationPayment :many
 INSERT INTO donation_payment (id, donation_id, paypal_payment_id, amount_cents, provider_fee_cents)
 VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (paypal_payment_id) DO NOTHING
 RETURNING *;
 
 -- name: UpdateDonationPaymentPaypalFee :one

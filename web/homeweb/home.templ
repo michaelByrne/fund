@@ -211,7 +211,6 @@ func centsToDecimalString(cents int32) string {
 	return integerPart + "." + decimalPart
 }
 
-
 // centsToDecimalString64 formats a bigint total. Payout sums come back as int64
 // because a fund's lifetime disbursement is not bounded by the int32 that holds
 // a single donation, so narrowing here would silently wrap the one number this

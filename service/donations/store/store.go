@@ -198,9 +198,17 @@ func (s DonationStore) InsertDonationWithPayment(ctx context.Context, donation d
 		return nil, err
 	}
 
-	paymentOut, err := pg.CreateOne(ctx, payment, txQueries.InsertDonationPayment, toDBDonationPaymentInsertParams, fromDBDonationPayment)
+	paymentOut, err := pg.CreateOneIfNew(ctx, payment, txQueries.InsertDonationPayment, toDBDonationPaymentInsertParams, fromDBDonationPayment)
 	if err != nil {
 		return nil, err
+	}
+
+	// The provider payment is already on record, so this is a repeat of a
+	// completion we have already handled -- a double-submitted form, or a retry.
+	// Rolling back discards the donation row this transaction would otherwise
+	// have added alongside it.
+	if paymentOut == nil {
+		return nil, donations.ErrPaymentAlreadyRecorded
 	}
 
 	donationOut.Payment = paymentOut
@@ -250,7 +258,9 @@ func (s DonationStore) GetDonationsByDonorID(ctx context.Context, donorID uuid.U
 func (s DonationStore) InsertDonationPayment(ctx context.Context, payment donations.InsertDonationPayment) (*donations.DonationPayment, error) {
 	query := s.queries.InsertDonationPayment
 
-	return pg.CreateOne(ctx, payment, query, toDBDonationPaymentInsertParams, fromDBDonationPayment)
+	// Returns nil, nil when the provider payment is already recorded. Callers
+	// must treat that as "nothing more to do" rather than as a payment.
+	return pg.CreateOneIfNew(ctx, payment, query, toDBDonationPaymentInsertParams, fromDBDonationPayment)
 }
 
 func (s DonationStore) GetDonationPaymentByID(ctx context.Context, id uuid.UUID) (*donations.DonationPayment, error) {
