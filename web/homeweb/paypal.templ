@@ -16,7 +16,7 @@ templ PaypalSubscription(plan donations.DonationPlan, clientID, fundName string)
 		@templ.JSONScript("fund-id", plan.FundID.String())
 		<h4 class="mb-2 mx-auto mt-2 text-xl p-2 font-papyrus font-semibold inline-block">I am giving ${ centsToDecimalString(plan.AmountCents) } every { strings.ToLower(string(plan.IntervalUnit)) } to { fundName }.</h4>
 		<div id="paypal-button-container"></div>
-		<script type="text/javascript" src="/static/paypalsub.js"></script>
+		<script type="text/javascript" src={ common.Asset("paypalsub.js") }></script>
 	</div>
 }
 
@@ -27,7 +27,7 @@ templ Paypal(fund donations.Fund, amountCents int32, clientID string) {
 		@templ.JSONScript("amount", amountCents)
 		<h4 class="mb-2 mx-auto mt-2 text-xl font-papyrus p-2 font-semibold inline-block">I am giving ${ centsToDecimalString(amountCents) } to { fund.Name }.</h4>
 		<div id="paypal-button-container"></div>
-		<script type="text/javascript" src="/static/paypalonce.js"></script>
+		<script type="text/javascript" src={ common.Asset("paypalonce.js") }></script>
 	</div>
 }
 

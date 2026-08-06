@@ -2,9 +2,10 @@ package homeweb
 
 import (
     "boardfund/service/donations"
+    "boardfund/web/common"
 )
 
 templ MonthlyTotalsChart(fundStats donations.FundStats) {
 	@templ.JSONScript("monthly", fundStats.Monthly)
-	<script type="application/javascript" src="/static/monthly.js"></script>
+	<script type="application/javascript" src={ common.Asset("monthly.js") }></script>
 }
