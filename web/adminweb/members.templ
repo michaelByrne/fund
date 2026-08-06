@@ -189,7 +189,7 @@ templ AdminAccess(viewedMember members.Member, state AdminAccessState) {
 					<span class="text-xs text-gray-500">(you)</span>
 				} else if state.IsAdmin {
 					<button
-						hx-delete={ fmt.Sprintf("/admin/member/%s/admin", viewedMember.ID.String()) }
+						hx-post={ fmt.Sprintf("/admin/member/demote/%s", viewedMember.ID.String()) }
 						hx-target="#member-admin-access"
 						hx-swap="outerHTML"
 						hx-confirm={ fmt.Sprintf("revoke admin access for %s?", viewedMember.BCOName) }
@@ -199,7 +199,7 @@ templ AdminAccess(viewedMember members.Member, state AdminAccessState) {
 					</button>
 				} else {
 					<button
-						hx-post={ fmt.Sprintf("/admin/member/%s/admin", viewedMember.ID.String()) }
+						hx-post={ fmt.Sprintf("/admin/member/promote/%s", viewedMember.ID.String()) }
 						hx-target="#member-admin-access"
 						hx-swap="outerHTML"
 						hx-confirm={ fmt.Sprintf("make %s an admin?", viewedMember.BCOName) }

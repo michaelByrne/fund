@@ -655,14 +655,14 @@ func AdminAccess(viewedMember members.Member, state AdminAccessState) templ.Comp
 				return templ_7745c5c3_Err
 			}
 		} else if state.IsAdmin {
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<button hx-delete=\"")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<button hx-post=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var29 string
-			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/admin/member/%s/admin", viewedMember.ID.String()))
+			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/admin/member/demote/%s", viewedMember.ID.String()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 192, Col: 81}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 192, Col: 80}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {
@@ -691,9 +691,9 @@ func AdminAccess(viewedMember members.Member, state AdminAccessState) templ.Comp
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var31 string
-			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/admin/member/%s/admin", viewedMember.ID.String()))
+			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/admin/member/promote/%s", viewedMember.ID.String()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 202, Col: 79}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/members.templ`, Line: 202, Col: 81}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 			if templ_7745c5c3_Err != nil {
