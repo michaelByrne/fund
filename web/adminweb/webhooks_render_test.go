@@ -93,3 +93,33 @@ func TestAnEmptyStreamDoesNotRenderTheZeroTime(t *testing.T) {
 		t.Error("the zero time should render as a dash, not as a date")
 	}
 }
+
+// humanBytes indexed a four-character suffix string with an exponent that keeps
+// climbing, so a stream at a petabyte panicked while rendering the page meant to
+// show you the stream.
+func TestHumanBytesDoesNotRunOffTheEndOfItsSuffixes(t *testing.T) {
+	const unit = 1024
+
+	cases := []struct {
+		bytes uint64
+		want  string
+	}{
+		{0, "0 B"},
+		{512, "512 B"},
+		{unit, "1.0 KB"},
+		{unit * unit, "1.0 MB"},
+		{unit * unit * unit, "1.0 GB"},
+		{unit * unit * unit * unit, "1.0 TB"},
+		// The old code panicked from here on.
+		{unit * unit * unit * unit * unit, "1.0 PB"},
+		{unit * unit * unit * unit * unit * unit, "1.0 EB"},
+		// Past the last suffix the exponent clamps rather than indexing past it.
+		{^uint64(0), "16.0 EB"},
+	}
+
+	for _, c := range cases {
+		if got := humanBytes(c.bytes); got != c.want {
+			t.Errorf("humanBytes(%d) = %q, want %q", c.bytes, got, c.want)
+		}
+	}
+}

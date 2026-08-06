@@ -124,6 +124,10 @@ type Broker struct {
 	backOff []time.Duration
 
 	consuming []jetstream.ConsumeContext
+	// advisories is kept so Close can stop it. A subscription left running can
+	// fire its callback after the broker is closed, appending to state nothing
+	// owns any more.
+	advisories *nats.Subscription
 
 	// names maps durable back to the subject it was created for, because
 	// ConsumerInfo reports the durable name and an operator thinks in event types.
@@ -178,7 +182,7 @@ func NewBroker(ctx context.Context, nc *nats.Conn, logger *slog.Logger) (*Broker
 func (b *Broker) watchExhausted() error {
 	subject := fmt.Sprintf("$JS.EVENT.ADVISORY.CONSUMER.MAX_DELIVERIES.%s.*", StreamName)
 
-	_, err := b.nc.Subscribe(subject, func(msg *nats.Msg) {
+	sub, err := b.nc.Subscribe(subject, func(msg *nats.Msg) {
 		var advisory struct {
 			Consumer   string `json:"consumer"`
 			StreamSeq  uint64 `json:"stream_seq"`
@@ -215,6 +219,8 @@ func (b *Broker) watchExhausted() error {
 	if err != nil {
 		return fmt.Errorf("failed to watch for exhausted messages: %w", err)
 	}
+
+	b.advisories = sub
 
 	return nil
 }
@@ -383,6 +389,12 @@ func (b *Broker) nakDelay(msg jetstream.Msg) time.Duration {
 func (b *Broker) Close() {
 	for _, consuming := range b.consuming {
 		consuming.Stop()
+	}
+
+	if b.advisories != nil {
+		if err := b.advisories.Unsubscribe(); err != nil {
+			b.logger.Error("failed to unsubscribe from advisories", slog.String("error", err.Error()))
+		}
 	}
 }
 

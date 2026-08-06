@@ -356,6 +356,12 @@ func Webhooks(status messaging.Status, member *members.Member, path string) temp
 	})
 }
 
+// suffixes runs to exabytes, one short of what uint64 can express. exp is clamped
+// to the last of them rather than indexing past the end: a stream large enough to
+// reach that is a fault of some other kind, and a panic while rendering the page
+// that would show it is not how anyone should find out.
+const suffixes = "KMGTPE"
+
 func humanBytes(b uint64) string {
 	const unit = 1024
 
@@ -364,12 +370,12 @@ func humanBytes(b uint64) string {
 	}
 
 	div, exp := uint64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
+	for n := b / unit; n >= unit && exp < len(suffixes)-1; n /= unit {
 		div *= unit
 		exp++
 	}
 
-	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGT"[exp])
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), suffixes[exp])
 }
 
 // whenOrNever keeps an empty stream from reporting the zero time, which renders

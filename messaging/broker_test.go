@@ -411,3 +411,28 @@ func TestExhaustedMessagesAreRecorded(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 }
+
+// The advisory subscription is not one of the JetStream consumers, so stopping
+// those does not stop it. Left running it can fire after Close and append to
+// state nothing owns any more.
+func TestCloseStopsTheAdvisorySubscription(t *testing.T) {
+	broker, err := NewBroker(context.Background(), startServer(t, t.TempDir()),
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatalf("new broker: %v", err)
+	}
+
+	if broker.advisories == nil {
+		t.Fatal("the broker should be watching for exhausted messages")
+	}
+
+	if !broker.advisories.IsValid() {
+		t.Fatal("the advisory subscription should be live before Close")
+	}
+
+	broker.Close()
+
+	if broker.advisories.IsValid() {
+		t.Error("the advisory subscription outlived Close")
+	}
+}
