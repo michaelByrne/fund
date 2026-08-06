@@ -276,7 +276,68 @@ func (s DonationService) CreateDonationPlan(ctx context.Context, plan CreatePlan
 	return planOut, nil
 }
 
+// CompleteRecurringDonation records a subscription from the provider's account of
+// it, not the browser's.
+//
+// Only the subscription id and the plan being claimed come from the caller. The
+// status, the plan actually being paid into and the amount come back from PayPal,
+// and the plan has to belong to the fund being credited.
+//
+// That last check is the one that was costing money. fund_id came from the form
+// and was never compared to anything, so a subscription created against one
+// fund's plan could be recorded against another -- and every payment on it then
+// joined the wrong fund's balance and was paid out to the wrong fund's enrollees.
+//
+// The one-time path was fixed for the same reason; this is its twin, and it was
+// left behind because the payments arrive by signed webhook and the link did not.
 func (s DonationService) CompleteRecurringDonation(ctx context.Context, memberID uuid.UUID, completion RecurringCompletion) error {
+	subscription, err := s.paymentsProvider.GetSubscription(ctx, completion.ProviderSubscriptionID)
+	if err != nil {
+		s.logger.Error("failed to read subscription from provider",
+			slog.String("provider_subscription_id", completion.ProviderSubscriptionID),
+			slog.String("error", err.Error()),
+		)
+
+		return err
+	}
+
+	if !subscription.Active() {
+		s.logger.Error("subscription is not active at the provider",
+			slog.String("provider_subscription_id", completion.ProviderSubscriptionID),
+			slog.String("status", subscription.Status),
+		)
+
+		return ErrSubscriptionNotActive
+	}
+
+	if !completion.PlanID.Valid {
+		return ErrSubscriptionPlanMismatch
+	}
+
+	plan, err := s.donationStore.GetDonationPlanByID(ctx, completion.PlanID.UUID)
+	if err != nil {
+		s.logger.Error("failed to get donation plan", slog.String("error", err.Error()))
+
+		return err
+	}
+
+	// The plan is ours and was created for one fund. Both halves matter: the
+	// subscription must pay into the plan being claimed, and that plan must belong
+	// to the fund about to be credited.
+	if plan == nil || plan.ProviderPlanID != subscription.ProviderPlanID || plan.FundID != completion.FundID {
+		s.logger.Error("subscription does not match the plan or fund claimed",
+			slog.String("provider_subscription_id", completion.ProviderSubscriptionID),
+			slog.String("subscription_plan_id", subscription.ProviderPlanID),
+			slog.String("claimed_fund_id", completion.FundID.String()),
+		)
+
+		return ErrSubscriptionPlanMismatch
+	}
+
+	// The plan's amount, not the form's. It is what the donor actually agreed to
+	// pay, and it is what the activity feed reports.
+	amountCents := plan.AmountCents
+
 	insertDonation := InsertDonation{
 		ID:                     uuid.New(),
 		DonorID:                memberID,
@@ -287,7 +348,7 @@ func (s DonationService) CompleteRecurringDonation(ctx context.Context, memberID
 		Recurring:              true,
 	}
 
-	_, err := s.donationStore.InsertDonation(ctx, insertDonation)
+	_, err = s.donationStore.InsertDonation(ctx, insertDonation)
 	if err != nil {
 		s.logger.Error("failed to insert donation", slog.String("error", err.Error()))
 
@@ -299,7 +360,7 @@ func (s DonationService) CompleteRecurringDonation(ctx context.Context, memberID
 		Kind:            fundevents.KindDonationStarted,
 		ActorMemberID:   &memberID,
 		SubjectMemberID: &memberID,
-		AmountCents:     &completion.AmountCents,
+		AmountCents:     &amountCents,
 		Detail:          "recurring",
 		ReferenceID:     &insertDonation.ID,
 	})

@@ -48,7 +48,7 @@ func (h WebhooksHandlers) Register(r *mux.Router) {
 }
 
 func (h WebhooksHandlers) webhooks(w http.ResponseWriter, r *http.Request) {
-	bodyBytes, err := verifySignature(r, h.webhookID)
+	bodyBytes, err := verifySignature(r, h.webhookID, h.logger)
 	if err != nil {
 		// Being unable to check is not the same as checking and finding it invalid.
 		// A bad signature is settled and a retry would fail identically, so it is

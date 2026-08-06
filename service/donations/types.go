@@ -60,6 +60,29 @@ type ProviderOrder struct {
 	AmountCents       int32
 }
 
+// ProviderSubscription is a subscription as the provider reports it.
+//
+// The browser used to supply the subscription id, the plan, the fund and the
+// amount, and all four were written unchecked. The fund is the one that cost
+// money: a subscription created against one fund's plan could be recorded
+// against another, and every payment on it then joined the wrong fund's balance
+// and was paid out to the wrong fund's enrollees.
+type ProviderSubscription struct {
+	Status string
+	// ProviderPlanID is the plan the subscription actually pays into. Ours,
+	// created per fund, so it is what ties the subscription to a fund.
+	ProviderPlanID string
+	AmountCents    int32
+}
+
+// Active reports whether the provider considers this subscription live.
+//
+// APPROVED counts: the donor has authorised it and PayPal has not yet taken the
+// first payment, which is precisely the state the completion flow runs in.
+func (p ProviderSubscription) Active() bool {
+	return p.Status == "ACTIVE" || p.Status == "APPROVED"
+}
+
 // RefundEvent is the resource on PAYMENT.SALE.REFUNDED and .REVERSED.
 //
 // sale_id points at the payment being refunded, which is the id we store. A

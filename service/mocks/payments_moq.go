@@ -31,6 +31,9 @@ var _ donations.PaymentsProvider = &PaymentsProviderMock{}
 //			GetOrderFunc: func(ctx context.Context, orderID string) (*donations.ProviderOrder, error) {
 //				panic("mock out the GetOrder method")
 //			},
+//			GetSubscriptionFunc: func(ctx context.Context, subscriptionID string) (*donations.ProviderSubscription, error) {
+//				panic("mock out the GetSubscription method")
+//			},
 //			InitiateDonationFunc: func(ctx context.Context, fund donations.Fund, amountCents int32) (string, error) {
 //				panic("mock out the InitiateDonation method")
 //			},
@@ -52,6 +55,9 @@ type PaymentsProviderMock struct {
 
 	// GetOrderFunc mocks the GetOrder method.
 	GetOrderFunc func(ctx context.Context, orderID string) (*donations.ProviderOrder, error)
+
+	// GetSubscriptionFunc mocks the GetSubscription method.
+	GetSubscriptionFunc func(ctx context.Context, subscriptionID string) (*donations.ProviderSubscription, error)
 
 	// InitiateDonationFunc mocks the InitiateDonation method.
 	InitiateDonationFunc func(ctx context.Context, fund donations.Fund, amountCents int32) (string, error)
@@ -88,6 +94,13 @@ type PaymentsProviderMock struct {
 			// OrderID is the orderID argument value.
 			OrderID string
 		}
+		// GetSubscription holds details about calls to the GetSubscription method.
+		GetSubscription []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// SubscriptionID is the subscriptionID argument value.
+			SubscriptionID string
+		}
 		// InitiateDonation holds details about calls to the InitiateDonation method.
 		InitiateDonation []struct {
 			// Ctx is the ctx argument value.
@@ -102,6 +115,7 @@ type PaymentsProviderMock struct {
 	lockCreateFund          sync.RWMutex
 	lockCreatePlan          sync.RWMutex
 	lockGetOrder            sync.RWMutex
+	lockGetSubscription     sync.RWMutex
 	lockInitiateDonation    sync.RWMutex
 }
 
@@ -250,6 +264,42 @@ func (mock *PaymentsProviderMock) GetOrderCalls() []struct {
 	mock.lockGetOrder.RLock()
 	calls = mock.calls.GetOrder
 	mock.lockGetOrder.RUnlock()
+	return calls
+}
+
+// GetSubscription calls GetSubscriptionFunc.
+func (mock *PaymentsProviderMock) GetSubscription(ctx context.Context, subscriptionID string) (*donations.ProviderSubscription, error) {
+	if mock.GetSubscriptionFunc == nil {
+		panic("PaymentsProviderMock.GetSubscriptionFunc: method is nil but PaymentsProvider.GetSubscription was just called")
+	}
+	callInfo := struct {
+		Ctx            context.Context
+		SubscriptionID string
+	}{
+		Ctx:            ctx,
+		SubscriptionID: subscriptionID,
+	}
+	mock.lockGetSubscription.Lock()
+	mock.calls.GetSubscription = append(mock.calls.GetSubscription, callInfo)
+	mock.lockGetSubscription.Unlock()
+	return mock.GetSubscriptionFunc(ctx, subscriptionID)
+}
+
+// GetSubscriptionCalls gets all the calls that were made to GetSubscription.
+// Check the length with:
+//
+//	len(mockedPaymentsProvider.GetSubscriptionCalls())
+func (mock *PaymentsProviderMock) GetSubscriptionCalls() []struct {
+	Ctx            context.Context
+	SubscriptionID string
+} {
+	var calls []struct {
+		Ctx            context.Context
+		SubscriptionID string
+	}
+	mock.lockGetSubscription.RLock()
+	calls = mock.calls.GetSubscription
+	mock.lockGetSubscription.RUnlock()
 	return calls
 }
 

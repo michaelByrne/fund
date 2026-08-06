@@ -115,6 +115,14 @@ func TestDonationService_DeactivateFund(t *testing.T) {
 		plan, err := donationTestService.CreateDonationPlan(ctx, createPlan)
 		require.NoError(t, err)
 
+		// The subscription is now verified with the provider before it is recorded,
+		// so the mock has to agree it exists and pays into this fund's plan.
+		paymentsMock.GetSubscriptionFunc = func(context.Context, string) (*donations.ProviderSubscription, error) {
+			return &donations.ProviderSubscription{
+				Status: "ACTIVE", ProviderPlanID: plan.ProviderPlanID,
+			}, nil
+		}
+
 		completeDonationTwo := donations.RecurringCompletion{
 			PlanID: uuid.NullUUID{
 				UUID:  plan.ID,
@@ -196,6 +204,12 @@ func TestDeactivateFundLeavesTheFundOpenIfCancellationFails(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	paymentsMock.GetSubscriptionFunc = func(context.Context, string) (*donations.ProviderSubscription, error) {
+		return &donations.ProviderSubscription{
+			Status: "ACTIVE", ProviderPlanID: plan.ProviderPlanID,
+		}, nil
+	}
+
 	require.NoError(t, svc.CompleteRecurringDonation(ctx, member.ID, donations.RecurringCompletion{
 		PlanID:                 uuid.NullUUID{UUID: plan.ID, Valid: true},
 		ProviderOrderID:        "order",
@@ -272,6 +286,12 @@ func TestDeactivateMemberLeavesTheMemberActiveIfCancellationFails(t *testing.T) 
 	})
 	require.NoError(t, err)
 
+	paymentsMock.GetSubscriptionFunc = func(context.Context, string) (*donations.ProviderSubscription, error) {
+		return &donations.ProviderSubscription{
+			Status: "ACTIVE", ProviderPlanID: plan.ProviderPlanID,
+		}, nil
+	}
+
 	require.NoError(t, svc.CompleteRecurringDonation(ctx, member.ID, donations.RecurringCompletion{
 		PlanID:                 uuid.NullUUID{UUID: plan.ID, Valid: true},
 		ProviderOrderID:        "order",
@@ -342,6 +362,12 @@ func TestDeactivateFundRejectsMismatchedCancellations(t *testing.T) {
 		IntervalUnit: donations.IntervalUnitMonth, IntervalCount: 1, FundID: fund.ID,
 	})
 	require.NoError(t, err)
+
+	paymentsMock.GetSubscriptionFunc = func(context.Context, string) (*donations.ProviderSubscription, error) {
+		return &donations.ProviderSubscription{
+			Status: "ACTIVE", ProviderPlanID: plan.ProviderPlanID,
+		}, nil
+	}
 
 	require.NoError(t, svc.CompleteRecurringDonation(ctx, member.ID, donations.RecurringCompletion{
 		PlanID:                 uuid.NullUUID{UUID: plan.ID, Valid: true},
