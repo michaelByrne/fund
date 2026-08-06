@@ -210,10 +210,11 @@ func (h *Handlers) subscriptionEnded(data []byte) error {
 	// provider's own timestamp, so the feed reads in the order things actually
 	// happened rather than the order we heard about them.
 	//
-	// Keyed on the subscription and the status it moved to. The deactivation above
-	// is an unconditional update, so unlike the payment and reactivation paths
-	// there is nothing here that reports "already done" -- without a key a
-	// redelivery records a second cancellation for the same one.
+	// Keyed on the subscription and the status it moved to, from the same helper
+	// the local cancellation paths use. When we asked for the cancellation, this
+	// webhook is the provider echoing it back and the key discards it -- the feed
+	// showed one action twice, once as "cancelled by donor" and once as
+	// "subscription cancelled at provider".
 	h.events.Record(context.Background(), fundevents.Record{
 		FundID:          donation.FundID,
 		Kind:            fundevents.KindDonationCancelled,
@@ -221,7 +222,7 @@ func (h *Handlers) subscriptionEnded(data []byte) error {
 		SubjectMemberID: &donation.DonorID,
 		Detail:          "subscription " + strings.ToLower(subscriptionEnded.Status) + " at provider",
 		ReferenceID:     &donation.ID,
-		DedupeKey:       "subscription-ended:" + subscriptionEnded.ID + ":" + subscriptionEnded.Status,
+		DedupeKey:       subscriptionEndedKey(subscriptionEnded.ID, subscriptionEnded.Status),
 	})
 
 	return nil
