@@ -104,55 +104,24 @@ resource "aws_cognito_user_pool_client" "bco_pool_client" {
   ]
 }
 
+# Membership of this group is the entire admin authorisation decision -- see the
+# comment on jwtauth.AdminGroup. The group is declared here; who is in it is not.
+#
+# Individual users and their group memberships used to be declared here too. They
+# fought with the application, which creates users itself at registration: a user
+# Terraform believes it owns is one Terraform will delete, and the attributes it
+# writes are not the ones registration writes. Admins are now granted from the
+# member page in the admin UI, which is the only place that knows who the members
+# are.
+#
+# Bootstrapping the first admin is a one-off, and belongs in the console or the
+# CLI rather than in state that gets reapplied:
+#
+#   aws cognito-idp admin-add-user-to-group \
+#     --user-pool-id <pool> --username <user> --group-name bco-admin-group
 resource "aws_cognito_user_group" "bco_admin_group" {
   name         = "bco-admin-group"
   user_pool_id = aws_cognito_user_pool.bco_fund_pool.id
-}
-
-resource "aws_cognito_user" "cognito_user_gofreescout" {
-  user_pool_id = aws_cognito_user_pool.bco_fund_pool.id
-  username     = "gofreescout"
-
-  attributes = {
-    email          = "mpbyrne@gmail.com"
-    email_verified = "true"
-    member_id      = "123456"
-  }
-
-  lifecycle {
-    ignore_changes = [
-      attributes,
-    ]
-  }
-}
-
-resource "aws_cognito_user" "cognito_user_michael" {
-  user_pool_id = aws_cognito_user_pool.bco_fund_pool.id
-  username     = "michael"
-
-  attributes = {
-    email          = "mpbyrne@gmail.com"
-    email_verified = "true"
-    member_id      = "123456"
-  }
-
-  lifecycle {
-    ignore_changes = [
-      attributes,
-    ]
-  }
-}
-
-resource "aws_cognito_user_in_group" "gofreescout_admin_group_membership" {
-  user_pool_id = aws_cognito_user_pool.bco_fund_pool.id
-  username     = aws_cognito_user.cognito_user_gofreescout.username
-  group_name   = aws_cognito_user_group.bco_admin_group.name
-}
-
-resource "aws_cognito_user_in_group" "michael_admin_group_membership" {
-  user_pool_id = aws_cognito_user_pool.bco_fund_pool.id
-  username     = aws_cognito_user.cognito_user_michael.username
-  group_name   = aws_cognito_user_group.bco_admin_group.name
 }
 
 module "oidc_github" {
