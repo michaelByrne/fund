@@ -904,7 +904,14 @@ func (h *FundHandlers) closedFundSummary(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	ClosedFundSummary(*fund, fund.Stats, &member, r.URL.Path).Render(ctx, w)
+	// Only the notes themselves. There is no form on this page to decide the
+	// shape of, because a fund that has closed cannot be given to.
+	notes, err := h.donationService.ListFundNotes(ctx, fundID)
+	if err != nil {
+		h.logger.Error("failed to list fund notes", slog.String("error", err.Error()))
+	}
+
+	ClosedFundSummary(*fund, fund.Stats, notes, &member, r.URL.Path).Render(ctx, w)
 }
 
 func sendJSON(w http.ResponseWriter, status int, v any) {
