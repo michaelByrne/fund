@@ -203,9 +203,22 @@ RETURNING *;
 INSERT INTO fund (id, name, description, provider_id, provider_name, active, payout_frequency, goal_cents, expires,
                   principal, next_payment)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+        -- Anchored to midnight UTC rather than the moment of creation.
+        --
+        -- A fund becomes due on the first cron run after its anchor, and the
+        -- anchor used to carry the time of day it was created at. A daily fund
+        -- created at 22:00 was therefore not due at the 09:00 run the next
+        -- morning, and lost its first day -- while one created at 08:00 ran as
+        -- expected. The schedule should say which day and the cron should say
+        -- what time; this stops the schedule having an opinion about both.
+        --
+        -- Written through UTC explicitly so the answer does not depend on the
+        -- session timezone, which is not ours to assume.
         (CASE
-             WHEN $7::payout_frequency = 'monthly' THEN (SELECT now() + INTERVAL '1 month')
-             WHEN $7::payout_frequency = 'daily' THEN (SELECT now() + INTERVAL '1 day')
+             WHEN $7::payout_frequency = 'monthly'
+                 THEN (date_trunc('day', now() AT TIME ZONE 'UTC') + INTERVAL '1 month') AT TIME ZONE 'UTC'
+             WHEN $7::payout_frequency = 'daily'
+                 THEN (date_trunc('day', now() AT TIME ZONE 'UTC') + INTERVAL '1 day') AT TIME ZONE 'UTC'
              ELSE $9::timestamptz END))
 RETURNING *;
 

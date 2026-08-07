@@ -348,6 +348,15 @@ func (h *AdminHandlers) createEnrollment(w http.ResponseWriter, r *http.Request)
 
 	enrollment, err := h.enrollmentService.CreateEnrollment(ctx, createEnrollment)
 	if err != nil {
+		// A malformed address is something the admin can fix, and the only person
+		// who can. Reported as internal error it reads as a fault here, and the
+		// obvious response is to try the same thing again.
+		if errors.Is(err, enrollments.ErrInvalidPaypalEmail) {
+			h.badRequest(w, r, err.Error())
+
+			return
+		}
+
 		h.internalError(w, r)
 
 		return
