@@ -25,7 +25,17 @@ templ Funds(funds []donations.Fund, member *members.Member, path string) {
 templ AddFund() {
 	<div class="w-full mx-auto max-w-md blue-boxy-filter">
 		<h3 class="text-md font-semibold mt-2 inline-block bg-high p-2">new fund</h3>
-		<form hx-post="/admin/fund" hx-swap="afterbegin" hx-target="#admin-funds" hx-target-error="this" class="w-[90%] p-4 bg-even">
+		// hx-encoding, because a file cannot travel in a urlencoded body -- without
+		// it htmx sends the filename and nothing else, and the server sees an empty
+		// upload.
+		<form
+			hx-post="/admin/fund"
+			hx-swap="afterbegin"
+			hx-target="#admin-funds"
+			hx-target-error="this"
+			hx-encoding="multipart/form-data"
+			class="w-[90%] p-4 bg-even"
+		>
 			<div class="grid grid-cols-3 gap-4 mt-6">
 				<label for="name" class="col-span-1 text-left">name</label>
 				<input type="text" placeholder="human fund" required name="name" id="name" class="col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm"/>
@@ -51,6 +61,21 @@ templ AddFund() {
 				</select>
 				<label for="date" class="col-span-1 text-left">end date</label>
 				<input type="date" name="date" id="date" class="col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm"/>
+				// Here rather than only on the fund's own page. The picture is the
+				// largest thing about a fund on the site now -- the front page draws it
+				// beside the name -- so it belongs where the fund is described, not as
+				// something to remember afterwards.
+				<label for="fund-picture" class="col-span-1 text-left">picture</label>
+				<div class="col-span-2">
+					<input
+						type="file"
+						name="image"
+						id="fund-picture"
+						accept="image/jpeg,image/png,image/webp"
+						class="w-full text-xs"
+					/>
+					<p class="mt-1 text-xs text-gray-600">optional. jpeg, png or webp.</p>
+				</div>
 			</div>
 			<div class="mt-6 flex justify-center">
 				<button
@@ -60,6 +85,10 @@ templ AddFund() {
 					submit
 				</button>
 			</div>
+			// Where a partial success lands. The response to this form is a row for a
+			// different part of the page, so anything to say about the fund itself has
+			// to be swapped out of band into somewhere that already exists.
+			<div id="fund-create-notice"></div>
 		</form>
 	</div>
 }
@@ -313,4 +342,19 @@ templ FundState(fund donations.Fund) {
 	} else if fund.Expired() {
 		<span class="text-xs px-1 bg-gray-200 text-gray-700 shrink-0">expired</span>
 	}
+}
+
+// FundCreatedWithoutPicture is the fund's row plus a word about the picture that
+// did not make it.
+//
+// The row is what the form's target expects, so the new fund still appears in the
+// list. The message is swapped out of band into the form, because the fund was
+// created and telling somebody otherwise would send them to make a second one.
+templ FundCreatedWithoutPicture(fund donations.Fund, failure string) {
+	@FundRow(fund)
+	<div id="fund-create-notice" hx-swap-oob="true" class="mt-4 p-2 text-sm bg-odd-hover">
+		{ fund.Name } was created, but the picture was not: { failure }
+		<br/>
+		add one from the fund's page.
+	</div>
 }

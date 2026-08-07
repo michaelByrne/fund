@@ -2,7 +2,6 @@ package adminweb
 
 import (
 	"boardfund/service/donations"
-	"boardfund/web/common"
 	"fmt"
 	"github.com/google/uuid"
 )
@@ -14,12 +13,12 @@ import (
 // hx-encoding, because a file cannot travel in a urlencoded body -- without it
 // htmx sends the filename and nothing else, and the server sees an empty upload.
 templ FundImageControl(fundID uuid.UUID, image *donations.FundImage, failure string) {
-	// The same card as history and enrollments beside it, rather than a box of its
-	// own invention. The id is on the wrapper so a swap replaces the heading with
-	// the body -- inside the section it would leave the chrome behind and nest a
-	// second one in it.
-	<div id="fund-image-control">
-		@common.Section("fund image") {
+	// No card of its own any more: it is one setting inside fund details, which
+	// supplies the card. Its own id stays, because uploading still swaps just this
+	// part rather than redrawing the description and the goal around it.
+	<div id="fund-image-control" class="w-full md:w-56">
+		<div class="text-xs font-semibold mb-1">picture</div>
+		<div>
 			if failure != "" {
 				<p class="mb-2 p-2 text-sm bg-odd-hover">{ failure }</p>
 			}
@@ -81,6 +80,6 @@ templ FundImageControl(fundID uuid.UUID, image *donations.FundImage, failure str
 				jpeg, png or webp, up to { fmt.Sprintf("%d", donations.MaxImageBytes>>20) }mb. larger
 				pictures are scaled down to { fmt.Sprintf("%d", donations.MaxImageDimension) } pixels.
 			</p>
-		}
+		</div>
 	</div>
 }
