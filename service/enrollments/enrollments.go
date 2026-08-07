@@ -67,6 +67,21 @@ func (s EnrollmentsService) DeactivateEnrollment(ctx context.Context, enrollment
 }
 
 func (s EnrollmentsService) CreateEnrollment(ctx context.Context, createEnrollment CreateEnrollment) (*Enrollment, error) {
+	// Checked here rather than at the form, because this address is where the
+	// fund's money goes and the service is the last place that is true for every
+	// caller. A malformed one is not rejected by the provider until the payout has
+	// already been planned and submitted.
+	paypalEmail, err := validatePaypalEmail(createEnrollment.PaypalEmail)
+	if err != nil {
+		s.logger.Error("refusing an enrollment with an unusable paypal address",
+			slog.String("error", err.Error()),
+		)
+
+		return nil, err
+	}
+
+	createEnrollment.PaypalEmail = paypalEmail
+
 	fund, err := s.fundStore.GetFundByID(ctx, createEnrollment.FundID)
 	if err != nil {
 		s.logger.Error("failed to get fund for enrollment", slog.String("error", err.Error()))
