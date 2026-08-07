@@ -4,6 +4,7 @@ import (
 	"boardfund/service/donations"
 	"boardfund/service/fundevents"
 	"context"
+	"fmt"
 	"github.com/google/uuid"
 	"io"
 	"log/slog"
@@ -428,7 +429,9 @@ func (s FinanceService) reconcileRecurringDonationsForFund(ctx context.Context, 
 			}
 		}
 
-		s.recordProviderView(ctx, payments, logger)
+		if errRecord := s.recordProviderView(ctx, payments, logger); errRecord != nil {
+			return errRecord
+		}
 	}
 
 	return nil
@@ -441,7 +444,14 @@ func (s FinanceService) reconcileRecurringDonationsForFund(ctx context.Context, 
 // the audit page can then answer for a fund as it stands rather than as some past
 // run left it, and an amount that does not match is a row somebody can be shown
 // rather than a pair of numbers in a file nobody opened.
-func (s FinanceService) recordProviderView(ctx context.Context, payments []donations.DonationPayment, logger *slog.Logger) {
+//
+// Returns an error when any write failed. This is the job's only durable output
+// now that the CSV is gone, so swallowing a failure would let the run report
+// success while the audit page stayed blank and nothing said why. Every payment
+// is still attempted first: one bad row should not cost the rest of the fund.
+func (s FinanceService) recordProviderView(ctx context.Context, payments []donations.DonationPayment, logger *slog.Logger) error {
+	var failed int
+
 	for _, payment := range payments {
 		transaction, err := s.paymentsProvider.GetTransaction(ctx,
 			payment.ProviderPaymentID, payment.Created.AddDate(0, 0, -1), time.Now())
@@ -495,8 +505,16 @@ func (s FinanceService) recordProviderView(ctx context.Context, payments []donat
 				slog.String("payment_id", payment.ID.String()),
 				slog.String("error", err.Error()),
 			)
+
+			failed++
 		}
 	}
+
+	if failed > 0 {
+		return fmt.Errorf("failed to record reconciliation for %d of %d payments", failed, len(payments))
+	}
+
+	return nil
 }
 
 func (s FinanceService) reconcileOneTimeDonationsForFund(ctx context.Context, fundID uuid.UUID) error {
@@ -522,7 +540,9 @@ func (s FinanceService) reconcileOneTimeDonationsForFund(ctx context.Context, fu
 			return errInner
 		}
 
-		s.recordProviderView(ctx, payments, logger)
+		if errRecord := s.recordProviderView(ctx, payments, logger); errRecord != nil {
+			return errRecord
+		}
 	}
 
 	return nil

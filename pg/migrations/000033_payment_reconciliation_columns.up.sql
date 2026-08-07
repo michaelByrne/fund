@@ -18,5 +18,13 @@ ALTER TABLE donation_payment
     -- blank.
     ADD COLUMN reconciled_at         timestamp with time zone;
 
--- The audit page reads a fund's payments newest first.
-CREATE INDEX donation_payment_created_idx ON donation_payment (created DESC);
+-- The audit page reads one fund's payments, newest first, and gets there by
+-- joining donation_payment to donation and filtering on donation.fund_id.
+--
+-- Both of those are foreign keys and Postgres does not index a foreign key for
+-- you, so neither side of the join had an index at all: a per-fund audit scanned
+-- every payment and every donation ever recorded. An index on
+-- donation_payment(created) alone would not have helped, because the filter is on
+-- the other table.
+CREATE INDEX donation_fund_id_idx ON donation (fund_id);
+CREATE INDEX donation_payment_donation_id_created_idx ON donation_payment (donation_id, created DESC);
