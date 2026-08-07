@@ -86,27 +86,21 @@ templ FundRow(fund donations.Fund) {
 				@FundState(fund)
 				<span class="text-sm text-gray-600 md:ml-auto shrink-0">{ string(fund.PayoutFrequency) }</span>
 			</div>
-			<div class="relative" onclick="event.stopPropagation()">
-				<span
-					title="audit"
-					class="ml-4 text-xl text-strong hover:text-links cursor-pointer gear-icon"
-					data-fund-id={ fund.ID.String() }
-					onclick="toggleDropdown(event, this)"
-					hx-get={ fmt.Sprintf("/admin/fund/audit?fund=%s", fund.ID.String()) }
-					hx-target="next .audit-content"
-					hx-trigger="audit-load"
-				>
-					&#128269;
-				</span>
-				<div class="audit-dropdown hidden absolute right-0 top-[calc(100%+8px)] mt-1 bg-even border border-gray-200 shadow-lg z-50 min-w-[200px] max-h-[300px] overflow-y-auto">
-					<div class="absolute -top-2 right-4 w-4 h-4 bg-white border-t border-l border-gray-200 transform rotate-45"></div>
-					<div class="relative bg-white z-10">
-						<ul class="audit-content">
-							<li class="p-2">Loading...</li>
-						</ul>
-					</div>
-				</div>
-			</div>
+			// A link rather than an icon opening a dropdown. The dropdown listed the
+			// stored reports a fund had, and there are no stored reports now -- one
+			// live view per fund, so there is nothing to choose between. It was also
+			// swapping a whole page into a list inside itself.
+			//
+			// stopPropagation because the row carries its own hx-get to the fund
+			// page, and a click here would otherwise trigger both.
+			<a
+				href={ templ.SafeURL(fmt.Sprintf("/admin/fund/audit?fund=%s", fund.ID.String())) }
+				onclick="event.stopPropagation()"
+				title="payments checked against PayPal"
+				class="ml-4 shrink-0 text-sm text-links hover:underline whitespace-nowrap"
+			>
+				view audit
+			</a>
 			if !fund.Closed() {
 				<div
 					hx-post={ fmt.Sprintf("/admin/fund/deactivate/%s", fund.ID.String()) }
@@ -129,20 +123,23 @@ templ FundRow(fund donations.Fund) {
 
 templ FundPaymentsAudit(audit finance.Audit, member *members.Member, path string) {
 	@Admin(member, path) {
-		<div id="payments-list" class="blue-boxy-filter p-2">
-			<h3 class="text-md font-semibold bg-high inline-block p-2">
+		<div class="p-2">
+			<h3 class="text-md font-semibold bg-high inline-block p-2 blue-boxy-filter">
 				payments <span class="font-medium">for</span> { audit.FundName }
 			</h3>
-			<p class="text-xs text-gray-600 p-2">
-				as at { audit.Date.Format("01-02-2006 15:04") }. what PayPal says is filled in by
-				the nightly reconciliation, so a payment taken since then reads as not yet checked.
+			// Outside the filtered box. blue-boxy-filter is a drop-shadow, which
+			// shadows the shape of everything inside it -- fine for a heading or a
+			// table, which have backgrounds and cast a box, and wrong for bare text,
+			// which casts a copy of itself four pixels down and reads as doubled.
+			<p class="text-xs text-gray-600 pt-3 pb-2 max-w-2xl">
+				checked against PayPal nightly. anything taken since the last run reads as unchecked.
 			</p>
 			if len(audit.Payments) == 0 {
-				<p class="text-sm p-2">this fund has taken no payments.</p>
+				<p class="text-sm py-2">this fund has taken no payments.</p>
 			} else {
-				<div class="hidden md:block">
+				<div class="hidden md:block blue-boxy-filter">
 					<div class="max-h-[400px] overflow-auto">
-						<table class="w-full text-xs text-left border-collapse leading-relaxed">
+						<table class="w-full text-xs text-left border-collapse leading-relaxed bg-back">
 							<thead class="sticky top-0 z-10 bg-even">
 								<tr>
 									<th class="text-left w-[2%]"><span class="inline-block p-2"></span></th>
