@@ -129,6 +129,13 @@ func TestHumanBytesDoesNotRunOffTheEndOfItsSuffixes(t *testing.T) {
 // inside it. A heading or a table has a background and casts a box, which is the
 // point. Bare text casts a copy of itself four pixels down and right, and reads
 // on screen as the sentence printed twice.
+//
+// A string search cannot prove DOM ancestry, so this asserts the one structural
+// fact that decides it: the container wrapping the whole page carries no filter,
+// and the filter appears only on the heading and the table. An earlier version of
+// this test walked past any filter occurring before the caption, assuming it was
+// the heading -- which is precisely what a filter on the outer container looks
+// like, so it passed while the bug was present.
 func TestAuditCaptionSitsOutsideTheShadowedBox(t *testing.T) {
 	var out strings.Builder
 
@@ -148,28 +155,22 @@ func TestAuditCaptionSitsOutsideTheShadowedBox(t *testing.T) {
 
 	html := out.String()
 
-	caption := strings.Index(html, "checked against PayPal nightly")
-	if caption < 0 {
+	if !strings.Contains(html, "checked against PayPal nightly") {
 		t.Fatal("the caption should explain what unchecked means")
 	}
 
-	// The caption has to come before the shadowed container opens, or the filter
-	// applies to it.
-	box := strings.Index(html, "blue-boxy-filter")
-	for box >= 0 && box < caption {
-		// The heading also carries the filter and legitimately precedes the
-		// caption; look past it.
-		next := strings.Index(html[box+1:], "blue-boxy-filter")
-		if next < 0 {
-			box = -1
-
-			break
-		}
-
-		box += next + 1
+	// The page container. If the filter is on this, everything inside it is
+	// shadowed, the caption included.
+	if !strings.Contains(html, `<div class="p-2">`) {
+		t.Error("the page container should carry no drop shadow")
 	}
 
-	if box >= 0 && box < caption {
-		t.Error("the caption is inside a drop-shadowed container and will render doubled")
+	for _, shadowed := range []string{
+		`bg-high inline-block p-2 blue-boxy-filter`,
+		`hidden md:block blue-boxy-filter`,
+	} {
+		if !strings.Contains(html, shadowed) {
+			t.Errorf("expected the shadow on %q, which has a background to cast it", shadowed)
+		}
 	}
 }
