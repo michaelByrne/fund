@@ -86,27 +86,21 @@ templ FundRow(fund donations.Fund) {
 				@FundState(fund)
 				<span class="text-sm text-gray-600 md:ml-auto shrink-0">{ string(fund.PayoutFrequency) }</span>
 			</div>
-			<div class="relative" onclick="event.stopPropagation()">
-				<span
-					title="audit"
-					class="ml-4 text-xl text-strong hover:text-links cursor-pointer gear-icon"
-					data-fund-id={ fund.ID.String() }
-					onclick="toggleDropdown(event, this)"
-					hx-get={ fmt.Sprintf("/admin/fund/audit?fund=%s", fund.ID.String()) }
-					hx-target="next .audit-content"
-					hx-trigger="audit-load"
-				>
-					&#128269;
-				</span>
-				<div class="audit-dropdown hidden absolute right-0 top-[calc(100%+8px)] mt-1 bg-even border border-gray-200 shadow-lg z-50 min-w-[200px] max-h-[300px] overflow-y-auto">
-					<div class="absolute -top-2 right-4 w-4 h-4 bg-white border-t border-l border-gray-200 transform rotate-45"></div>
-					<div class="relative bg-white z-10">
-						<ul class="audit-content">
-							<li class="p-2">Loading...</li>
-						</ul>
-					</div>
-				</div>
-			</div>
+			// A link rather than an icon opening a dropdown. The dropdown listed the
+			// stored reports a fund had, and there are no stored reports now -- one
+			// live view per fund, so there is nothing to choose between. It was also
+			// swapping a whole page into a list inside itself.
+			//
+			// stopPropagation because the row carries its own hx-get to the fund
+			// page, and a click here would otherwise trigger both.
+			<a
+				href={ templ.SafeURL(fmt.Sprintf("/admin/fund/audit?fund=%s", fund.ID.String())) }
+				onclick="event.stopPropagation()"
+				title="payments checked against PayPal"
+				class="ml-4 shrink-0 text-sm text-links hover:underline whitespace-nowrap"
+			>
+				view audit
+			</a>
 			if !fund.Closed() {
 				<div
 					hx-post={ fmt.Sprintf("/admin/fund/deactivate/%s", fund.ID.String()) }
