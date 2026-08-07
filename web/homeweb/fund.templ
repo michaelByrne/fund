@@ -18,7 +18,7 @@ func donationURL(freq donations.PayoutFrequency) string {
 	return "/donation/once"
 }
 
-templ Fund(fund donations.Fund, fundStats donations.FundStats, member *members.Member, path string) {
+templ Fund(fund donations.Fund, fundStats donations.FundStats, notes []donations.FundNote, own *donations.FundNote, canWrite bool, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div id="donation-form" class="p-5 mt-2">
 			<span class="blue-boxy-filter">
@@ -39,6 +39,11 @@ templ Fund(fund donations.Fund, fundStats donations.FundStats, member *members.M
 						</canvas>
 					</div>
 				}
+			</div>
+			// response-targets so a refused note reaches the donor. htmx discards
+			// 4xx bodies without it, and the form would silently do nothing.
+			<div hx-ext="response-targets">
+				@FundNotes(fund, notes, own, canWrite, member != nil && member.IsAdmin())
 			</div>
 		</div>
 	}
@@ -110,7 +115,7 @@ templ Title(text string) {
 // and the same chart, with the donation form replaced by what the fund did.
 // A closed fund still has a story worth reading, and until this existed the only
 // way to see it was a page that offered to take money for a fund that had ended.
-templ ClosedFundSummary(fund donations.ClosedFund, fundStats donations.FundStats, member *members.Member, path string) {
+templ ClosedFundSummary(fund donations.ClosedFund, fundStats donations.FundStats, notes []donations.FundNote, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div class="p-5 mt-2">
 			<span class="blue-boxy-filter">
@@ -136,6 +141,14 @@ templ ClosedFundSummary(fund donations.ClosedFund, fundStats donations.FundStats
 					</div>
 				}
 			</div>
+			// Notes outlive the fund. They are part of what it was, and a closed fund
+			// is the one people read to decide whether this works. Read-only: nobody
+			// can give to it now, so nobody can earn a note on it now -- and a fund
+			// ending is not a reason a note that is already up should stay up, so an
+			// admin can still take one down.
+			if len(notes) > 0 {
+				@FundNotes(fund.Fund, notes, nil, false, member != nil && member.IsAdmin())
+			}
 		</div>
 	}
 }

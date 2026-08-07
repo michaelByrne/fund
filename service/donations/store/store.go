@@ -6,7 +6,9 @@ import (
 	"boardfund/service/donations"
 	"boardfund/service/finance"
 	"context"
+	"errors"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"time"
@@ -482,4 +484,110 @@ func reconciledAt(t db.NullDBTime) *time.Time {
 	out := t.DBTime.Time
 
 	return &out
+}
+
+func (s DonationStore) MemberHasGivenToFund(ctx context.Context, fundID, memberID uuid.UUID) (bool, error) {
+	return s.queries.MemberHasGivenToFund(ctx, db.MemberHasGivenToFundParams{
+		FundID:  fundID,
+		DonorID: memberID,
+	})
+}
+
+func (s DonationStore) UpsertFundNote(ctx context.Context, arg donations.UpsertFundNote) (*donations.FundNote, error) {
+	row, err := s.queries.UpsertFundNote(ctx, db.UpsertFundNoteParams{
+		ID:        uuid.New(),
+		FundID:    arg.FundID,
+		MemberID:  arg.MemberID,
+		Body:      arg.Body,
+		Anonymous: arg.Anonymous,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// No author name: the caller already knows whose it is, and reading it back
+	// would mean a join this does not need.
+	return &donations.FundNote{
+		ID:        row.ID,
+		FundID:    row.FundID,
+		MemberID:  row.MemberID,
+		Body:      row.Body,
+		Anonymous: row.Anonymous,
+		Created:   row.Created.Time,
+		Updated:   row.Updated.Time,
+	}, nil
+}
+
+func (s DonationStore) GetFundNotes(ctx context.Context, fundID uuid.UUID) ([]donations.FundNote, error) {
+	rows, err := s.queries.GetFundNotes(ctx, fundID)
+	if err != nil {
+		return nil, err
+	}
+
+	notes := make([]donations.FundNote, 0, len(rows))
+	for _, row := range rows {
+		note := donations.FundNote{
+			ID:        row.ID,
+			FundID:    row.FundID,
+			MemberID:  row.MemberID,
+			Body:      row.Body,
+			Anonymous: row.Anonymous,
+			Created:   row.Created.Time,
+			Updated:   row.Updated.Time,
+		}
+
+		// Withheld here rather than in the template. A name left on the struct is
+		// a name one careless render away from being shown.
+		if !row.Anonymous {
+			note.AuthorName = row.AuthorName.String
+		}
+
+		notes = append(notes, note)
+	}
+
+	return notes, nil
+}
+
+func (s DonationStore) GetFundNoteForMember(ctx context.Context, fundID, memberID uuid.UUID) (*donations.FundNote, error) {
+	row, err := s.queries.GetFundNoteForMember(ctx, db.GetFundNoteForMemberParams{
+		FundID:   fundID,
+		MemberID: memberID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// No note yet, which is the ordinary state of most donors.
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	// A removed note is not shown back to its author either: editing it would
+	// otherwise be a way to find out it had been taken down.
+	if row.RemovedAt.Valid {
+		return nil, nil
+	}
+
+	return &donations.FundNote{
+		ID:        row.ID,
+		FundID:    row.FundID,
+		MemberID:  row.MemberID,
+		Body:      row.Body,
+		Anonymous: row.Anonymous,
+		Created:   row.Created.Time,
+		Updated:   row.Updated.Time,
+	}, nil
+}
+
+func (s DonationStore) RemoveFundNote(ctx context.Context, noteID, actorID uuid.UUID) error {
+	_, err := s.queries.RemoveFundNote(ctx, db.RemoveFundNoteParams{
+		ID:        noteID,
+		RemovedBy: uuid.NullUUID{UUID: actorID, Valid: true},
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Already removed. The moderator asked for it gone and it is gone.
+		return nil
+	}
+
+	return err
 }

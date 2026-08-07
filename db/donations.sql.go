@@ -784,6 +784,92 @@ func (q *Queries) GetFundById(ctx context.Context, id uuid.UUID) (GetFundByIdRow
 	return i, err
 }
 
+const getFundNoteForMember = `-- name: GetFundNoteForMember :one
+SELECT id, fund_id, member_id, body, anonymous, removed_at, removed_by, created, updated
+FROM fund_note
+WHERE fund_id = $1
+  AND member_id = $2
+`
+
+type GetFundNoteForMemberParams struct {
+	FundID   uuid.UUID
+	MemberID uuid.UUID
+}
+
+func (q *Queries) GetFundNoteForMember(ctx context.Context, arg GetFundNoteForMemberParams) (FundNote, error) {
+	row := q.db.QueryRow(ctx, getFundNoteForMember, arg.FundID, arg.MemberID)
+	var i FundNote
+	err := row.Scan(
+		&i.ID,
+		&i.FundID,
+		&i.MemberID,
+		&i.Body,
+		&i.Anonymous,
+		&i.RemovedAt,
+		&i.RemovedBy,
+		&i.Created,
+		&i.Updated,
+	)
+	return i, err
+}
+
+const getFundNotes = `-- name: GetFundNotes :many
+SELECT fn.id,
+       fn.fund_id,
+       fn.member_id,
+       fn.body,
+       fn.anonymous,
+       fn.created,
+       fn.updated,
+       m.bco_name AS author_name
+FROM fund_note fn
+         JOIN member m ON m.id = fn.member_id
+WHERE fn.fund_id = $1
+  AND fn.removed_at IS NULL
+ORDER BY fn.created DESC
+`
+
+type GetFundNotesRow struct {
+	ID         uuid.UUID
+	FundID     uuid.UUID
+	MemberID   uuid.UUID
+	Body       string
+	Anonymous  bool
+	Created    pgtype.Timestamptz
+	Updated    pgtype.Timestamptz
+	AuthorName pgtype.Text
+}
+
+// The notes a visitor sees. Removed ones are absent rather than blanked.
+func (q *Queries) GetFundNotes(ctx context.Context, fundID uuid.UUID) ([]GetFundNotesRow, error) {
+	rows, err := q.db.Query(ctx, getFundNotes, fundID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetFundNotesRow
+	for rows.Next() {
+		var i GetFundNotesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FundID,
+			&i.MemberID,
+			&i.Body,
+			&i.Anonymous,
+			&i.Created,
+			&i.Updated,
+			&i.AuthorName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getFundPaymentsForAudit = `-- name: GetFundPaymentsForAudit :many
 SELECT dp.id,
        dp.donation_id,
@@ -1392,6 +1478,32 @@ func (q *Queries) InsertFund(ctx context.Context, arg InsertFundParams) (Fund, e
 	return i, err
 }
 
+const memberHasGivenToFund = `-- name: MemberHasGivenToFund :one
+SELECT EXISTS (SELECT 1
+               FROM donation d
+                        JOIN donation_payment dp ON dp.donation_id = d.id
+               WHERE d.fund_id = $1
+                 AND d.donor_id = $2
+                 AND dp.amount_cents - dp.refunded_cents > 0)
+`
+
+type MemberHasGivenToFundParams struct {
+	FundID  uuid.UUID
+	DonorID uuid.UUID
+}
+
+// Whether a member has actually given money to this fund.
+//
+// A payment, not a donation: a subscription created today that has not charged
+// yet is not money given. And net of refunds, because money that came back was
+// not given either.
+func (q *Queries) MemberHasGivenToFund(ctx context.Context, arg MemberHasGivenToFundParams) (bool, error) {
+	row := q.db.QueryRow(ctx, memberHasGivenToFund, arg.FundID, arg.DonorID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const reactivateSuspendedDonationBySubscriptionId = `-- name: ReactivateSuspendedDonationBySubscriptionId :many
 UPDATE donation
 SET active          = true,
@@ -1445,6 +1557,39 @@ func (q *Queries) ReactivateSuspendedDonationBySubscriptionId(ctx context.Contex
 		return nil, err
 	}
 	return items, nil
+}
+
+const removeFundNote = `-- name: RemoveFundNote :one
+UPDATE fund_note
+SET removed_at = now(),
+    removed_by = $2,
+    updated    = now()
+WHERE id = $1
+  AND removed_at IS NULL
+RETURNING id, fund_id, member_id, body, anonymous, removed_at, removed_by, created, updated
+`
+
+type RemoveFundNoteParams struct {
+	ID        uuid.UUID
+	RemovedBy uuid.NullUUID
+}
+
+// Soft delete, recording who did it.
+func (q *Queries) RemoveFundNote(ctx context.Context, arg RemoveFundNoteParams) (FundNote, error) {
+	row := q.db.QueryRow(ctx, removeFundNote, arg.ID, arg.RemovedBy)
+	var i FundNote
+	err := row.Scan(
+		&i.ID,
+		&i.FundID,
+		&i.MemberID,
+		&i.Body,
+		&i.Anonymous,
+		&i.RemovedAt,
+		&i.RemovedBy,
+		&i.Created,
+		&i.Updated,
+	)
+	return i, err
 }
 
 const setDonationPaymentRefunded = `-- name: SetDonationPaymentRefunded :many
@@ -2079,6 +2224,52 @@ func (q *Queries) UpsertDonationPlan(ctx context.Context, arg UpsertDonationPlan
 		&i.Created,
 		&i.Updated,
 		&i.FundID,
+	)
+	return i, err
+}
+
+const upsertFundNote = `-- name: UpsertFundNote :one
+INSERT INTO fund_note (id, fund_id, member_id, body, anonymous)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (fund_id, member_id)
+    DO UPDATE SET body      = excluded.body,
+                  anonymous = excluded.anonymous,
+                  updated   = now(),
+                  -- Editing brings a removed note back, which is not something a
+                  -- donor should be able to do to a moderator's decision.
+                  removed_at = fund_note.removed_at,
+                  removed_by = fund_note.removed_by
+RETURNING id, fund_id, member_id, body, anonymous, removed_at, removed_by, created, updated
+`
+
+type UpsertFundNoteParams struct {
+	ID        uuid.UUID
+	FundID    uuid.UUID
+	MemberID  uuid.UUID
+	Body      string
+	Anonymous bool
+}
+
+// One note per donor per fund, so writing one twice edits it.
+func (q *Queries) UpsertFundNote(ctx context.Context, arg UpsertFundNoteParams) (FundNote, error) {
+	row := q.db.QueryRow(ctx, upsertFundNote,
+		arg.ID,
+		arg.FundID,
+		arg.MemberID,
+		arg.Body,
+		arg.Anonymous,
+	)
+	var i FundNote
+	err := row.Scan(
+		&i.ID,
+		&i.FundID,
+		&i.MemberID,
+		&i.Body,
+		&i.Anonymous,
+		&i.RemovedAt,
+		&i.RemovedBy,
+		&i.Created,
+		&i.Updated,
 	)
 	return i, err
 }

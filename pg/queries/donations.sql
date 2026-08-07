@@ -539,3 +539,62 @@ FROM payout p
          JOIN fund_enrollment fe ON fe.id = p.fund_enrollment_id
 WHERE bp.fund_id = $1
   AND p.status = 'paid';
+
+-- Whether a member has actually given money to this fund.
+--
+-- A payment, not a donation: a subscription created today that has not charged
+-- yet is not money given. And net of refunds, because money that came back was
+-- not given either.
+-- name: MemberHasGivenToFund :one
+SELECT EXISTS (SELECT 1
+               FROM donation d
+                        JOIN donation_payment dp ON dp.donation_id = d.id
+               WHERE d.fund_id = $1
+                 AND d.donor_id = $2
+                 AND dp.amount_cents - dp.refunded_cents > 0);
+
+-- One note per donor per fund, so writing one twice edits it.
+-- name: UpsertFundNote :one
+INSERT INTO fund_note (id, fund_id, member_id, body, anonymous)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (fund_id, member_id)
+    DO UPDATE SET body      = excluded.body,
+                  anonymous = excluded.anonymous,
+                  updated   = now(),
+                  -- Editing brings a removed note back, which is not something a
+                  -- donor should be able to do to a moderator's decision.
+                  removed_at = fund_note.removed_at,
+                  removed_by = fund_note.removed_by
+RETURNING *;
+
+-- The notes a visitor sees. Removed ones are absent rather than blanked.
+-- name: GetFundNotes :many
+SELECT fn.id,
+       fn.fund_id,
+       fn.member_id,
+       fn.body,
+       fn.anonymous,
+       fn.created,
+       fn.updated,
+       m.bco_name AS author_name
+FROM fund_note fn
+         JOIN member m ON m.id = fn.member_id
+WHERE fn.fund_id = $1
+  AND fn.removed_at IS NULL
+ORDER BY fn.created DESC;
+
+-- name: GetFundNoteForMember :one
+SELECT *
+FROM fund_note
+WHERE fund_id = $1
+  AND member_id = $2;
+
+-- Soft delete, recording who did it.
+-- name: RemoveFundNote :one
+UPDATE fund_note
+SET removed_at = now(),
+    removed_by = $2,
+    updated    = now()
+WHERE id = $1
+  AND removed_at IS NULL
+RETURNING *;
