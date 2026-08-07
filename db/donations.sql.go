@@ -2327,10 +2327,26 @@ ON CONFLICT (fund_id, member_id)
     DO UPDATE SET body      = excluded.body,
                   anonymous = excluded.anonymous,
                   updated   = now(),
-                  -- Editing brings a removed note back, which is not something a
-                  -- donor should be able to do to a moderator's decision.
-                  removed_at = fund_note.removed_at,
-                  removed_by = fund_note.removed_by
+                  -- Whose decision it was decides whether writing again undoes it.
+                  --
+                  -- A moderator's stands: editing must not be a way to put back
+                  -- something that was taken down, and it must not be a way to find
+                  -- out that it was.
+                  --
+                  -- The author's own does not. Taking your note down and later
+                  -- writing another is an ordinary thing to do, and this preserved
+                  -- the removal for everybody -- so a donor who once used their own
+                  -- remove button was locked out of that fund for good, told each
+                  -- time that their note was up while nothing appeared.
+                  --
+                  -- removed_by is NULL when the note is live, and NULL = member_id
+                  -- is NULL, so an unremoved note takes the ELSE and keeps its NULLs.
+                  removed_at = CASE
+                                   WHEN fund_note.removed_by = fund_note.member_id THEN NULL
+                                   ELSE fund_note.removed_at END,
+                  removed_by = CASE
+                                   WHEN fund_note.removed_by = fund_note.member_id THEN NULL
+                                   ELSE fund_note.removed_by END
 RETURNING id, fund_id, member_id, body, anonymous, removed_at, removed_by, created, updated
 `
 

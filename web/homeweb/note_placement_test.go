@@ -251,3 +251,22 @@ func TestTheFundNotesHeadingIsACard(t *testing.T) {
 		t.Error("the notes heading should carry a shadow like the other heading cards")
 	}
 }
+
+// A button in a form is a submit button unless it says otherwise, and the form's
+// default is the first one -- this one. Anything that submitted the form
+// implicitly would have taken the note down instead of saving it.
+func TestTheRemoveButtonIsNotTheFormsSubmitButton(t *testing.T) {
+	html := render(t, FundNoteForm("ed", uuid.New(), &donations.FundNote{Body: "up"}, "", ""))
+
+	remove := html[strings.Index(html, "/note/remove"):]
+	remove = remove[:strings.Index(remove, "</button>")]
+
+	if !strings.Contains(html[:strings.Index(html, "/note/remove")], `type="button"`) {
+		t.Error("the remove button must declare its type or it becomes the form's submit button")
+	}
+
+	// And it should still be the thing that removes.
+	if !strings.Contains(remove, "remove") {
+		t.Error("expected the remove control")
+	}
+}

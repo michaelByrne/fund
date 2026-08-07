@@ -200,23 +200,50 @@ func TestFundNotes(t *testing.T) {
 		assert.Equal(t, admin, removedBy)
 	})
 
-	t.Run("editing does not resurrect a removed note", func(t *testing.T) {
+	t.Run("editing does not resurrect a note a moderator removed", func(t *testing.T) {
 		fundID := seedOnceFund(t, ctx, pool)
 		donorID := giveTo(t, fundID, 5000, 0)
-		admin := seedMemberRow(t, ctx, pool)
 
-		note, errSave := svc.SaveFundNote(ctx, fundID, donorID, "first", false)
-		require.NoError(t, errSave)
-		require.NoError(t, svc.RemoveFundNote(ctx, note.ID, admin))
+		note, errNote := svc.SaveFundNote(ctx, fundID, donorID, "first", false)
+		require.NoError(t, errNote)
 
-		// The donor writes again. A moderator's decision is not something the
-		// moderated party gets to undo.
-		_, errAgain := svc.SaveFundNote(ctx, fundID, donorID, "trying again", false)
+		// Somebody else took it down. Writing again must not be a way to put it
+		// back, nor a way to find out that it went.
+		require.NoError(t, svc.RemoveFundNote(ctx, note.ID, seedMemberRow(t, ctx, pool)))
+
+		_, errAgain := svc.SaveFundNote(ctx, fundID, donorID, "second", false)
 		require.NoError(t, errAgain)
 
 		notes, errList := svc.ListFundNotes(ctx, fundID)
 		require.NoError(t, errList)
-		assert.Empty(t, notes, "a removed note stayed removed")
+		require.Empty(t, notes)
+	})
+
+	// The same rule applied to the donor's own remove button, and that was wrong.
+	// Taking your note down and later writing another is an ordinary thing to do.
+	// Instead the removal was preserved for ever: every later note was written, the
+	// donor was told it was up, and nothing ever appeared on the fund.
+	t.Run("writing again after removing your own note works", func(t *testing.T) {
+		fundID := seedOnceFund(t, ctx, pool)
+		donorID := giveTo(t, fundID, 5000, 0)
+
+		_, errFirst := svc.SaveFundNote(ctx, fundID, donorID, "first", false)
+		require.NoError(t, errFirst)
+
+		require.NoError(t, svc.RemoveOwnFundNote(ctx, fundID, donorID))
+
+		_, errSecond := svc.SaveFundNote(ctx, fundID, donorID, "second", false)
+		require.NoError(t, errSecond)
+
+		notes, errList := svc.ListFundNotes(ctx, fundID)
+		require.NoError(t, errList)
+		require.Len(t, notes, 1, "a donor who used their own remove button was locked out of the fund")
+		require.Equal(t, "second", notes[0].Body)
+
+		// And it is theirs again: the editor has to show it back to them.
+		own, errOwn := svc.GetFundNoteForMember(ctx, fundID, donorID)
+		require.NoError(t, errOwn)
+		require.NotNil(t, own)
 	})
 }
 

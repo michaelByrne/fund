@@ -144,7 +144,13 @@ templ FundNoteForm(editorID string, fundID uuid.UUID, own *donations.FundNote, f
 			if own != nil {
 				// Their own note, so no confirmation of who is asking is needed and the
 				// route is scoped to them: it can only ever reach the note they wrote.
+				//
+				// type="button" because a button in a form is a submit button by
+				// default, and the default is the first one -- so anything that
+				// submitted this form implicitly would have taken the note down
+				// instead of saving it.
 				<button
+					type="button"
 					hx-post={ fmt.Sprintf("/fund/%s/note/remove", fundID.String()) }
 					hx-target={ "#" + editorID }
 					hx-target-error={ "#" + editorID }
