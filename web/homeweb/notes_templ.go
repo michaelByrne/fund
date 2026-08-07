@@ -491,8 +491,14 @@ func FundNoteForm(editorID string, fundID uuid.UUID, own *donations.FundNote, fa
 //
 // Optional and visibly so. Somebody has just given money; the last thing this
 // screen should do is feel like another form standing between them and being
-// finished. "no thanks" is a real link to the fund, not a dismissal that leaves
+// finished. The way out is a real link to the fund, not a dismissal that leaves
 // them nowhere.
+//
+// It says where it goes rather than "no thanks". The form swaps itself when a
+// note is saved and this is its sibling, so a decline still sitting there would
+// be offering to skip something already done. Wording it as a destination makes
+// it true either way, which beats teaching the shared form response about one
+// page's layout.
 func ThankYouNote(fundID uuid.UUID) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -531,7 +537,7 @@ func ThankYouNote(fundID uuid.UUID) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" class=\"text-links hover:underline\">no thanks, take me to the fund</a></p></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" class=\"text-links hover:underline\">take me to the fund</a></p></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
