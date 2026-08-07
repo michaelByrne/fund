@@ -5,16 +5,18 @@ import (
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
+	"strconv"
 )
 
 templ FundsTitle() {
 	<h2 class="font-semibold text-lg p-2 inline-block bg-high shadow-blue-boxy-thin mt-4 mx-4">current active funds</h2>
 }
 
-templ Funds(funds []donations.Fund, closed []donations.ClosedFund, member *members.Member, path string) {
+templ Funds(funds []donations.Fund, closed []donations.ClosedFund, images map[uuid.UUID]donations.FundImage, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div id="funds">
 			<div class="w-[95%] mx-auto">
@@ -39,7 +41,9 @@ templ Funds(funds []donations.Fund, closed []donations.ClosedFund, member *membe
 									// middle-click and a URL the browser can show. See RowLink.
 									<tr class="clickable relative odd:bg-odd odd:hover:bg-odd-hover even:bg-even even:hover:bg-even-hover">
 										<td class="p-2">
-											@RowLink(fmt.Sprintf("/donate/%s", fund.ID.String()), fund.Name)
+											@FundThumbnail(imageFor(images, fund.ID), fund.Name) {
+												@RowLink(fmt.Sprintf("/donate/%s", fund.ID.String()), fund.Name)
+											}
 										</td>
 										<td class="p-2">{ fmt.Sprintf("%d", fund.Stats.TotalDonors) }</td>
 										<td class="p-2">${ centsToDecimalString(fund.Stats.TotalDonated) }</td>
@@ -57,6 +61,7 @@ templ Funds(funds []donations.Fund, closed []donations.ClosedFund, member *membe
 								href={ templ.SafeURL(fmt.Sprintf("/donate/%s", fund.ID.String())) }
 								class="block mb-4 p-4 odd:bg-odd even:bg-even hover:shadow-blue-boxy-thin shadow-blue-boxy"
 							>
+								@FundCardImage(imageFor(images, fund.ID))
 								<p class="font-semibold text-lg mb-2">{ fund.Name }</p>
 								<div>
 									<p><span class="font-bold">donors:</span> { fmt.Sprintf("%d", fund.Stats.TotalDonors) }</p>
@@ -73,7 +78,7 @@ templ Funds(funds []donations.Fund, closed []donations.ClosedFund, member *membe
 						}
 					</div>
 				</div>
-				@ClosedFunds(closed)
+				@ClosedFunds(closed, images)
 			</div>
 		</div>
 	}
@@ -82,7 +87,7 @@ templ Funds(funds []donations.Fund, closed []donations.ClosedFund, member *membe
 // ClosedFunds is the archive under the active list. Rendered as nothing at all
 // when empty rather than as an empty table with a heading, which on a new
 // instance would read as a fault.
-templ ClosedFunds(funds []donations.ClosedFund) {
+templ ClosedFunds(funds []donations.ClosedFund, images map[uuid.UUID]donations.FundImage) {
 	if len(funds) > 0 {
 		<h2 class="font-semibold text-lg p-2 inline-block bg-high shadow-blue-boxy-thin mt-8 mx-4">closed funds</h2>
 		<div class="ml-4 mb-5 mt-4 bl">
@@ -102,7 +107,9 @@ templ ClosedFunds(funds []donations.ClosedFund) {
 						for _, fund := range funds {
 							<tr class="clickable relative odd:bg-odd odd:hover:bg-odd-hover even:bg-even even:hover:bg-even-hover">
 								<td class="p-2">
-									@RowLink(fmt.Sprintf("/fund/%s/summary", fund.ID.String()), fund.Name)
+									@FundThumbnail(imageFor(images, fund.ID), fund.Name) {
+										@RowLink(fmt.Sprintf("/fund/%s/summary", fund.ID.String()), fund.Name)
+									}
 								</td>
 								<td class="p-2">{ fmt.Sprintf("%d", fund.Stats.TotalDonors) }</td>
 								<td class="p-2 tabular-nums">${ centsToDecimalString(fund.Stats.TotalDonated) }</td>
@@ -120,6 +127,7 @@ templ ClosedFunds(funds []donations.ClosedFund) {
 						href={ templ.SafeURL(fmt.Sprintf("/fund/%s/summary", fund.ID.String())) }
 						class="block mb-4 p-4 odd:bg-odd even:bg-even hover:shadow-blue-boxy-thin shadow-blue-boxy"
 					>
+						@FundCardImage(imageFor(images, fund.ID))
 						<p class="font-semibold text-lg mb-2">{ fund.Name }</p>
 						<div>
 							<p><span class="font-bold">collected:</span> ${ centsToDecimalString(fund.Stats.TotalDonated) }</p>

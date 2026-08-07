@@ -112,9 +112,10 @@ templ Title(text string) {
 // and the same chart, with the donation form replaced by what the fund did.
 // A closed fund still has a story worth reading, and until this existed the only
 // way to see it was a page that offered to take money for a fund that had ended.
-templ ClosedFundSummary(fund donations.ClosedFund, fundStats donations.FundStats, notes []donations.FundNote, member *members.Member, path string) {
+templ ClosedFundSummary(fund donations.ClosedFund, fundStats donations.FundStats, notes []donations.FundNote, image *donations.FundImage, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div class="p-5 mt-2">
+			@FundImageBanner(fund.Fund, image)
 			<span class="blue-boxy-filter">
 				@Title(fund.Name)
 			</span>

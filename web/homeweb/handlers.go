@@ -932,7 +932,26 @@ func (h *FundHandlers) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	Funds(funds, closed, &member, r.URL.Path).Render(ctx, w)
+	// One query for every picture on the page, active and closed together. A
+	// lookup per row would be a round trip per fund to draw the front page.
+	//
+	// Not fatal: this page is a list of funds, and it is still that without any
+	// pictures on it.
+	fundIDs := make([]uuid.UUID, 0, len(funds)+len(closed))
+	for _, fund := range funds {
+		fundIDs = append(fundIDs, fund.ID)
+	}
+
+	for _, fund := range closed {
+		fundIDs = append(fundIDs, fund.ID)
+	}
+
+	images, err := h.donationService.GetFundImages(ctx, fundIDs)
+	if err != nil {
+		h.logger.Error("failed to read fund images", slog.String("error", err.Error()))
+	}
+
+	Funds(funds, closed, images, &member, r.URL.Path).Render(ctx, w)
 }
 
 // closedFundSummary is the archive page for one ended fund. A fund that is still
@@ -989,7 +1008,12 @@ func (h *FundHandlers) closedFundSummary(w http.ResponseWriter, r *http.Request)
 		h.logger.Error("failed to list fund notes", slog.String("error", err.Error()))
 	}
 
-	ClosedFundSummary(*fund, fund.Stats, notes, &member, r.URL.Path).Render(ctx, w)
+	image, err := h.donationService.GetFundImage(ctx, fundID)
+	if err != nil {
+		image = nil
+	}
+
+	ClosedFundSummary(*fund, fund.Stats, notes, image, &member, r.URL.Path).Render(ctx, w)
 }
 
 func sendJSON(w http.ResponseWriter, status int, v any) {
