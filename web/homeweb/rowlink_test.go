@@ -24,7 +24,7 @@ func TestClosedFundRowsAreLinks(t *testing.T) {
 	}
 
 	var out strings.Builder
-	if err := ClosedFunds([]donations.ClosedFund{fund}).Render(context.Background(), &out); err != nil {
+	if err := ClosedFunds([]donations.ClosedFund{fund}, nil).Render(context.Background(), &out); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 
