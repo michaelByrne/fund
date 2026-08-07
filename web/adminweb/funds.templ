@@ -129,20 +129,23 @@ templ FundRow(fund donations.Fund) {
 
 templ FundPaymentsAudit(audit finance.Audit, member *members.Member, path string) {
 	@Admin(member, path) {
-		<div id="payments-list" class="blue-boxy-filter p-2">
-			<h3 class="text-md font-semibold bg-high inline-block p-2">
+		<div class="p-2">
+			<h3 class="text-md font-semibold bg-high inline-block p-2 blue-boxy-filter">
 				payments <span class="font-medium">for</span> { audit.FundName }
 			</h3>
-			<p class="text-xs text-gray-600 p-2">
-				as at { audit.Date.Format("01-02-2006 15:04") }. what PayPal says is filled in by
-				the nightly reconciliation, so a payment taken since then reads as not yet checked.
+			// Outside the filtered box. blue-boxy-filter is a drop-shadow, which
+			// shadows the shape of everything inside it -- fine for a heading or a
+			// table, which have backgrounds and cast a box, and wrong for bare text,
+			// which casts a copy of itself four pixels down and reads as doubled.
+			<p class="text-xs text-gray-600 pt-3 pb-2 max-w-2xl">
+				checked against PayPal nightly. anything taken since the last run reads as unchecked.
 			</p>
 			if len(audit.Payments) == 0 {
-				<p class="text-sm p-2">this fund has taken no payments.</p>
+				<p class="text-sm py-2">this fund has taken no payments.</p>
 			} else {
-				<div class="hidden md:block">
+				<div class="hidden md:block blue-boxy-filter">
 					<div class="max-h-[400px] overflow-auto">
-						<table class="w-full text-xs text-left border-collapse leading-relaxed">
+						<table class="w-full text-xs text-left border-collapse leading-relaxed bg-back">
 							<thead class="sticky top-0 z-10 bg-even">
 								<tr>
 									<th class="text-left w-[2%]"><span class="inline-block p-2"></span></th>

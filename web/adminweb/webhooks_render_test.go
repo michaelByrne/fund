@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"boardfund/messaging"
+	"boardfund/service/finance"
 	"boardfund/service/members"
 
 	"github.com/google/uuid"
@@ -121,5 +122,54 @@ func TestHumanBytesDoesNotRunOffTheEndOfItsSuffixes(t *testing.T) {
 		if got := humanBytes(c.bytes); got != c.want {
 			t.Errorf("humanBytes(%d) = %q, want %q", c.bytes, got, c.want)
 		}
+	}
+}
+
+// blue-boxy-filter is filter: drop-shadow, which shadows the shape of everything
+// inside it. A heading or a table has a background and casts a box, which is the
+// point. Bare text casts a copy of itself four pixels down and right, and reads
+// on screen as the sentence printed twice.
+func TestAuditCaptionSitsOutsideTheShadowedBox(t *testing.T) {
+	var out strings.Builder
+
+	audit := finance.Audit{
+		FundID: uuid.New(), FundName: "human fund", Date: time.Now(),
+		Payments: []finance.AuditPayment{{
+			PaymentID: uuid.New(), DonorName: "michael", AmountCents: 500,
+		}},
+	}
+
+	member := members.Member{ID: uuid.New(), BCOName: "michael"}
+
+	if err := FundPaymentsAudit(audit, &member, "/admin/fund/audit").
+		Render(context.Background(), &out); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	html := out.String()
+
+	caption := strings.Index(html, "checked against PayPal nightly")
+	if caption < 0 {
+		t.Fatal("the caption should explain what unchecked means")
+	}
+
+	// The caption has to come before the shadowed container opens, or the filter
+	// applies to it.
+	box := strings.Index(html, "blue-boxy-filter")
+	for box >= 0 && box < caption {
+		// The heading also carries the filter and legitimately precedes the
+		// caption; look past it.
+		next := strings.Index(html[box+1:], "blue-boxy-filter")
+		if next < 0 {
+			box = -1
+
+			break
+		}
+
+		box += next + 1
+	}
+
+	if box >= 0 && box < caption {
+		t.Error("the caption is inside a drop-shadowed container and will render doubled")
 	}
 }
