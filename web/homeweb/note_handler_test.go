@@ -28,6 +28,16 @@ type stubDocumentStorage struct{}
 
 func (stubDocumentStorage) CreateFundBucket(context.Context, string, uuid.UUID) error { return nil }
 
+// stubBucket is the fund image store. Nothing in these tests uploads a picture;
+// the service just needs one that is not nil.
+type stubBucket struct{}
+
+func (stubBucket) PutFundImage(context.Context, string, string, []byte) error { return nil }
+
+func (stubBucket) GetFundImage(context.Context, string) (io.ReadCloser, error) { return nil, nil }
+
+func (stubBucket) DeleteFundImage(context.Context, string) error { return nil }
+
 // noteRig is the real route behind the real session middleware, so the member
 // reaches the handler the way it does in production rather than being injected
 // past the code under test.
@@ -52,7 +62,7 @@ func noteRig(t *testing.T) (func(fundID, form string) *httptest.ResponseRecorder
 
 	handlers := NewFundHandlers(
 		donations.NewDonationService(
-			donationsstore.NewDonationStore(pool), stubDocumentStorage{}, nil,
+			donationsstore.NewDonationStore(pool), stubDocumentStorage{}, stubBucket{}, nil,
 			fundevents.NewService(fundeventstore.NewEventStore(pool), logger), nil, logger,
 		),
 		sessions,

@@ -687,3 +687,14 @@ func (c ClosedFund) ClosedOn() time.Time {
 func (c ClosedFund) Undisbursed() int64 {
 	return int64(c.Stats.TotalDonated) - c.Payouts.TotalPaidCents
 }
+
+// UpsertFundImage is a fund picture on its way to storage: bytes this
+// application produced, not the ones that were uploaded.
+type UpsertFundImage struct {
+	FundID      uuid.UUID
+	S3Key       string
+	ContentType string
+	Width       int
+	Height      int
+	SHA256      string
+}

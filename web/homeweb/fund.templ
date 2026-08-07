@@ -18,9 +18,10 @@ func donationURL(freq donations.PayoutFrequency) string {
 	return "/donation/once"
 }
 
-templ Fund(fund donations.Fund, fundStats donations.FundStats, notes []donations.FundNote, member *members.Member, path string) {
+templ Fund(fund donations.Fund, fundStats donations.FundStats, notes []donations.FundNote, image *donations.FundImage, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div id="donation-form" class="p-5 mt-2">
+			@FundImageBanner(fund, image)
 			<span class="blue-boxy-filter">
 				@Title(fund.Name)
 				<br/>

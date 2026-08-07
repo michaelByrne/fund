@@ -1,0 +1,80 @@
+package adminweb
+
+import (
+	"boardfund/service/donations"
+	"fmt"
+	"github.com/google/uuid"
+)
+
+// FundImageControl is where a fund's picture is set, and what the upload swaps
+// itself for, so what an admin sees afterwards is what the server stored rather
+// than what they chose.
+//
+// hx-encoding, because a file cannot travel in a urlencoded body -- without it
+// htmx sends the filename and nothing else, and the server sees an empty upload.
+templ FundImageControl(fundID uuid.UUID, image *donations.FundImage, failure string) {
+	<div id="fund-image-control" class="mt-4 p-3 bg-contrast shadow-blue-boxy">
+		<div class="text-sm font-semibold mb-2">fund image</div>
+		if failure != "" {
+			<p class="mb-2 p-2 text-sm bg-odd-hover">{ failure }</p>
+		}
+		if image != nil {
+			// The stored picture, not the chosen file: proof of what is actually
+			// being served, at the shape it will be served in.
+			<img
+				src={ image.URL() }
+				alt="the current fund image"
+				width={ fmt.Sprintf("%d", image.Width) }
+				height={ fmt.Sprintf("%d", image.Height) }
+				class="mb-2 w-full max-w-xs object-cover shadow-blue-boxy-thin"
+			/>
+		}
+		<form
+			hx-post={ fmt.Sprintf("/admin/fund/image/%s", fundID.String()) }
+			hx-target="#fund-image-control"
+			hx-target-error="#fund-image-control"
+			hx-swap="outerHTML"
+			hx-encoding="multipart/form-data"
+			class="flex flex-col gap-2"
+		>
+			<input
+				type="file"
+				name="image"
+				accept="image/jpeg,image/png,image/webp"
+				class="text-xs"
+			/>
+			<div class="flex items-center gap-3">
+				if image != nil {
+					<button
+						type="button"
+						hx-post={ fmt.Sprintf("/admin/fund/image/remove/%s", fundID.String()) }
+						hx-target="#fund-image-control"
+						hx-target-error="#fund-image-control"
+						hx-swap="outerHTML"
+						hx-confirm="remove this fund's image?"
+						class="text-xs text-red-700 hover:underline"
+					>
+						remove
+					</button>
+				}
+				<button
+					type="submit"
+					class="ml-auto px-3 py-1 text-sm bg-button hover:shadow-blue-boxy-thin shadow-blue-boxy"
+				>
+					if image != nil {
+						replace image
+					} else {
+						add image
+					}
+				</button>
+			</div>
+		</form>
+		// accept= is a filter on the picker and nothing more -- it is trivially
+		// bypassed and the server never trusts it. Said here because the limits are
+		// worth knowing before choosing a 40 megabyte photograph.
+		<p class="mt-2 text-xs text-gray-600">
+			jpeg, png or webp, up to { fmt.Sprintf("%d", donations.MaxImageBytes>>20) }mb. larger
+			pictures are scaled down to { fmt.Sprintf("%d", donations.MaxImageDimension) } pixels.
+		</p>
+	</div>
+}

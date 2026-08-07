@@ -40,7 +40,7 @@ func TestACancellationIsRecordedOnce(t *testing.T) {
 		},
 	}
 
-	svc := donations.NewDonationService(store, stubDocumentStorage{}, provider, events, nil, logger)
+	svc := donations.NewDonationService(store, stubDocumentStorage{}, newFakeBucket(), provider, events, nil, logger)
 	handlers := donations.NewHandlers(store, events, logger)
 
 	donor := seedMemberRow(t, ctx, pool)

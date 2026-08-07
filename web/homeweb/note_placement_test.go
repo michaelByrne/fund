@@ -32,7 +32,7 @@ func TestTheFundPageOffersNoNoteForm(t *testing.T) {
 		{ID: uuid.New(), Body: "this paid my rent", AuthorName: "ada", Created: time.Now()},
 	}
 
-	html := render(t, Fund(fund, donations.FundStats{}, notes, &members.Member{}, "/donate"))
+	html := render(t, Fund(fund, donations.FundStats{}, notes, nil, &members.Member{}, "/donate"))
 
 	if strings.Contains(html, "fund-note-form") {
 		t.Error("the fund page must not offer a box the server refuses almost everyone who uses it")

@@ -42,7 +42,7 @@ func TestOneTimeDonationsAreVerifiedWithTheProvider(t *testing.T) {
 			return uuid.NewString(), nil
 		}
 
-		svc := donations.NewDonationService(store, stubDocumentStorage{}, provider, events, []string{"payments"}, logger)
+		svc := donations.NewDonationService(store, stubDocumentStorage{}, newFakeBucket(), provider, events, []string{"payments"}, logger)
 
 		fund, errFund := svc.CreateFund(ctx, donations.Fund{
 			Name:            uuid.NewString(),

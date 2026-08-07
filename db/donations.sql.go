@@ -12,6 +12,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteFundImage = `-- name: DeleteFundImage :exec
+DELETE
+FROM fund_image
+WHERE fund_id = $1
+`
+
+func (q *Queries) DeleteFundImage(ctx context.Context, fundID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteFundImage, fundID)
+	return err
+}
+
 const getActiveFunds = `-- name: GetActiveFunds :many
 WITH FundStats AS (SELECT fund_id,
                           COALESCE(SUM(amount_cents - refunded_cents), 0)::INTEGER AS total_donated,
@@ -781,6 +792,114 @@ func (q *Queries) GetFundById(ctx context.Context, id uuid.UUID) (GetFundByIdRow
 		&i.AverageDonation,
 		&i.TotalDonors,
 	)
+	return i, err
+}
+
+const getFundImageKey = `-- name: GetFundImageKey :one
+SELECT s3_key
+FROM fund_image
+WHERE fund_id = $1
+`
+
+// The object a fund currently points at, so replacing an image can delete the one
+// it replaced rather than leaving it in the bucket for ever.
+func (q *Queries) GetFundImageKey(ctx context.Context, fundID uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getFundImageKey, fundID)
+	var s3_key string
+	err := row.Scan(&s3_key)
+	return s3_key, err
+}
+
+const getFundImageMeta = `-- name: GetFundImageMeta :one
+SELECT fund_id, s3_key, content_type, width, height, sha256, created, updated
+FROM fund_image
+WHERE fund_id = $1
+`
+
+// What a page needs to render the tag: the URL and the shape, not the picture.
+//
+// Selecting the bytes here would pull a few hundred kilobytes into every fund
+// page render to print an integer.
+func (q *Queries) GetFundImageMeta(ctx context.Context, fundID uuid.UUID) (FundImage, error) {
+	row := q.db.QueryRow(ctx, getFundImageMeta, fundID)
+	var i FundImage
+	err := row.Scan(
+		&i.FundID,
+		&i.S3Key,
+		&i.ContentType,
+		&i.Width,
+		&i.Height,
+		&i.Sha256,
+		&i.Created,
+		&i.Updated,
+	)
+	return i, err
+}
+
+const getFundImageMetaForFunds = `-- name: GetFundImageMetaForFunds :many
+SELECT fund_id, s3_key, content_type, width, height, sha256, created, updated
+FROM fund_image
+WHERE fund_id = ANY ($1::uuid[])
+`
+
+// The same for a list of funds, so the home page costs one query rather than one
+// per fund on it.
+func (q *Queries) GetFundImageMetaForFunds(ctx context.Context, fundIds []uuid.UUID) ([]FundImage, error) {
+	rows, err := q.db.Query(ctx, getFundImageMetaForFunds, fundIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FundImage
+	for rows.Next() {
+		var i FundImage
+		if err := rows.Scan(
+			&i.FundID,
+			&i.S3Key,
+			&i.ContentType,
+			&i.Width,
+			&i.Height,
+			&i.Sha256,
+			&i.Created,
+			&i.Updated,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getFundImageObject = `-- name: GetFundImageObject :one
+SELECT s3_key, content_type, updated
+FROM fund_image
+WHERE fund_id = $1
+  AND sha256 = $2
+`
+
+type GetFundImageObjectParams struct {
+	FundID uuid.UUID
+	Sha256 string
+}
+
+type GetFundImageObjectRow struct {
+	S3Key       string
+	ContentType string
+	Updated     pgtype.Timestamptz
+}
+
+// Where to fetch the picture from, for the one request that serves it.
+//
+// Keyed by hash as well as fund, so a request can only reach the object its own
+// URL identifies. An old URL for a replaced image misses rather than serving the
+// new picture under a name that promised the old one.
+func (q *Queries) GetFundImageObject(ctx context.Context, arg GetFundImageObjectParams) (GetFundImageObjectRow, error) {
+	row := q.db.QueryRow(ctx, getFundImageObject, arg.FundID, arg.Sha256)
+	var i GetFundImageObjectRow
+	err := row.Scan(&i.S3Key, &i.ContentType, &i.Updated)
 	return i, err
 }
 
@@ -2316,6 +2435,52 @@ func (q *Queries) UpsertDonationPlan(ctx context.Context, arg UpsertDonationPlan
 		&i.Created,
 		&i.Updated,
 		&i.FundID,
+	)
+	return i, err
+}
+
+const upsertFundImage = `-- name: UpsertFundImage :one
+INSERT INTO fund_image (fund_id, s3_key, content_type, width, height, sha256)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (fund_id)
+    DO UPDATE SET s3_key       = excluded.s3_key,
+                  content_type = excluded.content_type,
+                  width        = excluded.width,
+                  height       = excluded.height,
+                  sha256       = excluded.sha256,
+                  updated      = now()
+RETURNING fund_id, s3_key, content_type, width, height, sha256, created, updated
+`
+
+type UpsertFundImageParams struct {
+	FundID      uuid.UUID
+	S3Key       string
+	ContentType string
+	Width       int32
+	Height      int32
+	Sha256      string
+}
+
+// One image per fund, so uploading a second replaces the first.
+func (q *Queries) UpsertFundImage(ctx context.Context, arg UpsertFundImageParams) (FundImage, error) {
+	row := q.db.QueryRow(ctx, upsertFundImage,
+		arg.FundID,
+		arg.S3Key,
+		arg.ContentType,
+		arg.Width,
+		arg.Height,
+		arg.Sha256,
+	)
+	var i FundImage
+	err := row.Scan(
+		&i.FundID,
+		&i.S3Key,
+		&i.ContentType,
+		&i.Width,
+		&i.Height,
+		&i.Sha256,
+		&i.Created,
+		&i.Updated,
 	)
 	return i, err
 }

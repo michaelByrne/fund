@@ -634,3 +634,109 @@ func (s DonationStore) RemoveFundNote(ctx context.Context, noteID, actorID uuid.
 
 	return err
 }
+
+func (s DonationStore) UpsertFundImage(ctx context.Context, arg donations.UpsertFundImage) (*donations.FundImage, error) {
+	row, err := s.queries.UpsertFundImage(ctx, db.UpsertFundImageParams{
+		FundID:      arg.FundID,
+		S3Key:       arg.S3Key,
+		ContentType: arg.ContentType,
+		Width:       int32(arg.Width),
+		Height:      int32(arg.Height),
+		Sha256:      arg.SHA256,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	image := fundImageFromRow(row.FundID, row.ContentType, row.Width, row.Height, row.Sha256,
+		row.Created.Time, row.Updated.Time)
+
+	return &image, nil
+}
+
+func (s DonationStore) GetFundImageMeta(ctx context.Context, fundID uuid.UUID) (*donations.FundImage, error) {
+	row, err := s.queries.GetFundImageMeta(ctx, fundID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Most funds have no picture, which is not a failure to read one.
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	image := fundImageFromRow(row.FundID, row.ContentType, row.Width, row.Height, row.Sha256,
+		row.Created.Time, row.Updated.Time)
+
+	return &image, nil
+}
+
+func (s DonationStore) GetFundImageMetaForFunds(ctx context.Context, fundIDs []uuid.UUID) (map[uuid.UUID]donations.FundImage, error) {
+	rows, err := s.queries.GetFundImageMetaForFunds(ctx, fundIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	images := make(map[uuid.UUID]donations.FundImage, len(rows))
+	for _, row := range rows {
+		images[row.FundID] = fundImageFromRow(row.FundID, row.ContentType, row.Width, row.Height,
+			row.Sha256, row.Created.Time, row.Updated.Time)
+	}
+
+	return images, nil
+}
+
+func (s DonationStore) GetFundImageObject(ctx context.Context, fundID uuid.UUID, sha256 string) (*donations.FundImageObject, error) {
+	row, err := s.queries.GetFundImageObject(ctx, db.GetFundImageObjectParams{
+		FundID: fundID,
+		Sha256: sha256,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Either there is no image, or this URL names bytes that were replaced.
+			// Both are a miss, and neither is the current picture.
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	return &donations.FundImageObject{
+		S3Key:       row.S3Key,
+		ContentType: row.ContentType,
+		Updated:     row.Updated.Time,
+	}, nil
+}
+
+// GetFundImageKey is the object a fund currently points at, or empty when it
+// points at nothing. Empty rather than an error because most funds have no
+// picture, and asking is how replacing one knows what it replaced.
+func (s DonationStore) GetFundImageKey(ctx context.Context, fundID uuid.UUID) (string, error) {
+	key, err := s.queries.GetFundImageKey(ctx, fundID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", nil
+		}
+
+		return "", err
+	}
+
+	return key, nil
+}
+
+func (s DonationStore) DeleteFundImage(ctx context.Context, fundID uuid.UUID) error {
+	return s.queries.DeleteFundImage(ctx, fundID)
+}
+
+func fundImageFromRow(fundID uuid.UUID, contentType string, width, height int32, sha256 string,
+	created, updated time.Time) donations.FundImage {
+	return donations.FundImage{
+		FundID:      fundID,
+		ContentType: contentType,
+		Width:       int(width),
+		Height:      int(height),
+		SHA256:      sha256,
+		Created:     created,
+		Updated:     updated,
+	}
+}

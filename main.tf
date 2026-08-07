@@ -33,6 +33,12 @@ variable "mail_bucket" {
   default = "fund-mail-bucket"
 }
 
+variable "fund_images_bucket" {
+  type        = string
+  default     = "fund-images-bucket"
+  description = "Pictures shown on fund pages. Read as FUND_IMAGES_S3_BUCKET by the app."
+}
+
 variable "donations_reports_bucket" {
   type    = string
   default = "fund-reports-bucket"
@@ -248,6 +254,58 @@ resource "aws_s3_bucket" "donations_reports" {
   bucket = var.donations_reports_bucket
 }
 
+# One bucket for every fund's picture, keyed "fund/<uuid>/<sha256>.<ext>".
+#
+# One bucket rather than the per-fund-per-type shape the report code uses: a key
+# costs nothing, a bucket counts against an account limit, and this needs no
+# CreateBucket call on the path that creates a fund.
+resource "aws_s3_bucket" "fund_images" {
+  bucket = var.fund_images_bucket
+}
+
+# Private, and stated rather than assumed. The objects are read back through the
+# application, which is what keeps them behind the same URL, the same cache and
+# the same content-addressing as everything else it serves -- so there is no
+# reason for anything here to be reachable directly, and public access being off
+# is a property worth pinning rather than inheriting from an account default.
+resource "aws_s3_bucket_public_access_block" "fund_images" {
+  bucket = aws_s3_bucket.fund_images.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Replacing a fund's picture writes a new key and deletes the old one, so nothing
+# here is versioned on purpose. This is the safety net for the delete being wrong,
+# and it expires so it does not become a permanent copy of everything ever
+# uploaded.
+resource "aws_s3_bucket_versioning" "fund_images" {
+  bucket = aws_s3_bucket.fund_images.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "fund_images" {
+  bucket = aws_s3_bucket.fund_images.id
+
+  rule {
+    id     = "expire-replaced-images"
+    status = "Enabled"
+
+    filter {}
+
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.fund_images]
+}
+
 # The application reads these three values as COGNITO_USER_POOL_ID,
 # COGNITO_CLIENT_ID and JWK_URL. They change whenever the pool is recreated -- a new
 # AWS account, or a destroy/apply -- so they are surfaced here rather than being
@@ -343,6 +401,25 @@ data "aws_iam_policy_document" "fund_app" {
 
     effect    = "Allow"
     resources = [for prefix in var.report_bucket_prefixes : "arn:aws:s3:::${prefix}.*/*"]
+  }
+
+  # Fund pictures: objects only, in one named bucket.
+  #
+  # No CreateBucket and no ListBucket. The application never enumerates this --
+  # the database holds every key it will ever ask for -- so being unable to list
+  # it costs nothing and means a leaked key cannot be used to find out what is
+  # there.
+  statement {
+    sid = "FundImageObjectAccess"
+
+    actions = [
+      "s3:PutObject",
+      "s3:GetObject",
+      "s3:DeleteObject",
+    ]
+
+    effect    = "Allow"
+    resources = ["${aws_s3_bucket.fund_images.arn}/*"]
   }
 }
 

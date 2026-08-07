@@ -83,6 +83,12 @@ func (h *AdminHandlers) Register(r *mux.Router) {
 	r.HandleFunc("GET /admin/fund/audit", h.withAdmin(h.fundAudit))
 	r.HandleFunc("GET /admin/fund", h.withAdmin(h.fundPage))
 	r.HandleFunc("POST /admin/note/remove/{id}", h.withAdmin(h.removeFundNote))
+	// Verb-first, like deactivate/{id} beside it. "/admin/fund/{id}/image" reads
+	// better and cannot be registered: it collides with "/admin/fund/deactivate/{id}",
+	// because {id} matches "deactivate" just as happily as a uuid. The route
+	// conflict test caught it, which is what that test exists for.
+	r.HandleFunc("POST /admin/fund/image/{id}", h.withAdmin(h.setFundImage))
+	r.HandleFunc("POST /admin/fund/image/remove/{id}", h.withAdmin(h.removeFundImage))
 	r.HandleFunc("GET /admin/members/search", h.withAdmin(h.searchMembers))
 	r.HandleFunc("POST /admin/enrollment", h.withAdmin(h.createEnrollment))
 	r.HandleFunc("GET /admin/enrollment/confirm", h.withAdmin(h.confirmEnrollment))
@@ -432,8 +438,14 @@ func (h *AdminHandlers) fundPage(w http.ResponseWriter, r *http.Request) {
 		events = nil
 	}
 
+	// Not fatal either: the picture is the least of what this page is for.
+	image, err := h.donationService.GetFundImage(ctx, fundID)
+	if err != nil {
+		image = nil
+	}
+
 	w.Header().Add("HX-Redirect", r.URL.String())
-	Enrollments(*fund, activeEnrollments, events, &member, r.URL.Path).Render(ctx, w)
+	Enrollments(*fund, activeEnrollments, events, image, &member, r.URL.Path).Render(ctx, w)
 }
 
 // removeFundNote takes a donor's note down.
@@ -865,4 +877,120 @@ func dollarStringToCents(dollars string) (int32, error) {
 
 type ShowMessage struct {
 	Target string `json:"target"`
+}
+
+// setFundImage takes an upload from an admin and replaces the fund's picture.
+//
+// Not part of creating a fund. Creating one also creates the PayPal product and
+// plan, and that must not fail because somebody chose the wrong file -- so this
+// is its own action against a fund that already exists, which also lets images be
+// added to the funds there already are.
+func (h *AdminHandlers) setFundImage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if _, ok := h.sessionManager.Get(ctx, "member").(members.Member); !ok {
+		common.Redirect(w, r, "/")
+
+		return
+	}
+
+	fundID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		h.badImage(ctx, w, fundID, nil, "that is not a fund")
+
+		return
+	}
+
+	// The first of two limits, and the one that bounds what reaches this process
+	// at all. It refuses at the socket rather than after reading the whole thing.
+	r.Body = http.MaxBytesReader(w, r.Body, donations.MaxImageBytes+1024)
+
+	// Buffered to the same bound rather than to a temporary file: this never wants
+	// a hostile upload on disk, and the limit is small enough to hold.
+	if err = r.ParseMultipartForm(donations.MaxImageBytes + 1024); err != nil {
+		h.badImage(ctx, w, fundID, nil, donations.ErrImageTooLarge.Error()+".")
+
+		return
+	}
+
+	upload, _, err := r.FormFile("image")
+	if err != nil {
+		h.badImage(ctx, w, fundID, nil, "choose an image first.")
+
+		return
+	}
+
+	defer upload.Close()
+
+	// The filename and the browser's content type are not consulted anywhere. What
+	// the file is, is whatever decoding it says it is.
+	image, err := h.donationService.SaveFundImage(ctx, fundID, upload)
+	if err != nil {
+		// The service has already logged anything unexpected; what is left here is
+		// deciding what the admin is told.
+		status, message := imageFailure(err)
+		if message == "" {
+			message = "we could not save that image. please try again."
+		}
+
+		w.WriteHeader(status)
+		FundImageControl(fundID, nil, message).Render(ctx, w)
+
+		return
+	}
+
+	FundImageControl(fundID, image, "").Render(ctx, w)
+}
+
+// removeFundImage takes a fund's picture down.
+//
+// A hard delete, unlike a note: it is the fund's own picture, and there is no
+// decision by one person about another person's words to keep a record of.
+func (h *AdminHandlers) removeFundImage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if _, ok := h.sessionManager.Get(ctx, "member").(members.Member); !ok {
+		common.Redirect(w, r, "/")
+
+		return
+	}
+
+	fundID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		h.badImage(ctx, w, fundID, nil, "that is not a fund")
+
+		return
+	}
+
+	if err = h.donationService.RemoveFundImage(ctx, fundID); err != nil {
+		h.badImage(ctx, w, fundID, nil, "we could not remove that image. please try again.")
+
+		return
+	}
+
+	FundImageControl(fundID, nil, "").Render(ctx, w)
+}
+
+// imageFailure maps a refusal onto what the admin should be told. An empty
+// message means it is not one of ours and they get the generic apology.
+func imageFailure(err error) (int, string) {
+	switch {
+	case errors.Is(err, donations.ErrImageTooLarge):
+		return http.StatusRequestEntityTooLarge, donations.ErrImageTooLarge.Error() + "."
+	case errors.Is(err, donations.ErrImageTooManyPixels):
+		return http.StatusBadRequest, donations.ErrImageTooManyPixels.Error() + "."
+	case errors.Is(err, donations.ErrImageUnreadable):
+		return http.StatusBadRequest, donations.ErrImageUnreadable.Error() + "."
+	default:
+		return http.StatusInternalServerError, ""
+	}
+}
+
+// badImage redraws the control with what went wrong. A fragment, always: this is
+// swapped into the control by htmx, and a whole page put there is not something a
+// browser can make sense of.
+func (h *AdminHandlers) badImage(ctx context.Context, w http.ResponseWriter, fundID uuid.UUID,
+	image *donations.FundImage, message string) {
+	w.WriteHeader(http.StatusBadRequest)
+	FundImageControl(fundID, image, message).Render(ctx, w)
 }

@@ -57,6 +57,8 @@ func loadRunConfig() (*root.RunConfig, error) {
 		NATSStoreDir:      getEnvOrDefault("NATS_STORE_DIR", ""),
 		ReportTypes:       getEnvAsSlice("ENABLED_REPORT_TYPES"),
 
+		FundImagesS3Bucket: getEnvOrDefault("FUND_IMAGES_S3_BUCKET", "fund-images-bucket"),
+
 		PayoutApprovalWindow: getEnvAsDuration("PAYOUT_APPROVAL_WINDOW", 72*time.Hour),
 		PayoutReminderWindow: getEnvAsDuration("PAYOUT_REMINDER_WINDOW", 24*time.Hour),
 	}

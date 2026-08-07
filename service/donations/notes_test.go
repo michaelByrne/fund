@@ -31,7 +31,7 @@ func TestFundNotes(t *testing.T) {
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	store := donationsstore.NewDonationStore(pool)
-	svc := donations.NewDonationService(store, stubDocumentStorage{}, &mocks.PaymentsProviderMock{},
+	svc := donations.NewDonationService(store, stubDocumentStorage{}, newFakeBucket(), &mocks.PaymentsProviderMock{},
 		fundevents.NewService(fundeventstore.NewEventStore(pool), logger), nil, logger)
 
 	// giveTo records a payment, optionally refunded, and returns the donor.
@@ -263,7 +263,7 @@ func TestWhoMayLeaveANote(t *testing.T) {
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	store := donationsstore.NewDonationStore(pool)
-	svc := donations.NewDonationService(store, stubDocumentStorage{}, &mocks.PaymentsProviderMock{},
+	svc := donations.NewDonationService(store, stubDocumentStorage{}, newFakeBucket(), &mocks.PaymentsProviderMock{},
 		fundevents.NewService(fundeventstore.NewEventStore(pool), logger), nil, logger)
 
 	// seedDonation writes a donation and, when cents is non-zero, a payment.
@@ -345,7 +345,7 @@ func TestADonorCanRemoveTheirOwnNote(t *testing.T) {
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	store := donationsstore.NewDonationStore(pool)
-	svc := donations.NewDonationService(store, stubDocumentStorage{}, &mocks.PaymentsProviderMock{},
+	svc := donations.NewDonationService(store, stubDocumentStorage{}, newFakeBucket(), &mocks.PaymentsProviderMock{},
 		fundevents.NewService(fundeventstore.NewEventStore(pool), logger), nil, logger)
 
 	seedDonor := func(t *testing.T, fundID uuid.UUID) uuid.UUID {

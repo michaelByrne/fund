@@ -358,6 +358,17 @@ type FundEvent struct {
 	DedupeKey       pgtype.Text
 }
 
+type FundImage struct {
+	FundID      uuid.UUID
+	S3Key       string
+	ContentType string
+	Width       int32
+	Height      int32
+	Sha256      string
+	Created     pgtype.Timestamptz
+	Updated     pgtype.Timestamptz
+}
+
 type FundNote struct {
 	ID        uuid.UUID
 	FundID    uuid.UUID

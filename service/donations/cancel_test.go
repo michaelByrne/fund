@@ -61,7 +61,7 @@ func TestCancelDonationForMember(t *testing.T) {
 	}
 
 	newService := func(provider *mocks.PaymentsProviderMock) *donations.DonationService {
-		return donations.NewDonationService(store, stubDocumentStorage{}, provider, events, nil, logger)
+		return donations.NewDonationService(store, stubDocumentStorage{}, newFakeBucket(), provider, events, nil, logger)
 	}
 
 	t.Run("cancels at the provider and then here", func(t *testing.T) {
