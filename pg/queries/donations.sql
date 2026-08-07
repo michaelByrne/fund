@@ -652,3 +652,55 @@ SELECT *
 FROM fund_note
 WHERE member_id = $1
   AND removed_at IS NULL;
+
+-- One image per fund, so uploading a second replaces the first.
+-- name: UpsertFundImage :one
+INSERT INTO fund_image (fund_id, s3_key, content_type, width, height, sha256)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (fund_id)
+    DO UPDATE SET s3_key       = excluded.s3_key,
+                  content_type = excluded.content_type,
+                  width        = excluded.width,
+                  height       = excluded.height,
+                  sha256       = excluded.sha256,
+                  updated      = now()
+RETURNING fund_id, s3_key, content_type, width, height, sha256, created, updated;
+
+-- What a page needs to render the tag: the URL and the shape, not the picture.
+--
+-- Selecting the bytes here would pull a few hundred kilobytes into every fund
+-- page render to print an integer.
+-- name: GetFundImageMeta :one
+SELECT fund_id, s3_key, content_type, width, height, sha256, created, updated
+FROM fund_image
+WHERE fund_id = $1;
+
+-- The same for a list of funds, so the home page costs one query rather than one
+-- per fund on it.
+-- name: GetFundImageMetaForFunds :many
+SELECT fund_id, s3_key, content_type, width, height, sha256, created, updated
+FROM fund_image
+WHERE fund_id = ANY (sqlc.arg(fund_ids)::uuid[]);
+
+-- Where to fetch the picture from, for the one request that serves it.
+--
+-- Keyed by hash as well as fund, so a request can only reach the object its own
+-- URL identifies. An old URL for a replaced image misses rather than serving the
+-- new picture under a name that promised the old one.
+-- name: GetFundImageObject :one
+SELECT s3_key, content_type, updated
+FROM fund_image
+WHERE fund_id = $1
+  AND sha256 = $2;
+
+-- The object a fund currently points at, so replacing an image can delete the one
+-- it replaced rather than leaving it in the bucket for ever.
+-- name: GetFundImageKey :one
+SELECT s3_key
+FROM fund_image
+WHERE fund_id = $1;
+
+-- name: DeleteFundImage :exec
+DELETE
+FROM fund_image
+WHERE fund_id = $1;

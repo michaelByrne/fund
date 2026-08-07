@@ -48,7 +48,7 @@ func TestRecurringDonationsAreVerifiedWithTheProvider(t *testing.T) {
 			return "PROVIDER-PLAN-" + uuid.NewString(), nil
 		}
 
-		svc := donations.NewDonationService(store, stubDocumentStorage{}, provider, events, nil, logger)
+		svc := donations.NewDonationService(store, stubDocumentStorage{}, newFakeBucket(), provider, events, nil, logger)
 
 		fund, errFund := svc.CreateFund(ctx, donations.Fund{
 			Name: uuid.NewString(), Description: "d",

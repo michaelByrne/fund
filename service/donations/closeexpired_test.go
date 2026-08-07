@@ -34,7 +34,7 @@ func TestCloseExpiredFunds(t *testing.T) {
 		store := donationsstore.NewDonationStore(pool)
 		events := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
 
-		return donations.NewDonationService(store, stubDocumentStorage{}, provider, events, []string{"payments"}, logger)
+		return donations.NewDonationService(store, stubDocumentStorage{}, newFakeBucket(), provider, events, []string{"payments"}, logger)
 	}
 
 	isActive := func(t *testing.T, name string) bool {

@@ -123,12 +123,17 @@ func build(runConfig *root.RunConfig) (*donations.DonationService, error) {
 		return nil, err
 	}
 
-	documentStorage := aws.NewAWSS3(s3.NewFromConfig(defaultConfig), logger, "")
+	s3Client := s3.NewFromConfig(defaultConfig)
+	documentStorage := aws.NewAWSS3(s3Client, logger, "")
+	// The CLI never touches a fund picture, but the service it builds is the same
+	// service, and a nil here would be a panic waiting for whoever adds a command
+	// that does.
+	fundImages := aws.NewFundImages(s3Client, runConfig.FundImagesS3Bucket, logger)
 
 	store := donationstore.NewDonationStore(pool)
 	fundEvents := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
 
 	return donations.NewDonationService(
-		store, documentStorage, paypalService, fundEvents, runConfig.ReportTypes, logger,
+		store, documentStorage, fundImages, paypalService, fundEvents, runConfig.ReportTypes, logger,
 	), nil
 }

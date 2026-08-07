@@ -3,6 +3,7 @@ package donations
 import (
 	"context"
 	"github.com/google/uuid"
+	"io"
 )
 
 type donationStore interface {
@@ -34,6 +35,12 @@ type donationStore interface {
 	RemoveFundNote(ctx context.Context, noteID, actorID uuid.UUID) error
 	RemoveOwnFundNote(ctx context.Context, fundID, memberID uuid.UUID) error
 	GetFundNotesForMember(ctx context.Context, memberID uuid.UUID) (map[uuid.UUID]FundNote, error)
+	UpsertFundImage(ctx context.Context, arg UpsertFundImage) (*FundImage, error)
+	GetFundImageMeta(ctx context.Context, fundID uuid.UUID) (*FundImage, error)
+	GetFundImageMetaForFunds(ctx context.Context, fundIDs []uuid.UUID) (map[uuid.UUID]FundImage, error)
+	GetFundImageObject(ctx context.Context, fundID uuid.UUID, sha256 string) (*FundImageObject, error)
+	GetFundImageKey(ctx context.Context, fundID uuid.UUID) (string, error)
+	DeleteFundImage(ctx context.Context, fundID uuid.UUID) error
 	GetDonationByID(ctx context.Context, id uuid.UUID) (*Donation, error)
 	SetDonationToInactiveBySubscriptionID(ctx context.Context, arg DeactivateDonationBySubscription) (*Donation, error)
 	ReactivateSuspendedDonation(ctx context.Context, subscriptionID string) (*Donation, error)
@@ -56,4 +63,15 @@ type subscriber interface {
 
 type documentStorage interface {
 	CreateFundBucket(ctx context.Context, prefix string, fundID uuid.UUID) error
+}
+
+// fundImageStorage is the bucket the pictures are in.
+//
+// Its own interface rather than an addition to documentStorage: that one is
+// shaped around per-fund report buckets and a report filename it parses to find
+// them. Nothing here wants any of that.
+type fundImageStorage interface {
+	PutFundImage(ctx context.Context, key, contentType string, body []byte) error
+	GetFundImage(ctx context.Context, key string) (io.ReadCloser, error)
+	DeleteFundImage(ctx context.Context, key string) error
 }

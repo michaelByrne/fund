@@ -86,6 +86,10 @@ type RunConfig struct {
 	NATSStoreDir                     string
 	DonationsPaymentsReportsS3Bucket string
 
+	// FundImagesS3Bucket holds the pictures shown on fund pages. One bucket, keyed
+	// by fund and content hash; see aws.FundImages.
+	FundImagesS3Bucket string
+
 	ReportTypes []string
 
 	// PayoutApprovalWindow is how long a treasurer has to approve a batch before it
@@ -198,6 +202,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	authorizer := aws.NewCognitoAuth(cognitoClient, logger, runConfig.CognitoClientID, runConfig.CognitoUserPoolID)
 
 	documentStorage := aws.NewAWSS3(s3Client, logger, "")
+	fundImages := aws.NewFundImages(s3Client, runConfig.FundImagesS3Bucket, logger)
 
 	ksetCache := keyset.NewKeySetWithCache(runConfig.JWKURL, 15)
 	kset, err := ksetCache.NewKeySet()
@@ -214,7 +219,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 
 	fundEvents := fundevents.NewService(eventStore, logger)
 
-	donationService := donations.NewDonationService(donationStore, documentStorage, paypalService, fundEvents, runConfig.ReportTypes, logger)
+	donationService := donations.NewDonationService(donationStore, documentStorage, fundImages, paypalService, fundEvents, runConfig.ReportTypes, logger)
 	memberService := members.NewMemberService(memberStore, donationStore, paypalService, fundEvents, logger)
 	authService := auth.NewAuthService(memberStore, authStore, authorizer, logger)
 	financeService := finance.NewFinanceService(donationStore, paypalService, documentStorage, fundEvents, runConfig.ReportTypes, logger)

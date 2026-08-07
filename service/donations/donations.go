@@ -20,6 +20,7 @@ type eventRecorder interface {
 type DonationService struct {
 	donationStore    donationStore
 	documentStorage  documentStorage
+	fundImages       fundImageStorage
 	paymentsProvider PaymentsProvider
 	events           eventRecorder
 
@@ -28,10 +29,11 @@ type DonationService struct {
 	logger *slog.Logger
 }
 
-func NewDonationService(donationStore donationStore, documentStorage documentStorage, provider PaymentsProvider, events eventRecorder, reportBuckets []string, logger *slog.Logger) *DonationService {
+func NewDonationService(donationStore donationStore, documentStorage documentStorage, fundImages fundImageStorage, provider PaymentsProvider, events eventRecorder, reportBuckets []string, logger *slog.Logger) *DonationService {
 	return &DonationService{
 		donationStore:    donationStore,
 		documentStorage:  documentStorage,
+		fundImages:       fundImages,
 		paymentsProvider: provider,
 		events:           events,
 		logger:           logger,

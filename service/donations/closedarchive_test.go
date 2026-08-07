@@ -101,7 +101,7 @@ func newArchiveService(t *testing.T, pool *pgxpool.Pool) *donations.DonationServ
 
 	return donations.NewDonationService(
 		donationsstore.NewDonationStore(pool),
-		stubDocumentStorage{},
+		stubDocumentStorage{}, newFakeBucket(),
 		&mocks.PaymentsProviderMock{},
 		fundevents.NewService(fundeventstore.NewEventStore(pool), logger),
 		[]string{"payments"},
@@ -211,7 +211,7 @@ func TestListClosedFundsDoesNotQueryPerFund(t *testing.T) {
 
 	svc := donations.NewDonationService(
 		store,
-		stubDocumentStorage{},
+		stubDocumentStorage{}, newFakeBucket(),
 		&mocks.PaymentsProviderMock{},
 		fundevents.NewService(fundeventstore.NewEventStore(pool), logger),
 		[]string{"payments"},

@@ -10,9 +10,11 @@ import (
 	"time"
 )
 
-templ Enrollments(fund donations.Fund, enrollments []enrollments.Enrollment, events []fundevents.Event, member *members.Member, path string) {
+templ Enrollments(fund donations.Fund, enrollments []enrollments.Enrollment, events []fundevents.Event, image *donations.FundImage, member *members.Member, path string) {
 	@Admin(member, path) {
-		<div class="grid grid-cols-1 md:grid-cols-2 gap-6 overflow-visible">
+		// response-targets, or htmx discards the 4xx from a refused upload and the
+		// control silently does nothing.
+		<div class="grid grid-cols-1 md:grid-cols-2 gap-6 overflow-visible" hx-ext="response-targets">
 			<div class="h-[255x] flex flex-col overflow-visible">
 				@common.FundStatus(fund, fund.Stats)
 			</div>
@@ -26,6 +28,9 @@ templ Enrollments(fund donations.Fund, enrollments []enrollments.Enrollment, eve
 			</div>
 			<div class="flex flex-col overflow-visible">
 				@CurrentEnrollments(enrollments)
+			</div>
+			<div class="flex flex-col overflow-visible">
+				@FundImageControl(fund.ID, image, "")
 			</div>
 		</div>
 	}

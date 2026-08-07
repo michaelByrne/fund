@@ -56,7 +56,7 @@ func TestDonationService_DeactivateFund(t *testing.T) {
 
 		donationTestStore := donationsstore.NewDonationStore(pool)
 		fundEvents := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
-		donationTestService := donations.NewDonationService(donationTestStore, stubDocumentStorage{}, &paymentsMock, fundEvents, []string{"payments"}, logger)
+		donationTestService := donations.NewDonationService(donationTestStore, stubDocumentStorage{}, newFakeBucket(), &paymentsMock, fundEvents, []string{"payments"}, logger)
 
 		memberTestStore := membersstore.NewMemberStore(pool)
 		memberTestService := members.NewMemberService(memberTestStore, donationTestStore, &paymentsMock, fundEvents, logger)
@@ -182,7 +182,7 @@ func TestDeactivateFundLeavesTheFundOpenIfCancellationFails(t *testing.T) {
 
 	donationStore := donationsstore.NewDonationStore(pool)
 	fundEvents := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
-	svc := donations.NewDonationService(donationStore, stubDocumentStorage{}, &paymentsMock, fundEvents, []string{"payments"}, logger)
+	svc := donations.NewDonationService(donationStore, stubDocumentStorage{}, newFakeBucket(), &paymentsMock, fundEvents, []string{"payments"}, logger)
 
 	memberStore := membersstore.NewMemberStore(pool)
 	memberSvc := members.NewMemberService(memberStore, donationStore, &paymentsMock, fundEvents, logger)
@@ -264,7 +264,7 @@ func TestDeactivateMemberLeavesTheMemberActiveIfCancellationFails(t *testing.T) 
 
 	donationStore := donationsstore.NewDonationStore(pool)
 	fundEvents := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
-	svc := donations.NewDonationService(donationStore, stubDocumentStorage{}, &paymentsMock, fundEvents, []string{"payments"}, logger)
+	svc := donations.NewDonationService(donationStore, stubDocumentStorage{}, newFakeBucket(), &paymentsMock, fundEvents, []string{"payments"}, logger)
 
 	memberStore := membersstore.NewMemberStore(pool)
 	memberSvc := members.NewMemberService(memberStore, donationStore, &paymentsMock, fundEvents, logger)
@@ -341,7 +341,7 @@ func TestDeactivateFundRejectsMismatchedCancellations(t *testing.T) {
 
 	donationStore := donationsstore.NewDonationStore(pool)
 	fundEvents := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
-	svc := donations.NewDonationService(donationStore, stubDocumentStorage{}, &paymentsMock, fundEvents, []string{"payments"}, logger)
+	svc := donations.NewDonationService(donationStore, stubDocumentStorage{}, newFakeBucket(), &paymentsMock, fundEvents, []string{"payments"}, logger)
 
 	memberStore := membersstore.NewMemberStore(pool)
 	memberSvc := members.NewMemberService(memberStore, donationStore, &paymentsMock, fundEvents, logger)

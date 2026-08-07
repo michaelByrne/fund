@@ -58,7 +58,7 @@ func TestAdminListingKeepsClosedFunds(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	store := donationsstore.NewDonationStore(pool)
 	events := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
-	svc := donations.NewDonationService(store, stubDocumentStorage{}, &mocks.PaymentsProviderMock{}, events, []string{"payments"}, logger)
+	svc := donations.NewDonationService(store, stubDocumentStorage{}, newFakeBucket(), &mocks.PaymentsProviderMock{}, events, []string{"payments"}, logger)
 
 	future := time.Now().Add(24 * time.Hour)
 	past := time.Now().Add(-time.Hour)
@@ -115,7 +115,7 @@ func TestAdminListingSortsClosedFundsLast(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	store := donationsstore.NewDonationStore(pool)
 	events := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
-	svc := donations.NewDonationService(store, stubDocumentStorage{}, &mocks.PaymentsProviderMock{}, events, []string{"payments"}, logger)
+	svc := donations.NewDonationService(store, stubDocumentStorage{}, newFakeBucket(), &mocks.PaymentsProviderMock{}, events, []string{"payments"}, logger)
 
 	past := time.Now().Add(-time.Hour)
 
@@ -163,7 +163,7 @@ func TestFrontPageListsEveryFrequency(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	store := donationsstore.NewDonationStore(pool)
 	events := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
-	svc := donations.NewDonationService(store, stubDocumentStorage{}, &mocks.PaymentsProviderMock{}, events, nil, logger)
+	svc := donations.NewDonationService(store, stubDocumentStorage{}, newFakeBucket(), &mocks.PaymentsProviderMock{}, events, nil, logger)
 
 	insertWithFrequency := func(t *testing.T, name, frequency string) {
 		t.Helper()

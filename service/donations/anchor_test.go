@@ -40,7 +40,7 @@ func TestNewFundsAreAnchoredToMidnight(t *testing.T) {
 	}
 
 	svc := donations.NewDonationService(
-		donationsstore.NewDonationStore(pool), stubDocumentStorage{}, provider,
+		donationsstore.NewDonationStore(pool), stubDocumentStorage{}, newFakeBucket(), provider,
 		fundevents.NewService(fundeventstore.NewEventStore(pool), logger), nil, logger,
 	)
 

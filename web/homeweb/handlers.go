@@ -12,6 +12,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -54,6 +55,9 @@ func (h *FundHandlers) Register(r *mux.Router) {
 	r.HandleFunc("/donation/once/initiate", h.withAuth(h.initiateOneTimeDonation))
 	r.HandleFunc("/donation/success", h.withAuth(h.donationSuccess))
 	r.HandleFunc("GET /donations", h.withAuth(h.myDonations))
+	// No auth: it is shown on pages that have it, and would be a broken box on any
+	// that do not.
+	r.HandleFunc("GET /fund/{fundId}/image/{hash}", h.fundImage)
 	r.HandleFunc("POST /fund/{fundId}/note", h.withAuth(h.saveFundNote))
 	r.HandleFunc("POST /fund/{fundId}/note/remove", h.withAuth(h.removeOwnFundNote))
 	r.HandleFunc("POST /donation/cancel/{id}", h.withAuth(h.cancelMyDonation))
@@ -262,8 +266,15 @@ func (h *FundHandlers) donate(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("failed to list fund notes", slog.String("error", err.Error()))
 	}
 
+	// Not fatal: somebody came here to give, and a missing picture is a smaller
+	// wrong than a page that will not load.
+	image, err := h.donationService.GetFundImage(ctx, fund.ID)
+	if err != nil {
+		image = nil
+	}
+
 	w.Header().Set("HX-Redirect", r.URL.Path)
-	Fund(*fund, fund.Stats, notes, &member, r.URL.Path).Render(ctx, w)
+	Fund(*fund, fund.Stats, notes, image, &member, r.URL.Path).Render(ctx, w)
 }
 
 // saveFundNote writes or replaces the signed-in donor's note on a fund.
@@ -1013,4 +1024,57 @@ func dollarStringToCents(dollars string) (int32, error) {
 	}
 
 	return int32(amountInCents), nil
+}
+
+// fundImage serves a fund's picture.
+//
+// Public and unauthenticated, like the pages that show it: an image behind a
+// login would render as a broken box for anybody not signed in.
+//
+// The hash in the path is part of the lookup, so this can only ever answer with
+// the bytes its own URL identifies. That is what makes the long cache below safe
+// at every layer: a stored copy cannot be of anything else, so replacing the
+// image replaces the URL, and Cloudflare rewriting our max-age costs nothing.
+func (h *FundHandlers) fundImage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	fundID, err := uuid.Parse(r.PathValue("fundId"))
+	if err != nil {
+		http.NotFound(w, r)
+
+		return
+	}
+
+	body, object, err := h.donationService.OpenFundImage(ctx, fundID, r.PathValue("hash"))
+	if err != nil {
+		h.logger.Error("failed to read a fund image", slog.String("error", err.Error()))
+
+		http.Error(w, "", http.StatusInternalServerError)
+
+		return
+	}
+
+	if body == nil {
+		http.NotFound(w, r)
+
+		return
+	}
+
+	defer body.Close()
+
+	// Our own content type, from what we re-encoded, and nosniff so a browser
+	// cannot decide these bytes are something more interesting than a picture.
+	w.Header().Set("Content-Type", object.ContentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("Last-Modified", object.Updated.UTC().Format(http.TimeFormat))
+
+	// Copied rather than served with ServeContent: that wants a ReadSeeker so it
+	// can answer range requests, and having one would mean holding the whole
+	// picture in memory. Nothing asks for ranges of a photograph.
+	if _, err = io.Copy(w, body); err != nil {
+		// The header is long gone, so there is no status left to change. Logged
+		// because a truncated picture otherwise looks like a browser problem.
+		h.logger.Error("failed to write a fund image", slog.String("error", err.Error()))
+	}
 }

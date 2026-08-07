@@ -1,0 +1,32 @@
+package homeweb
+
+import (
+	"boardfund/service/donations"
+	"fmt"
+)
+
+// FundImageBanner is a fund's picture, above what the fund is for.
+//
+// A fixed height with object-fit: cover, so one upload works at any shape without
+// the page jumping between funds. A portrait photograph and a wide banner both
+// fill the same band; what varies is how much of them is shown, not where
+// everything below them sits.
+//
+// width and height are given so the browser reserves the space before the bytes
+// arrive, rather than reflowing the description out from under a reader.
+//
+// The alt text is the fund's name because that is what the picture is of, as far
+// as anything here knows. There is no caption field and inventing one from the
+// filename would describe an upload rather than an image.
+templ FundImageBanner(fund donations.Fund, image *donations.FundImage) {
+	if image != nil {
+		<img
+			src={ image.URL() }
+			alt={ fund.Name }
+			width={ fmt.Sprintf("%d", image.Width) }
+			height={ fmt.Sprintf("%d", image.Height) }
+			loading="lazy"
+			class="w-full h-48 md:h-64 object-cover bg-even shadow-blue-boxy mb-4"
+		/>
+	}
+}
