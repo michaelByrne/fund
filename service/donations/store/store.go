@@ -548,6 +548,30 @@ func (s DonationStore) GetFundNotes(ctx context.Context, fundID uuid.UUID) ([]do
 	return notes, nil
 }
 
+// GetFundNotesForMember is every note this member has up, keyed by the fund it
+// is on, so a page showing many donations can draw them all from one query.
+func (s DonationStore) GetFundNotesForMember(ctx context.Context, memberID uuid.UUID) (map[uuid.UUID]donations.FundNote, error) {
+	rows, err := s.queries.GetFundNotesForMember(ctx, memberID)
+	if err != nil {
+		return nil, err
+	}
+
+	notes := make(map[uuid.UUID]donations.FundNote, len(rows))
+	for _, row := range rows {
+		notes[row.FundID] = donations.FundNote{
+			ID:        row.ID,
+			FundID:    row.FundID,
+			MemberID:  row.MemberID,
+			Body:      row.Body,
+			Anonymous: row.Anonymous,
+			Created:   row.Created.Time,
+			Updated:   row.Updated.Time,
+		}
+	}
+
+	return notes, nil
+}
+
 func (s DonationStore) GetFundNoteForMember(ctx context.Context, fundID, memberID uuid.UUID) (*donations.FundNote, error) {
 	row, err := s.queries.GetFundNoteForMember(ctx, db.GetFundNoteForMemberParams{
 		FundID:   fundID,
@@ -577,6 +601,25 @@ func (s DonationStore) GetFundNoteForMember(ctx context.Context, fundID, memberI
 		Created:   row.Created.Time,
 		Updated:   row.Updated.Time,
 	}, nil
+}
+
+// RemoveOwnFundNote takes down the note this member wrote on this fund.
+//
+// Scoped by member in the statement itself rather than by checking ownership
+// first and then deleting: there is no window between the two, and no way for a
+// caller to name a note that is not theirs.
+func (s DonationStore) RemoveOwnFundNote(ctx context.Context, fundID, memberID uuid.UUID) error {
+	_, err := s.queries.RemoveOwnFundNote(ctx, db.RemoveOwnFundNoteParams{
+		FundID:   fundID,
+		MemberID: memberID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		// No note, or already down. Either way the donor asked for it gone and it
+		// is gone.
+		return nil
+	}
+
+	return err
 }
 
 func (s DonationStore) RemoveFundNote(ctx context.Context, noteID, actorID uuid.UUID) error {

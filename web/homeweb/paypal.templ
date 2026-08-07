@@ -5,6 +5,7 @@ import (
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"fmt"
+	"github.com/google/uuid"
 	"strings"
 )
 
@@ -31,7 +32,9 @@ templ Paypal(fund donations.Fund, amountCents int32, clientID string) {
 	</div>
 }
 
-templ ThankYou(member members.Member, path string) {
+// ThankYou is the screen after PayPal, and now the one place a note is asked for
+// while the giving is still the thing that just happened.
+templ ThankYou(member members.Member, fundID uuid.UUID, canWrite bool, path string) {
 	@common.Layout(&member, path) {
 		<div id="bouncing-elements" style="position: relative;">
 			<div id="bouncing-element" class="absolute font-semibold text-responsive">
@@ -47,6 +50,9 @@ templ ThankYou(member members.Member, path string) {
 				</div>
 			</div>
 		</div>
+		if canWrite {
+			@ThankYouNote(fundID)
+		}
 		<script>
             function createBouncer(elementId, initialVelX, initialVelY) {
                 return {

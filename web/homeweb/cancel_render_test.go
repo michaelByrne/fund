@@ -14,7 +14,7 @@ func renderRow(t *testing.T, donation donations.MemberDonation, failure string) 
 	t.Helper()
 
 	var out strings.Builder
-	if err := MyDonationRow(donation, failure).Render(context.Background(), &out); err != nil {
+	if err := MyDonationRow(donation, nil, failure).Render(context.Background(), &out); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 
@@ -130,6 +130,12 @@ func TestTileColourFollowsState(t *testing.T) {
 		if strings.Contains(html, "bg-odd") {
 			t.Errorf("a %s donation should not take the live tile", name)
 		}
+	}
+
+	// The note editor is drawn inside the tile, so it must not use the two colours
+	// that say what state the tile is in. This caught exactly that.
+	if strings.Contains(renderRow(t, live, ""), "bg-even") {
+		t.Error("something inside a live tile is using the ended colour")
 	}
 
 	// Nothing should depend on position any more.
