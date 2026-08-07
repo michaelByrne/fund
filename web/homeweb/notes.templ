@@ -174,8 +174,14 @@ templ FundNoteForm(editorID string, fundID uuid.UUID, own *donations.FundNote, f
 //
 // Optional and visibly so. Somebody has just given money; the last thing this
 // screen should do is feel like another form standing between them and being
-// finished. "no thanks" is a real link to the fund, not a dismissal that leaves
+// finished. The way out is a real link to the fund, not a dismissal that leaves
 // them nowhere.
+//
+// It says where it goes rather than "no thanks". The form swaps itself when a
+// note is saved and this is its sibling, so a decline still sitting there would
+// be offering to skip something already done. Wording it as a destination makes
+// it true either way, which beats teaching the shared form response about one
+// page's layout.
 templ ThankYouNote(fundID uuid.UUID) {
 	<div class="mt-8 mx-auto w-[90%] md:w-[50%]" hx-ext="response-targets">
 		<div class="text-md font-semibold p-2 inline-block bg-high shadow-blue-boxy-thin">want to say why?</div>
@@ -185,7 +191,7 @@ templ ThankYouNote(fundID uuid.UUID) {
 		@FundNoteForm(noteEditorID(fundID), fundID, nil, "", "")
 		<p class="text-sm p-2">
 			<a href={ templ.SafeURL("/donate/" + fundID.String()) } class="text-links hover:underline">
-				no thanks, take me to the fund
+				take me to the fund
 			</a>
 		</p>
 	</div>

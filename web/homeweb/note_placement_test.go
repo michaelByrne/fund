@@ -59,9 +59,17 @@ func TestTheThankYouScreenAsksADonor(t *testing.T) {
 	}
 
 	// Somebody has just parted with money. The screen must not read as another
-	// form standing between them and being finished.
-	if !strings.Contains(html, "no thanks") {
-		t.Error("the ask should be visibly declinable")
+	// form standing between them and being finished, so there is always a way on
+	// that does not involve writing anything.
+	if !strings.Contains(html, "take me to the fund") {
+		t.Error("the ask should be visibly skippable")
+	}
+
+	// Not "no thanks". The form swaps itself when a note is saved and this is its
+	// sibling, so a decline would still be sitting there offering to skip
+	// something the donor has already done.
+	if strings.Contains(html, "no thanks") {
+		t.Error("the way out should read as a destination, which stays true after a note is left")
 	}
 }
 
