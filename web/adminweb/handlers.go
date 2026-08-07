@@ -87,6 +87,7 @@ func (h *AdminHandlers) Register(r *mux.Router) {
 	// better and cannot be registered: it collides with "/admin/fund/deactivate/{id}",
 	// because {id} matches "deactivate" just as happily as a uuid. The route
 	// conflict test caught it, which is what that test exists for.
+	r.HandleFunc("POST /admin/fund/details/{id}", h.withAdmin(h.saveFundDetails))
 	r.HandleFunc("POST /admin/fund/image/{id}", h.withAdmin(h.setFundImage))
 	r.HandleFunc("POST /admin/fund/image/remove/{id}", h.withAdmin(h.removeFundImage))
 	r.HandleFunc("GET /admin/members/search", h.withAdmin(h.searchMembers))
@@ -147,7 +148,12 @@ func (h *AdminHandlers) addApprovedEmail(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	err := r.ParseForm()
+	// Multipart now, because the form carries a picture. The body is bounded
+	// before it is read: a create form is not a reason to accept an unbounded
+	// upload.
+	r.Body = http.MaxBytesReader(w, r.Body, donations.MaxImageBytes+8192)
+
+	err := r.ParseMultipartForm(donations.MaxImageBytes + 8192)
 	if err != nil {
 		h.badRequest(w, r, "")
 
@@ -296,7 +302,12 @@ func (h *AdminHandlers) createEnrollment(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	err := r.ParseForm()
+	// Multipart now, because the form carries a picture. The body is bounded
+	// before it is read: a create form is not a reason to accept an unbounded
+	// upload.
+	r.Body = http.MaxBytesReader(w, r.Body, donations.MaxImageBytes+8192)
+
+	err := r.ParseMultipartForm(donations.MaxImageBytes + 8192)
 	if err != nil {
 		h.badRequest(w, r, "")
 
@@ -725,7 +736,12 @@ func (h *AdminHandlers) createFund(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := r.ParseForm()
+	// Multipart now, because the form carries a picture. The body is bounded
+	// before it is read: a create form is not a reason to accept an unbounded
+	// upload.
+	r.Body = http.MaxBytesReader(w, r.Body, donations.MaxImageBytes+8192)
+
+	err := r.ParseMultipartForm(donations.MaxImageBytes + 8192)
 	if err != nil {
 		h.badRequest(w, r, "")
 
@@ -776,7 +792,44 @@ func (h *AdminHandlers) createFund(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The fund exists from here on. A picture that will not upload must not undo
+	// that: creating a fund also creates the PayPal product and plan, and there is
+	// no unwinding those because somebody chose the wrong file.
+	//
+	// So the row goes back either way, and a failed picture is reported beside the
+	// form rather than in place of the fund.
+	if failure := h.attachFundPicture(ctx, r, newFund.ID); failure != "" {
+		FundCreatedWithoutPicture(*newFund, failure).Render(ctx, w)
+
+		return
+	}
+
 	FundRow(*newFund).Render(ctx, w)
+}
+
+// attachFundPicture stores the picture the create form carried, if it carried
+// one, and returns what to tell the admin when it could not.
+//
+// An empty string means there is nothing to say: either it worked, or no file was
+// chosen, which is the ordinary case and not a failure.
+func (h *AdminHandlers) attachFundPicture(ctx context.Context, r *http.Request, fundID uuid.UUID) string {
+	upload, _, err := r.FormFile("image")
+	if err != nil {
+		return ""
+	}
+
+	defer upload.Close()
+
+	if _, err = h.donationService.SaveFundImage(ctx, fundID, upload); err != nil {
+		_, message := imageFailure(err)
+		if message == "" {
+			message = "we could not save that picture."
+		}
+
+		return message
+	}
+
+	return ""
 }
 
 func (h *AdminHandlers) fundsPage(w http.ResponseWriter, r *http.Request) {
@@ -1007,4 +1060,99 @@ func (h *AdminHandlers) badImage(ctx context.Context, w http.ResponseWriter, sta
 	fundID uuid.UUID, image *donations.FundImage, message string) {
 	w.WriteHeader(status)
 	FundImageControl(fundID, image, message).Render(ctx, w)
+}
+
+// saveFundDetails changes the things about a fund that are safe to change.
+//
+// The fund is read first and only description, goal and end date are taken from
+// the form. Name, frequency and active come back off the stored fund untouched --
+// UpdateFund writes whatever it is handed, so anything not deliberately carried
+// over would be blanked, and the name and frequency are held by PayPal as well as
+// by us. A caller posting either gets them ignored rather than obeyed.
+func (h *AdminHandlers) saveFundDetails(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if _, ok := h.sessionManager.Get(ctx, "member").(members.Member); !ok {
+		common.Redirect(w, r, "/")
+
+		return
+	}
+
+	fundID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		h.badRequest(w, r, "")
+
+		return
+	}
+
+	fund, err := h.donationService.GetFundByID(ctx, fundID)
+	if err != nil {
+		h.internalError(w, r)
+
+		return
+	}
+
+	if err = r.ParseForm(); err != nil {
+		h.badDetails(ctx, w, *fund, "we could not read that.")
+
+		return
+	}
+
+	updated := *fund
+	updated.Description = r.FormValue("description")
+
+	if goal := r.FormValue("goal"); goal != "" {
+		goalCents, errGoal := dollarStringToCents(goal)
+		if errGoal != nil {
+			h.badDetails(ctx, w, *fund, "that is not an amount.")
+
+			return
+		}
+
+		updated.GoalCents = goalCents
+	} else {
+		// Cleared on purpose. A fund is allowed to stop having a target.
+		updated.GoalCents = 0
+	}
+
+	if date := r.FormValue("date"); date != "" {
+		expires, errDate := time.Parse("2006-01-02", date)
+		if errDate != nil {
+			h.badDetails(ctx, w, *fund, "that is not a date.")
+
+			return
+		}
+
+		updated.Expires = &expires
+	} else {
+		updated.Expires = nil
+	}
+
+	saved, err := h.donationService.UpdateFund(ctx, updated)
+	if err != nil {
+		h.badDetails(ctx, w, *fund, "we could not save that. please try again.")
+
+		return
+	}
+
+	// Re-read rather than reused, so what comes back is what is stored.
+	image, err := h.donationService.GetFundImage(ctx, fundID)
+	if err != nil {
+		image = nil
+	}
+
+	FundDetails(*saved, image, "", "saved.").Render(ctx, w)
+}
+
+// badDetails redraws the card with what went wrong and the fund as it still is,
+// so a refusal does not leave the boxes showing values that were never stored.
+func (h *AdminHandlers) badDetails(ctx context.Context, w http.ResponseWriter,
+	fund donations.Fund, message string) {
+	image, err := h.donationService.GetFundImage(ctx, fund.ID)
+	if err != nil {
+		image = nil
+	}
+
+	w.WriteHeader(http.StatusBadRequest)
+	FundDetails(fund, image, message, "").Render(ctx, w)
 }

@@ -18,6 +18,11 @@ templ Enrollments(fund donations.Fund, enrollments []enrollments.Enrollment, eve
 			<div class="h-[255x] flex flex-col overflow-visible">
 				@common.FundStatus(fund, fund.Stats)
 			</div>
+			// Beside the status rather than below the operational cards. What a fund
+			// is belongs at the top; what it has been doing follows.
+			<div class="flex flex-col overflow-visible">
+				@FundDetails(fund, image, "", "")
+			</div>
 			<div class="md:h-[255px] flex flex-col overflow-visible">
 				<div id="add-enrollment" class="relative z-40">
 					@AddEnrollment(fund)
@@ -28,9 +33,6 @@ templ Enrollments(fund donations.Fund, enrollments []enrollments.Enrollment, eve
 			</div>
 			<div class="flex flex-col overflow-visible">
 				@CurrentEnrollments(enrollments)
-			</div>
-			<div class="flex flex-col overflow-visible">
-				@FundImageControl(fund.ID, image, "")
 			</div>
 		</div>
 	}
