@@ -4,6 +4,7 @@ import (
 	"boardfund/db"
 	"boardfund/pg"
 	"boardfund/service/donations"
+	"boardfund/service/finance"
 	"context"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -413,4 +414,72 @@ func (s DonationStore) GetExpiredActiveFunds(ctx context.Context) ([]donations.F
 
 func (s DonationStore) GetFundPayoutStats(ctx context.Context, fundID uuid.UUID) (donations.PayoutStats, error) {
 	return pg.FetchScalar(ctx, fundID, s.queries.GetFundPayoutStats, fromDBPayoutStats)
+}
+
+// SetPaymentReconciliation records what reconciliation saw at the provider.
+func (s DonationStore) SetPaymentReconciliation(ctx context.Context, arg donations.SetPaymentReconciliation) error {
+	_, err := s.queries.SetPaymentReconciliation(ctx, db.SetPaymentReconciliationParams{
+		ID:                  arg.PaymentID,
+		ProviderStatus:      nullText(arg.ProviderStatus),
+		ProviderAmountCents: nullInt32(arg.ProviderAmountCents),
+		ProviderFeeCents:    nullInt32(arg.ProviderFeeCents),
+	})
+
+	return err
+}
+
+// GetFundPaymentsForAudit is what the audit page shows.
+func (s DonationStore) GetFundPaymentsForAudit(ctx context.Context, fundID uuid.UUID) ([]finance.AuditPayment, error) {
+	rows, err := s.queries.GetFundPaymentsForAudit(ctx, fundID)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]finance.AuditPayment, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, finance.AuditPayment{
+			DonationID:          row.DonationID,
+			PaymentID:           row.ID,
+			ProviderPaymentID:   row.PaypalPaymentID,
+			DonorName:           row.DonorName.String,
+			Recurring:           row.Recurring,
+			AmountCents:         row.AmountCents,
+			RefundedCents:       row.RefundedCents,
+			FeeAmountCents:      row.ProviderFeeCents,
+			ProviderStatus:      row.ProviderStatus.String,
+			ProviderAmountCents: row.ProviderAmountCents.Int32,
+			ReconciledAt:        reconciledAt(row.ReconciledAt),
+			Created:             row.Created.Time,
+		})
+	}
+
+	return out, nil
+}
+
+func nullText(s *string) pgtype.Text {
+	if s == nil {
+		return pgtype.Text{}
+	}
+
+	return pgtype.Text{String: *s, Valid: true}
+}
+
+func nullInt32(n *int32) pgtype.Int4 {
+	if n == nil {
+		return pgtype.Int4{}
+	}
+
+	return pgtype.Int4{Int32: *n, Valid: true}
+}
+
+// reconciledAt distinguishes "never checked" from "checked", which is the whole
+// point of the column.
+func reconciledAt(t db.NullDBTime) *time.Time {
+	if !t.Valid {
+		return nil
+	}
+
+	out := t.DBTime.Time
+
+	return &out
 }

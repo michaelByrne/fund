@@ -92,7 +92,7 @@ templ FundRow(fund donations.Fund) {
 					class="ml-4 text-xl text-strong hover:text-links cursor-pointer gear-icon"
 					data-fund-id={ fund.ID.String() }
 					onclick="toggleDropdown(event, this)"
-					hx-get={ fmt.Sprintf("/admin/fund/audits/%s", fund.ID.String()) }
+					hx-get={ fmt.Sprintf("/admin/fund/audit?fund=%s", fund.ID.String()) }
 					hx-target="next .audit-content"
 					hx-trigger="audit-load"
 				>
@@ -127,111 +127,127 @@ templ FundRow(fund donations.Fund) {
 	</li>
 }
 
-templ FundAudits(availableReports []finance.ReportInfo) {
-	<div class="p-2 font-medium">available audits</div>
-	<ul class="p-2">
-		for _ , report := range availableReports {
-			<li>
-				<span>{ report.Date.Format("01-02-2006") }</span>:&nbsp;<span hx-get={ makeAuditURL(report.FundID, report.Date, report.Type) } class="hover:underline text-blue-400">{ report.Type }</span>
-			</li>
-		}
-	</ul>
-}
-
 templ FundPaymentsAudit(audit finance.Audit, member *members.Member, path string) {
 	@Admin(member, path) {
 		<div id="payments-list" class="blue-boxy-filter p-2">
-			<h3 class="text-md font-semibold bg-high inline-block p-2">payments <span class="font-medium">audit for</span> { audit.FundName } <span class="font-medium">run</span> { audit.Date.Format("01-02-2006") }</h3>
-			<div class="hidden md:block">
-				<div class="max-h-[300px] overflow-auto">
-					<table class="w-full text-xs text-left border-collapse leading-relaxed">
-						<thead class="sticky top-0 z-10 bg-even">
-							<tr>
-								<th class="text-left w-[2%]">
-									<span class="inline-block p-2"></span>
-								</th>
-								<th class="text-left w-[10%]">
-									<span class="inline-block p-2">date</span>
-								</th>
-								<th class="text-left w-[15%] hide-on-small">
-									<span class="inline-block p-2">paypal date</span>
-								</th>
-								<th class="text-left w-[18%] hide-on-small">
-									<span class="inline-block p-2">paypal id</span>
-								</th>
-								<th class="text-left w-[10%]">
-									<span class="inline-block p-2">amount</span>
-								</th>
-								<th class="text-left w-[15%]">
-									<span class="inline-block p-2">paypal amount</span>
-								</th>
-								<th class="text-left w-[15%]">
-									<span class="inline-block p-2 hide-on-small">paypal fee</span>
-								</th>
-								<th class="text-left w-[15%]">
-									<span class="inline-block p-2">paypal status</span>
-								</th>
-							</tr>
-						</thead>
-						<tbody>
-							for _, payment := range audit.Payments {
-								<tr class="even:bg-even odd:bg-odd">
-									@WarningCell(payment)
-									<td class="pl-2">{ payment.Created.Format("01-02-2006") }</td>
-									<td class="hide-on-small">{ transactionDate(payment.ProviderCreated) }</td>
-									<td class="font-mono hide-on-small">{ transactionID(payment.ProviderPaymentID) }</td>
-									<td>${ centsToDecimalString(payment.AmountCents) }</td>
-									<td>{ transactionAmount(payment.TransactionAmountCents) }</td>
-									<td class="hide-on-small">${ centsToDecimalString(payment.FeeAmountCents) }</td>
-									<td>{ transactionStatus(payment.TransactionStatus) }</td>
+			<h3 class="text-md font-semibold bg-high inline-block p-2">
+				payments <span class="font-medium">for</span> { audit.FundName }
+			</h3>
+			<p class="text-xs text-gray-600 p-2">
+				as at { audit.Date.Format("01-02-2006 15:04") }. what PayPal says is filled in by
+				the nightly reconciliation, so a payment taken since then reads as not yet checked.
+			</p>
+			if len(audit.Payments) == 0 {
+				<p class="text-sm p-2">this fund has taken no payments.</p>
+			} else {
+				<div class="hidden md:block">
+					<div class="max-h-[400px] overflow-auto">
+						<table class="w-full text-xs text-left border-collapse leading-relaxed">
+							<thead class="sticky top-0 z-10 bg-even">
+								<tr>
+									<th class="text-left w-[2%]"><span class="inline-block p-2"></span></th>
+									<th class="text-left w-[10%]"><span class="inline-block p-2">date</span></th>
+									<th class="text-left w-[14%]"><span class="inline-block p-2">donor</span></th>
+									<th class="text-left w-[20%] hide-on-small"><span class="inline-block p-2">paypal id</span></th>
+									<th class="text-left w-[10%]"><span class="inline-block p-2">amount</span></th>
+									<th class="text-left w-[12%]"><span class="inline-block p-2">paypal amount</span></th>
+									<th class="text-left w-[10%] hide-on-small"><span class="inline-block p-2">fee</span></th>
+									<th class="text-left w-[16%]"><span class="inline-block p-2">checked</span></th>
 								</tr>
-							}
-						</tbody>
-					</table>
+							</thead>
+							<tbody>
+								for _, payment := range audit.Payments {
+									<tr class="even:bg-even odd:bg-odd">
+										@VerdictCell(payment)
+										<td class="pl-2">{ payment.Created.Format("01-02-2006") }</td>
+										<td>{ payment.DonorName }</td>
+										<td class="font-mono hide-on-small">{ transactionID(payment.ProviderPaymentID) }</td>
+										<td>
+											${ centsToDecimalString(payment.AmountCents) }
+											if payment.RefundedCents > 0 {
+												// Refunded money is not money the fund holds, and the amount
+												// column alone would say it is.
+												<span class="text-red-700">&nbsp;-${ centsToDecimalString(payment.RefundedCents) }</span>
+											}
+										</td>
+										<td>{ transactionAmount(payment.ProviderAmountCents) }</td>
+										<td class="hide-on-small">${ centsToDecimalString(payment.FeeAmountCents) }</td>
+										<td>{ string(payment.Verdict()) }</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
 				</div>
-			</div>
-			<div class="md:hidden">
-				<div class="space-y-4">
-					for _, payment := range audit.Payments {
-						<div class="bg-white p-4">
-							<div class="flex items-center justify-between mb-2">
-								<div class="flex items-center space-x-2">
-									@WarningCell(payment)
-									<span class="text-sm font-medium">{ payment.Created.Format("01-02-2006") }</span>
+				<div class="md:hidden">
+					<div class="space-y-4">
+						for _, payment := range audit.Payments {
+							<div class="bg-white p-4">
+								<div class="flex items-center justify-between mb-2">
+									<div class="flex items-center space-x-2">
+										@VerdictBadge(payment)
+										<span class="text-sm font-medium">{ payment.Created.Format("01-02-2006") }</span>
+									</div>
+									<span class="text-sm font-bold">${ centsToDecimalString(payment.AmountCents) }</span>
 								</div>
-								<span class="text-sm font-bold">${ centsToDecimalString(payment.AmountCents) }</span>
+								<div class="space-y-2 text-xs">
+									<div class="flex justify-between">
+										<span class="text-gray-500">donor:</span>
+										<span>{ payment.DonorName }</span>
+									</div>
+									<div class="flex justify-between">
+										<span class="text-gray-500">paypal id:</span>
+										<span class="font-mono">{ transactionID(payment.ProviderPaymentID) }</span>
+									</div>
+									<div class="flex justify-between">
+										<span class="text-gray-500">paypal amount:</span>
+										<span>{ transactionAmount(payment.ProviderAmountCents) }</span>
+									</div>
+									if payment.RefundedCents > 0 {
+										<div class="flex justify-between">
+											<span class="text-gray-500">refunded:</span>
+											<span class="text-red-700">${ centsToDecimalString(payment.RefundedCents) }</span>
+										</div>
+									}
+									<div class="flex justify-between">
+										<span class="text-gray-500">checked:</span>
+										<span>{ string(payment.Verdict()) }</span>
+									</div>
+								</div>
 							</div>
-							<div class="space-y-2 text-xs">
-								<div class="flex justify-between">
-									<span class="text-gray-500">PayPal Date:</span>
-									<span>{ transactionDate(payment.ProviderCreated) }</span>
-								</div>
-								<div class="flex justify-between">
-									<span class="text-gray-500">PayPal ID:</span>
-									<span class="font-mono">{ transactionID(payment.ProviderPaymentID) }</span>
-								</div>
-								<div class="flex justify-between">
-									<span class="text-gray-500">PayPal Amount:</span>
-									<span>{ transactionAmount(payment.TransactionAmountCents) }</span>
-								</div>
-								<div class="flex justify-between">
-									<span class="text-gray-500">Status:</span>
-									<span>{ transactionStatus(payment.TransactionStatus) }</span>
-								</div>
-							</div>
-						</div>
-					}
+						}
+					</div>
 				</div>
-			</div>
+			}
 		</div>
 	}
 }
 
-templ WarningCell(payment finance.AuditPayment) {
-	if payment.TransactionAmountCents != payment.AmountCents || payment.TransactionStatus != "COMPLETED" {
-		<td class="px-1 justify-center bg-red-300 flex items-center">!</td>
+// VerdictCell marks the rows worth looking at.
+//
+// Three states, not two. The old cell compared our amount to the provider's and
+// showed a red warning whenever they differed -- which for a payment nobody had
+// reconciled yet meant comparing against zero, so every recent payment was
+// flagged as a problem. A page where everything is red says nothing.
+templ VerdictCell(payment finance.AuditPayment) {
+	if payment.NeedsAttention() {
+		<td class="px-1 justify-center bg-red-300 flex items-center" title={ string(payment.Verdict()) }>!</td>
+	} else if payment.Verdict() == finance.AuditOK {
+		<td class="px-1 justify-center bg-green-200 flex items-center" title="agrees with paypal">&check;</td>
 	} else {
-		<td class="px-1 justify-center bg-green-200 flex items-center">&check;</td>
+		// Not yet checked, or too recent for PayPal's reporting to know about.
+		// Neither is a fault, and neither is a clean bill of health.
+		<td class="px-1 justify-center bg-gray-200 flex items-center" title={ string(payment.Verdict()) }>&ndash;</td>
+	}
+}
+
+templ VerdictBadge(payment finance.AuditPayment) {
+	if payment.NeedsAttention() {
+		<span class="px-1 bg-red-300">!</span>
+	} else if payment.Verdict() == finance.AuditOK {
+		<span class="px-1 bg-green-200">&check;</span>
+	} else {
+		<span class="px-1 bg-gray-200">&ndash;</span>
 	}
 }
 

@@ -192,6 +192,18 @@ func (r RefundEvent) RefundedTotal() string {
 	return r.Amount.Total
 }
 
+// SetPaymentReconciliation records what the provider said about a payment.
+//
+// The pointers distinguish "the provider told us nothing" from "the provider told
+// us zero", which for an amount are different answers and were the same blank
+// column in the report this replaces.
+type SetPaymentReconciliation struct {
+	PaymentID           uuid.UUID
+	ProviderStatus      *string
+	ProviderAmountCents *int32
+	ProviderFeeCents    *int32
+}
+
 // RefundedPayment is what a refund changed, carrying the fund and donor so the
 // activity entry can be written without a second lookup.
 type RefundedPayment struct {

@@ -193,6 +193,44 @@ WHERE dp.id = p.id
 RETURNING dp.id AS payment_id, d.id AS donation_id, d.fund_id, d.donor_id,
     dp.amount_cents, dp.refunded_cents, p.refunded_cents AS previously_refunded_cents;
 
+-- Records what reconciliation saw at the provider, beside the payment itself.
+--
+-- reconciled_at is set on every check, including one that found nothing wrong, so
+-- the audit page can tell "checked and correct" from "never checked" -- which a
+-- report of blanks could not.
+-- name: SetPaymentReconciliation :one
+UPDATE donation_payment
+SET provider_status       = sqlc.narg(provider_status)::text,
+    provider_amount_cents = sqlc.narg(provider_amount_cents)::int,
+    provider_fee_cents    = COALESCE(sqlc.narg(provider_fee_cents)::int, provider_fee_cents),
+    reconciled_at         = now(),
+    updated               = now()
+WHERE id = $1
+RETURNING *;
+
+-- Everything the audit page shows, for one fund, newest first.
+--
+-- The donor is joined because a payment id is not something anybody can act on;
+-- the question being asked of this page is usually about a person.
+-- name: GetFundPaymentsForAudit :many
+SELECT dp.id,
+       dp.donation_id,
+       dp.paypal_payment_id,
+       dp.amount_cents,
+       dp.refunded_cents,
+       dp.provider_fee_cents,
+       dp.provider_status,
+       dp.provider_amount_cents,
+       dp.reconciled_at,
+       dp.created,
+       d.recurring,
+       m.bco_name AS donor_name
+FROM donation_payment dp
+         JOIN donation d ON d.id = dp.donation_id
+         JOIN member m ON m.id = d.donor_id
+WHERE d.fund_id = $1
+ORDER BY dp.created DESC;
+
 -- name: UpdateDonationPaymentPaypalFee :one
 UPDATE donation_payment
 SET provider_fee_cents = $2

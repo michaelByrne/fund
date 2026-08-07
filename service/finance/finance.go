@@ -3,13 +3,10 @@ package finance
 import (
 	"boardfund/service/donations"
 	"boardfund/service/fundevents"
-	"bytes"
 	"context"
-	"encoding/csv"
 	"github.com/google/uuid"
 	"io"
 	"log/slog"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -35,24 +32,93 @@ type ReportInfo struct {
 	Type   string
 }
 
+// Audit is a fund's payments and what reconciliation last saw at the provider.
+//
+// Read from the database rather than from a stored report. It used to be a CSV
+// per fund per day in S3, so the page could only show a fund as it stood when
+// some past run wrote a file, and only for the days a run had happened. Now it
+// answers for the payments as they are.
 type Audit struct {
 	FundID   uuid.UUID
 	FundName string
+	// Date is when the page was generated, kept so the view still has something
+	// to say it is showing. It is no longer the date of a stored report.
 	Date     time.Time
-	Type     string
 	Payments []AuditPayment
 }
 
+// AuditVerdict is what reconciliation makes of one payment.
+type AuditVerdict string
+
+const (
+	// AuditUnchecked means reconciliation has not reached this payment. Distinct
+	// from agreeing with the provider, and the old report could not tell them
+	// apart: both were blank columns.
+	AuditUnchecked AuditVerdict = "unchecked"
+	// AuditOK means the provider reported it complete, for the amount we hold.
+	AuditOK AuditVerdict = "ok"
+	// AuditAmountMismatch is the finding worth having. The provider took a
+	// different amount than the one the fund is counting on.
+	AuditAmountMismatch AuditVerdict = "amount mismatch"
+	// AuditNotSettled means the provider knows the payment and does not call it
+	// complete.
+	AuditNotSettled AuditVerdict = "not settled"
+	// AuditMissingAtProvider means the provider returned nothing for it. Usually
+	// only that the transaction is too recent to have appeared in reporting, which
+	// lags by hours, so it is reported as unknown rather than as an error.
+	AuditMissingAtProvider AuditVerdict = "not found at provider"
+)
+
 type AuditPayment struct {
-	DonationID             uuid.UUID
-	PaymentID              uuid.UUID
-	ProviderPaymentID      string
-	AmountCents            int32
-	FeeAmountCents         int32
-	TransactionStatus      string
-	TransactionAmountCents int32
-	Created                time.Time
-	ProviderCreated        time.Time
+	DonationID        uuid.UUID
+	PaymentID         uuid.UUID
+	ProviderPaymentID string
+	DonorName         string
+	Recurring         bool
+
+	AmountCents    int32
+	RefundedCents  int32
+	FeeAmountCents int32
+
+	ProviderStatus      string
+	ProviderAmountCents int32
+	ReconciledAt        *time.Time
+
+	Created time.Time
+}
+
+// Verdict is derived rather than stored, so a change to what counts as a problem
+// applies to every payment already on record instead of only to those a later run
+// happens to revisit.
+func (a AuditPayment) Verdict() AuditVerdict {
+	if a.ReconciledAt == nil {
+		return AuditUnchecked
+	}
+
+	if a.ProviderStatus == "" {
+		return AuditMissingAtProvider
+	}
+
+	if !strings.EqualFold(a.ProviderStatus, "COMPLETED") {
+		return AuditNotSettled
+	}
+
+	if a.ProviderAmountCents != a.AmountCents {
+		return AuditAmountMismatch
+	}
+
+	return AuditOK
+}
+
+// NeedsAttention marks the rows a person should look at. Unchecked is not one of
+// them: it means the job has not got there, not that anything is wrong.
+func (a AuditPayment) NeedsAttention() bool {
+	switch a.Verdict() {
+	case AuditAmountMismatch, AuditNotSettled:
+		return true
+	default:
+		return false
+	}
 }
 
 type GetAuditRequest struct {
@@ -71,6 +137,8 @@ type donationStore interface {
 	GetOneTimeDonationsForFund(ctx context.Context, arg donations.GetOneTimeDonationsForFundRequest) ([]donations.Donation, error)
 	UpdatePaymentPaypalFee(ctx context.Context, arg donations.UpdatePaymentPaypalFee) (*donations.DonationPayment, error)
 	InsertDonationPayment(ctx context.Context, payment donations.InsertDonationPayment) (*donations.DonationPayment, error)
+	GetFundPaymentsForAudit(ctx context.Context, fundID uuid.UUID) ([]AuditPayment, error)
+	SetPaymentReconciliation(ctx context.Context, arg donations.SetPaymentReconciliation) error
 }
 
 type paymentsProvider interface {
@@ -79,10 +147,12 @@ type paymentsProvider interface {
 	GetTransaction(ctx context.Context, id string, start, end time.Time) (*ProviderTransaction, error)
 }
 
+// documentManager is kept for the reports the finance service still writes to
+// object storage. The payments audit no longer uses it: it read a CSV back from
+// S3 and now reads the database, so nothing here fetches or lists a stored
+// report.
 type documentManager interface {
 	Upload(ctx context.Context, body io.Reader, name, contentType string) error
-	ListAvailableReports(ctx context.Context, prefix string, fundID uuid.UUID) ([]ReportInfo, error)
-	GetReport(ctx context.Context, reportType string, fundID uuid.UUID, date time.Time) (io.Reader, error)
 }
 
 // eventRecorder writes the fund activity feed. Record does not return an error:
@@ -113,136 +183,34 @@ func NewFinanceService(donationStore donationStore, paymentsProvider paymentsPro
 	}
 }
 
+// GetAudit is a fund's payments, as they stand.
+//
+// It used to fetch a CSV from S3 and parse it by column position -- record[5],
+// record[8], record[10] -- which is why that file could never carry a header and
+// why every unreconciled row padded itself with five empty strings to keep the
+// indices aligned. The payments were in the database the whole time; only what
+// the provider said about them was not.
 func (s FinanceService) GetAudit(ctx context.Context, req GetAuditRequest) (*Audit, error) {
-	reportReader, err := s.documentManager.GetReport(ctx, req.Type, req.FundID, req.Date)
-	if err != nil {
-		s.logger.Error("failed to get report", slog.String("error", err.Error()))
-
-		return nil, err
-	}
-
 	fund, err := s.donationStore.GetFundByID(ctx, req.FundID)
 	if err != nil {
-		s.logger.Error("failed to get fund by ID", slog.String("error", err.Error()))
+		s.logger.Error("failed to get fund by id", slog.String("error", err.Error()))
 
 		return nil, err
 	}
 
-	csvReader := csv.NewReader(reportReader)
-	records, err := csvReader.ReadAll()
+	payments, err := s.donationStore.GetFundPaymentsForAudit(ctx, req.FundID)
 	if err != nil {
-		s.logger.Error("failed to read CSV records", slog.String("error", err.Error()))
+		s.logger.Error("failed to get payments for audit", slog.String("error", err.Error()))
 
 		return nil, err
 	}
 
-	payments := make([]AuditPayment, 0, len(records))
-	for _, record := range records {
-		amountCents, errInner := strconv.Atoi(record[5])
-		if errInner != nil {
-			s.logger.Error("failed to parse amount cents", slog.String("error", errInner.Error()))
-
-			return nil, errInner
-		}
-
-		transactionAmountCentsStr := record[8]
-		if transactionAmountCentsStr == "" {
-			transactionAmountCentsStr = "0"
-		}
-
-		transactionAmountCents, errInner := strconv.Atoi(transactionAmountCentsStr)
-		if errInner != nil {
-			s.logger.Error("failed to parse transaction amount cents", slog.String("error", errInner.Error()))
-
-			return nil, errInner
-		}
-
-		donationUUID, errInner := uuid.Parse(record[2])
-		if errInner != nil {
-			s.logger.Error("failed to parse donation UUID", slog.String("error", err.Error()))
-
-			return nil, errInner
-		}
-
-		paymentUUID, errInner := uuid.Parse(record[1])
-		if errInner != nil {
-			s.logger.Error("failed to parse payment UUID", slog.String("error", err.Error()))
-
-			return nil, errInner
-		}
-
-		created := record[4]
-		createdTime, errInner := time.Parse(time.RFC3339, created)
-		if errInner != nil {
-			s.logger.Error("failed to parse created time", slog.String("error", err.Error()))
-
-			return nil, errInner
-		}
-
-		providerCreatedStr := record[9]
-		if providerCreatedStr == "" {
-			providerCreatedStr = time.Time{}.Format(time.RFC3339)
-		}
-
-		providerCreated, errInner := time.Parse(time.RFC3339, providerCreatedStr)
-		if errInner != nil {
-			s.logger.Error("failed to parse provider created time", slog.String("error", err.Error()))
-
-			return nil, errInner
-		}
-
-		feeStr := record[10]
-		if feeStr == "" {
-			feeStr = "0"
-		}
-
-		feeAmountCents, errInner := strconv.Atoi(feeStr)
-		if errInner != nil {
-			s.logger.Error("failed to parse fee amount cents", slog.String("error", errInner.Error()))
-
-			return nil, errInner
-		}
-
-		payment := AuditPayment{
-			DonationID:             donationUUID,
-			PaymentID:              paymentUUID,
-			ProviderPaymentID:      record[3],
-			AmountCents:            int32(amountCents),
-			TransactionStatus:      record[7],
-			TransactionAmountCents: int32(transactionAmountCents),
-			Created:                createdTime,
-			ProviderCreated:        providerCreated,
-			FeeAmountCents:         int32(feeAmountCents),
-		}
-
-		payments = append(payments, payment)
-	}
-
-	audit := &Audit{
-		FundID:   req.FundID,
+	return &Audit{
+		FundID:   fund.ID,
 		FundName: fund.Name,
-		Date:     req.Date,
-		Type:     req.Type,
+		Date:     time.Now(),
 		Payments: payments,
-	}
-
-	return audit, nil
-}
-
-func (s FinanceService) GetAvailableAudits(ctx context.Context, fundID uuid.UUID) ([]ReportInfo, error) {
-	var allReports []ReportInfo
-	for _, prefix := range s.reportPrefixes {
-		reports, err := s.documentManager.ListAvailableReports(ctx, prefix, fundID)
-		if err != nil {
-			s.logger.Error("failed to get available reports", slog.String("error", err.Error()))
-
-			return nil, err
-		}
-
-		allReports = append(allReports, reports...)
-	}
-
-	return allReports, nil
+	}, nil
 }
 
 func (s FinanceService) RunOneTimeDonationReconciliation(ctx context.Context) error {
@@ -394,9 +362,6 @@ func (s FinanceService) backfillMissingPayments(ctx context.Context, donation do
 }
 
 func (s FinanceService) reconcileRecurringDonationsForFund(ctx context.Context, fundID uuid.UUID) error {
-	bytesBuffer := bytes.NewBuffer([]byte{})
-	csvWriter := csv.NewWriter(bytesBuffer)
-
 	logger := s.logger.With(slog.String("fund_id", fundID.String()), slog.String("date", time.Now().Format("01-02-2006")))
 
 	req := donations.GetRecurringDonationsForFundRequest{
@@ -463,70 +428,78 @@ func (s FinanceService) reconcileRecurringDonationsForFund(ctx context.Context, 
 			}
 		}
 
-		for _, payment := range payments {
-			transaction, errTrans := s.paymentsProvider.GetTransaction(ctx, payment.ProviderPaymentID, payment.Created.AddDate(0, 0, -1), time.Now())
-			if errTrans != nil {
-				logger.Error("failed to get transaction from provider", slog.String("error", errTrans.Error()))
-				errCSV := writeCSVPaymentRow(csvWriter, fundID, payment, transaction)
-				if errCSV != nil {
-					logger.Error("failed to write CSV row in donations payments report", slog.String("error", errCSV.Error()))
-				}
-
-				continue
-			}
-
-			if transaction == nil {
-				logger.Info("transaction not found", slog.String("payment_id", payment.ID.String()))
-				errCSV := writeCSVPaymentRow(csvWriter, fundID, payment, transaction)
-				if errCSV != nil {
-					logger.Error("failed to write CSV row in donations payments report", slog.String("error", errCSV.Error()))
-				}
-
-				continue
-			}
-
-			if !(strings.ToUpper(transaction.Status) == "COMPLETED") {
-				logger.Info("payment is incomplete at provider", slog.String("payment_id", payment.ID.String()))
-				errCsv := writeCSVPaymentRow(csvWriter, fundID, payment, transaction)
-				if errCsv != nil {
-					logger.Error("failed to write CSV row in donations payments report", slog.String("error", errCsv.Error()))
-				}
-
-				continue
-			}
-
-			if transaction.AmountCents != payment.AmountCents {
-				logger.Info("payment amount does not match provider", slog.String("payment_id", payment.ID.String()), slog.Int("expected", int(payment.AmountCents)), slog.Int("actual", int(transaction.AmountCents)))
-			}
-
-			errCSV := writeCSVPaymentRow(csvWriter, fundID, payment, transaction)
-			if errCSV != nil {
-				logger.Error("failed to write CSV row in donations payments report", slog.String("error", errCSV.Error()))
-			}
-		}
-	}
-
-	csvWriter.Flush()
-	err = csvWriter.Error()
-	if err != nil {
-		logger.Error("failed to flush CSV writer for donations payment report", slog.String("error", err.Error()))
-
-		return err
-	}
-
-	fileName := "fund_" + fundID.String() + "_date_" + time.Now().Format("01-02-2006") + "_payments_report.csv"
-	err = s.documentManager.Upload(ctx, bytesBuffer, fileName, "text/csv")
-	if err != nil {
-		logger.Error("failed to upload CSV file for donations payment report", slog.String("error", err.Error()))
+		s.recordProviderView(ctx, payments, logger)
 	}
 
 	return nil
 }
 
-func (s FinanceService) reconcileOneTimeDonationsForFund(ctx context.Context, fundID uuid.UUID) error {
-	bytesBuffer := bytes.NewBuffer([]byte{})
-	csvWriter := csv.NewWriter(bytesBuffer)
+// recordProviderView asks the provider about each payment and writes the answer
+// beside it.
+//
+// Replaces a CSV per fund per day in S3. The findings belong with the payment:
+// the audit page can then answer for a fund as it stands rather than as some past
+// run left it, and an amount that does not match is a row somebody can be shown
+// rather than a pair of numbers in a file nobody opened.
+func (s FinanceService) recordProviderView(ctx context.Context, payments []donations.DonationPayment, logger *slog.Logger) {
+	for _, payment := range payments {
+		transaction, err := s.paymentsProvider.GetTransaction(ctx,
+			payment.ProviderPaymentID, payment.Created.AddDate(0, 0, -1), time.Now())
+		if err != nil {
+			// Left unreconciled rather than recorded as missing: we did not manage
+			// to ask, which is not the same as the provider not knowing.
+			logger.Error("failed to get transaction from provider",
+				slog.String("payment_id", payment.ID.String()),
+				slog.String("error", err.Error()),
+			)
 
+			continue
+		}
+
+		record := donations.SetPaymentReconciliation{PaymentID: payment.ID}
+
+		if transaction != nil {
+			status := transaction.Status
+			amount := transaction.AmountCents
+			fee := transaction.FeeCents
+
+			record.ProviderStatus = &status
+			record.ProviderAmountCents = &amount
+
+			if fee > 0 {
+				record.ProviderFeeCents = &fee
+			}
+
+			if !strings.EqualFold(transaction.Status, "COMPLETED") {
+				logger.Warn("payment is not complete at the provider",
+					slog.String("payment_id", payment.ID.String()),
+					slog.String("status", transaction.Status),
+				)
+			}
+
+			// The one thing this job finds that nothing else would, so it is a
+			// warning rather than an info line nobody reads.
+			if transaction.AmountCents != payment.AmountCents {
+				logger.Warn("payment amount does not match the provider",
+					slog.String("payment_id", payment.ID.String()),
+					slog.Int("ours", int(payment.AmountCents)),
+					slog.Int("theirs", int(transaction.AmountCents)),
+				)
+			}
+		}
+
+		// Written either way: reconciled_at is what tells the page "checked, and
+		// the provider had nothing" apart from "never checked".
+		if err = s.donationStore.SetPaymentReconciliation(ctx, record); err != nil {
+			logger.Error("failed to record what the provider said",
+				slog.String("payment_id", payment.ID.String()),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
+}
+
+func (s FinanceService) reconcileOneTimeDonationsForFund(ctx context.Context, fundID uuid.UUID) error {
 	logger := s.logger.With(slog.String("fund_id", fundID.String()), slog.String("date", time.Now().Format("01-02-2006")))
 
 	req := donations.GetOneTimeDonationsForFundRequest{
@@ -549,104 +522,8 @@ func (s FinanceService) reconcileOneTimeDonationsForFund(ctx context.Context, fu
 			return errInner
 		}
 
-		for _, payment := range payments {
-			transaction, errTrans := s.paymentsProvider.GetTransaction(ctx, payment.ProviderPaymentID, payment.Created.AddDate(0, 0, -1), time.Now())
-			if errTrans != nil {
-				logger.Error("failed to get transaction from provider", slog.String("error", errTrans.Error()))
-				errCSV := writeCSVPaymentRow(csvWriter, fundID, payment, transaction)
-				if errCSV != nil {
-					logger.Error("failed to write CSV row in donations payments report", slog.String("error", errCSV.Error()))
-				}
-
-				continue
-			}
-
-			if transaction == nil {
-				logger.Info("transaction not found", slog.String("payment_id", payment.ID.String()))
-				errCSV := writeCSVPaymentRow(csvWriter, fundID, payment, transaction)
-				if errCSV != nil {
-					logger.Error("failed to write CSV row in donations payments report", slog.String("error", errCSV.Error()))
-				}
-
-				continue
-			}
-
-			_, err = s.donationStore.UpdatePaymentPaypalFee(ctx, donations.UpdatePaymentPaypalFee{
-				ID:               payment.ID,
-				ProviderFeeCents: transaction.FeeCents,
-			})
-			if err != nil {
-				logger.Error("failed to update payment fee", slog.String("error", err.Error()))
-
-				return err
-			}
-
-			if !(strings.ToUpper(transaction.Status) == "COMPLETED") {
-				logger.Info("payment is incomplete at provider", slog.String("payment_id", payment.ID.String()))
-				errCsv := writeCSVPaymentRow(csvWriter, fundID, payment, transaction)
-				if errCsv != nil {
-					logger.Error("failed to write CSV row in donations payments report", slog.String("error", errCsv.Error()))
-				}
-
-				continue
-			}
-
-			if transaction.AmountCents != payment.AmountCents {
-				logger.Info("payment amount does not match provider", slog.String("payment_id", payment.ID.String()), slog.Int("expected", int(payment.AmountCents)), slog.Int("actual", int(transaction.AmountCents)))
-			}
-
-			errCSV := writeCSVPaymentRow(csvWriter, fundID, payment, transaction)
-			if errCSV != nil {
-				logger.Error("failed to write CSV row in donations payments report", slog.String("error", errCSV.Error()))
-			}
-		}
-	}
-
-	csvWriter.Flush()
-	err = csvWriter.Error()
-	if err != nil {
-		logger.Error("failed to flush CSV writer for donations payment report", slog.String("error", err.Error()))
-
-		return err
-	}
-
-	fileName := "fund_" + fundID.String() + "_date_" + time.Now().Format("01-02-2006") + "_payments_report.csv"
-	err = s.documentManager.Upload(ctx, bytesBuffer, fileName, "text/csv")
-	if err != nil {
-		logger.Error("failed to upload CSV file for donations payment report", slog.String("error", err.Error()))
+		s.recordProviderView(ctx, payments, logger)
 	}
 
 	return nil
-}
-
-func writeCSVPaymentRow(writer *csv.Writer, fundID uuid.UUID, payment donations.DonationPayment, transaction *ProviderTransaction) error {
-	if transaction == nil {
-		return writer.Write([]string{
-			fundID.String(),
-			payment.ID.String(),
-			payment.DonationID.String(),
-			payment.ProviderPaymentID,
-			payment.Created.Format(time.RFC3339),
-			strconv.Itoa(int(payment.AmountCents)),
-			"",
-			"",
-			"",
-			"",
-			"",
-		})
-	}
-
-	return writer.Write([]string{
-		fundID.String(),
-		payment.ID.String(),
-		payment.DonationID.String(),
-		payment.ProviderPaymentID,
-		payment.Created.Format(time.RFC3339),
-		strconv.Itoa(int(payment.AmountCents)),
-		transaction.ProviderPaymentID,
-		transaction.Status,
-		strconv.Itoa(int(transaction.AmountCents)),
-		transaction.Date.Format(time.RFC3339),
-		strconv.Itoa(int(payment.ProviderFeeCents)),
-	})
 }

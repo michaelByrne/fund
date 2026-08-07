@@ -359,7 +359,7 @@ func (q *Queries) GetDonationByProviderSubscriptionId(ctx context.Context, provi
 }
 
 const getDonationPaymentById = `-- name: GetDonationPaymentById :one
-SELECT id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents, refunded_cents
+SELECT id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents, refunded_cents, provider_status, provider_amount_cents, reconciled_at
 FROM donation_payment
 WHERE id = $1
 `
@@ -376,12 +376,15 @@ func (q *Queries) GetDonationPaymentById(ctx context.Context, id uuid.UUID) (Don
 		&i.Updated,
 		&i.ProviderFeeCents,
 		&i.RefundedCents,
+		&i.ProviderStatus,
+		&i.ProviderAmountCents,
+		&i.ReconciledAt,
 	)
 	return i, err
 }
 
 const getDonationPaymentsByDonationId = `-- name: GetDonationPaymentsByDonationId :many
-SELECT id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents, refunded_cents
+SELECT id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents, refunded_cents, provider_status, provider_amount_cents, reconciled_at
 FROM donation_payment
 WHERE donation_id = $1
 `
@@ -404,6 +407,9 @@ func (q *Queries) GetDonationPaymentsByDonationId(ctx context.Context, donationI
 			&i.Updated,
 			&i.ProviderFeeCents,
 			&i.RefundedCents,
+			&i.ProviderStatus,
+			&i.ProviderAmountCents,
+			&i.ReconciledAt,
 		); err != nil {
 			return nil, err
 		}
@@ -416,7 +422,7 @@ func (q *Queries) GetDonationPaymentsByDonationId(ctx context.Context, donationI
 }
 
 const getDonationPaymentsByMemberPaypalEmail = `-- name: GetDonationPaymentsByMemberPaypalEmail :many
-SELECT donation_payment.id, donation_payment.donation_id, donation_payment.paypal_payment_id, donation_payment.amount_cents, donation_payment.created, donation_payment.updated, donation_payment.provider_fee_cents, donation_payment.refunded_cents
+SELECT donation_payment.id, donation_payment.donation_id, donation_payment.paypal_payment_id, donation_payment.amount_cents, donation_payment.created, donation_payment.updated, donation_payment.provider_fee_cents, donation_payment.refunded_cents, donation_payment.provider_status, donation_payment.provider_amount_cents, donation_payment.reconciled_at
 FROM donation_payment
          JOIN donation ON donation.id = donation_payment.donation_id
          JOIN member ON member.id = donation.donor_id
@@ -441,6 +447,9 @@ func (q *Queries) GetDonationPaymentsByMemberPaypalEmail(ctx context.Context, pa
 			&i.Updated,
 			&i.ProviderFeeCents,
 			&i.RefundedCents,
+			&i.ProviderStatus,
+			&i.ProviderAmountCents,
+			&i.ReconciledAt,
 		); err != nil {
 			return nil, err
 		}
@@ -775,6 +784,78 @@ func (q *Queries) GetFundById(ctx context.Context, id uuid.UUID) (GetFundByIdRow
 	return i, err
 }
 
+const getFundPaymentsForAudit = `-- name: GetFundPaymentsForAudit :many
+SELECT dp.id,
+       dp.donation_id,
+       dp.paypal_payment_id,
+       dp.amount_cents,
+       dp.refunded_cents,
+       dp.provider_fee_cents,
+       dp.provider_status,
+       dp.provider_amount_cents,
+       dp.reconciled_at,
+       dp.created,
+       d.recurring,
+       m.bco_name AS donor_name
+FROM donation_payment dp
+         JOIN donation d ON d.id = dp.donation_id
+         JOIN member m ON m.id = d.donor_id
+WHERE d.fund_id = $1
+ORDER BY dp.created DESC
+`
+
+type GetFundPaymentsForAuditRow struct {
+	ID                  uuid.UUID
+	DonationID          uuid.UUID
+	PaypalPaymentID     string
+	AmountCents         int32
+	RefundedCents       int32
+	ProviderFeeCents    int32
+	ProviderStatus      pgtype.Text
+	ProviderAmountCents pgtype.Int4
+	ReconciledAt        NullDBTime
+	Created             pgtype.Timestamptz
+	Recurring           bool
+	DonorName           pgtype.Text
+}
+
+// Everything the audit page shows, for one fund, newest first.
+//
+// The donor is joined because a payment id is not something anybody can act on;
+// the question being asked of this page is usually about a person.
+func (q *Queries) GetFundPaymentsForAudit(ctx context.Context, fundID uuid.UUID) ([]GetFundPaymentsForAuditRow, error) {
+	rows, err := q.db.Query(ctx, getFundPaymentsForAudit, fundID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetFundPaymentsForAuditRow
+	for rows.Next() {
+		var i GetFundPaymentsForAuditRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DonationID,
+			&i.PaypalPaymentID,
+			&i.AmountCents,
+			&i.RefundedCents,
+			&i.ProviderFeeCents,
+			&i.ProviderStatus,
+			&i.ProviderAmountCents,
+			&i.ReconciledAt,
+			&i.Created,
+			&i.Recurring,
+			&i.DonorName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getFundPayoutStats = `-- name: GetFundPayoutStats :one
 SELECT COALESCE(SUM(p.amount_cents), 0)::bigint          AS total_paid_cents,
        COUNT(DISTINCT fe.member_id)::bigint              AS total_recipients,
@@ -983,7 +1064,7 @@ func (q *Queries) GetOneTimeDonationsForFund(ctx context.Context, arg GetOneTime
 }
 
 const getPaymentsForDonation = `-- name: GetPaymentsForDonation :many
-SELECT dp.id, dp.donation_id, dp.paypal_payment_id, dp.amount_cents, dp.created, dp.updated, dp.provider_fee_cents, dp.refunded_cents
+SELECT dp.id, dp.donation_id, dp.paypal_payment_id, dp.amount_cents, dp.created, dp.updated, dp.provider_fee_cents, dp.refunded_cents, dp.provider_status, dp.provider_amount_cents, dp.reconciled_at
 FROM donation_payment dp
 WHERE dp.donation_id = $1
 `
@@ -1006,6 +1087,9 @@ func (q *Queries) GetPaymentsForDonation(ctx context.Context, donationID uuid.UU
 			&i.Updated,
 			&i.ProviderFeeCents,
 			&i.RefundedCents,
+			&i.ProviderStatus,
+			&i.ProviderAmountCents,
+			&i.ReconciledAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1138,7 +1222,7 @@ const insertDonationPayment = `-- name: InsertDonationPayment :many
 INSERT INTO donation_payment (id, donation_id, paypal_payment_id, amount_cents, provider_fee_cents)
 VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (paypal_payment_id) DO NOTHING
-RETURNING id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents, refunded_cents
+RETURNING id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents, refunded_cents, provider_status, provider_amount_cents, reconciled_at
 `
 
 type InsertDonationPaymentParams struct {
@@ -1181,6 +1265,9 @@ func (q *Queries) InsertDonationPayment(ctx context.Context, arg InsertDonationP
 			&i.Updated,
 			&i.ProviderFeeCents,
 			&i.RefundedCents,
+			&i.ProviderStatus,
+			&i.ProviderAmountCents,
+			&i.ReconciledAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1738,6 +1825,53 @@ func (q *Queries) SetFundToInactive(ctx context.Context, id uuid.UUID) (Fund, er
 	return i, err
 }
 
+const setPaymentReconciliation = `-- name: SetPaymentReconciliation :one
+UPDATE donation_payment
+SET provider_status       = $2::text,
+    provider_amount_cents = $3::int,
+    provider_fee_cents    = COALESCE($4::int, provider_fee_cents),
+    reconciled_at         = now(),
+    updated               = now()
+WHERE id = $1
+RETURNING id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents, refunded_cents, provider_status, provider_amount_cents, reconciled_at
+`
+
+type SetPaymentReconciliationParams struct {
+	ID                  uuid.UUID
+	ProviderStatus      pgtype.Text
+	ProviderAmountCents pgtype.Int4
+	ProviderFeeCents    pgtype.Int4
+}
+
+// Records what reconciliation saw at the provider, beside the payment itself.
+//
+// reconciled_at is set on every check, including one that found nothing wrong, so
+// the audit page can tell "checked and correct" from "never checked" -- which a
+// report of blanks could not.
+func (q *Queries) SetPaymentReconciliation(ctx context.Context, arg SetPaymentReconciliationParams) (DonationPayment, error) {
+	row := q.db.QueryRow(ctx, setPaymentReconciliation,
+		arg.ID,
+		arg.ProviderStatus,
+		arg.ProviderAmountCents,
+		arg.ProviderFeeCents,
+	)
+	var i DonationPayment
+	err := row.Scan(
+		&i.ID,
+		&i.DonationID,
+		&i.PaypalPaymentID,
+		&i.AmountCents,
+		&i.Created,
+		&i.Updated,
+		&i.ProviderFeeCents,
+		&i.RefundedCents,
+		&i.ProviderStatus,
+		&i.ProviderAmountCents,
+		&i.ReconciledAt,
+	)
+	return i, err
+}
+
 const updateDonation = `-- name: UpdateDonation :one
 UPDATE donation
 SET (donor_id, donation_plan_id, provider_order_id, updated) = ($2, $3, $4, now())
@@ -1780,7 +1914,7 @@ const updateDonationPaymentPaypalFee = `-- name: UpdateDonationPaymentPaypalFee 
 UPDATE donation_payment
 SET provider_fee_cents = $2
 WHERE id = $1
-RETURNING id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents, refunded_cents
+RETURNING id, donation_id, paypal_payment_id, amount_cents, created, updated, provider_fee_cents, refunded_cents, provider_status, provider_amount_cents, reconciled_at
 `
 
 type UpdateDonationPaymentPaypalFeeParams struct {
@@ -1800,6 +1934,9 @@ func (q *Queries) UpdateDonationPaymentPaypalFee(ctx context.Context, arg Update
 		&i.Updated,
 		&i.ProviderFeeCents,
 		&i.RefundedCents,
+		&i.ProviderStatus,
+		&i.ProviderAmountCents,
+		&i.ReconciledAt,
 	)
 	return i, err
 }
