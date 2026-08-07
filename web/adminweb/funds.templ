@@ -28,12 +28,19 @@ templ AddFund() {
 		// hx-encoding, because a file cannot travel in a urlencoded body -- without
 		// it htmx sends the filename and nothing else, and the server sees an empty
 		// upload.
+		//
+		// The form empties itself once the fund exists, so the next one starts from
+		// nothing rather than from the last one's name and description -- which is
+		// how somebody ends up creating "human fund" twice. Only on success: a
+		// refusal replaces this form with itself carrying the message, and clearing
+		// the boxes would take the values from the person about to correct them.
 		<form
 			hx-post="/admin/fund"
 			hx-swap="afterbegin"
 			hx-target="#admin-funds"
 			hx-target-error="this"
 			hx-encoding="multipart/form-data"
+			hx-on::after-request="if (event.detail.successful) this.reset()"
 			class="w-[90%] p-4 bg-even"
 		>
 			<div class="grid grid-cols-3 gap-4 mt-6">
@@ -93,15 +100,61 @@ templ AddFund() {
 	</div>
 }
 
+// FundsList is every fund, in two lists.
+//
+// One list headed "current funds" held both, which made the heading wrong about
+// half its contents. They stay on this tab -- a fund vanishing the day it expired
+// took its payouts and payees out of reach on the day a treasurer would look for
+// them -- but under a heading that says what they are.
+//
+// Closed ones are absent rather than an empty list with a heading, which on a new
+// instance would read as a fault.
 templ FundsList(funds []donations.Fund) {
 	<div id="funds-list" class="w-full mx-auto max-w-md h-full blue-boxy-filter">
 		<h3 class="text-md font-semibold mt-2 bg-high inline-block p-2">current funds</h3>
+		// The new-fund form prepends here, so this list holds the open ones: a fund
+		// is never created closed.
 		<ul id="admin-funds" class="max-w-[90%] max-h-[300px]">
-			for _, fund := range funds {
+			for _, fund := range openFunds(funds) {
 				@FundRow(fund)
 			}
 		</ul>
+		if len(closedFunds(funds)) > 0 {
+			<h3 class="text-md font-semibold mt-6 bg-high inline-block p-2">closed funds</h3>
+			<ul id="admin-closed-funds" class="max-w-[90%] max-h-[300px]">
+				for _, fund := range closedFunds(funds) {
+					@FundRow(fund)
+				}
+			</ul>
+		}
 	</div>
+}
+
+// openFunds and closedFunds split the one list the handler passes. Split here
+// rather than in the handler because it is a question about how this page reads,
+// and Closed() already answers it -- deactivated, or past its end date.
+func openFunds(funds []donations.Fund) []donations.Fund {
+	var open []donations.Fund
+
+	for _, fund := range funds {
+		if !fund.Closed() {
+			open = append(open, fund)
+		}
+	}
+
+	return open
+}
+
+func closedFunds(funds []donations.Fund) []donations.Fund {
+	var closed []donations.Fund
+
+	for _, fund := range funds {
+		if fund.Closed() {
+			closed = append(closed, fund)
+		}
+	}
+
+	return closed
 }
 
 templ FundRow(fund donations.Fund) {
