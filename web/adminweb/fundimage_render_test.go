@@ -117,3 +117,72 @@ func TestAFailedPictureStillReportsTheFund(t *testing.T) {
 	// form.
 	require.Contains(t, html, `hx-swap-oob="true"`)
 }
+
+// The picture control is a form of its own -- a file upload to a different route
+// -- and a form inside a form is not something a browser keeps. It drops the
+// inner one, and the upload button quietly stops doing anything.
+func TestTheDetailsCardHasNoNestedForms(t *testing.T) {
+	html := renderAdmin(t, FundDetails(donations.Fund{ID: uuid.New(), Name: "human fund"}, nil, "", ""))
+
+	// Walk the tags: a second <form> before the first </form> is a nested one.
+	depth := 0
+	for _, tag := range regexp.MustCompile(`</?form`).FindAllString(html, -1) {
+		if tag == "<form" {
+			depth++
+			require.LessOrEqual(t, depth, 1, "a form is nested inside another")
+
+			continue
+		}
+
+		depth--
+	}
+
+	require.Zero(t, depth, "unbalanced form tags")
+
+	// Both are still there: the details form and the picture's own.
+	require.Equal(t, 2, strings.Count(html, "<form"))
+}
+
+// The preview shows what is actually served, so it shows it the way the fund page
+// does. Cropping here would preview something nobody ever sees.
+func TestThePicturePreviewIsNotCropped(t *testing.T) {
+	html := renderAdmin(t, FundImageControl(uuid.New(), &donations.FundImage{
+		SHA256: "abc", ContentType: "image/jpeg", Width: 600, Height: 1600,
+	}, ""))
+
+	require.Contains(t, html, "object-contain")
+	require.NotContains(t, html, "object-cover")
+
+	// And small: it was max-w-xs, which on this card was a picture twice the height
+	// of the form beside it.
+	require.Contains(t, html, "w-32 h-32")
+	require.NotContains(t, html, "max-w-xs")
+}
+
+// A fund with no picture gets a box saying so rather than the controls floating
+// with nothing above them.
+func TestThePictureControlSaysWhenThereIsNone(t *testing.T) {
+	html := renderAdmin(t, FundImageControl(uuid.New(), nil, ""))
+
+	require.Contains(t, html, "no picture")
+	require.Contains(t, html, "upload")
+	require.NotContains(t, html, "remove")
+}
+
+// Name and frequency are shown as fields rather than described in a sentence
+// underneath, which came out as "board costs fund is once".
+func TestNameAndFrequencyAreShownLocked(t *testing.T) {
+	fund := donations.Fund{
+		ID: uuid.New(), Name: "board costs", PayoutFrequency: donations.PayoutFrequencyOnce,
+	}
+
+	html := renderAdmin(t, FundDetails(fund, nil, "", ""))
+
+	require.Contains(t, html, `value="board costs"`)
+	require.Contains(t, html, `value="once"`)
+	require.Contains(t, html, "disabled")
+
+	// A disabled field is not submitted, so there is nothing for the handler to
+	// ignore -- it ignores them anyway, and the two agree.
+	require.NotContains(t, html, "is once. neither")
+}
