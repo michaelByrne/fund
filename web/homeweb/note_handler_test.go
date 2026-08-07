@@ -138,9 +138,9 @@ func TestNoteFailuresAnswerWithAFragment(t *testing.T) {
 		form    string
 		message string
 	}{
-		// The one this was written for: a fund that is not there, so GetFundByID
-		// fails and the handler has no fund to redraw the form with.
-		{"a fund that does not exist", uuid.NewString(), "body=hello", "we could not save your note"},
+		// Nobody has given to a fund that is not there, so this is refused as not a
+		// donor rather than needing a lookup of its own.
+		{"a fund that does not exist", uuid.NewString(), "body=hello", "only donors to this fund can leave a note"},
 		{"not a fund id at all", "not-a-uuid", "body=hello", "that is not a fund"},
 		{"a note with nothing in it", fundID, "body=", "your note needs something in it"},
 		{"a note past the limit", fundID, "body=" + strings.Repeat("x", donations.MaxNoteLength+1), donations.ErrNoteTooLong.Error()},
@@ -164,7 +164,7 @@ func TestNoteFailuresAnswerWithAFragment(t *testing.T) {
 				}
 			}
 
-			if !strings.Contains(html, `id="fund-note-form"`) {
+			if !strings.Contains(html, "fund-note-form-") {
 				t.Error("a refusal should redraw the form, so the donor can fix it and try again")
 			}
 
@@ -190,5 +190,48 @@ func TestARefusedNoteKeepsWhatWasTyped(t *testing.T) {
 
 	if !strings.Contains(html, "checked") {
 		t.Error("and should still remember they asked to post it anonymously")
+	}
+}
+
+// A page can hold several editors -- my donations draws one per donation -- so a
+// reply has to come back wearing the id of the one that asked. Wearing any other,
+// the element htmx just replaced is gone and the next edit has nothing to swap.
+func TestTheReplyKeepsTheEditorThatAsked(t *testing.T) {
+	post, pool, memberID := noteRig(t)
+
+	fundID := seedFund(t, pool)
+	seedGift(t, pool, fundID, memberID)
+
+	for _, c := range []struct {
+		name string
+		form string
+	}{
+		{"a note that saves", "editor=fund-note-form-mine&body=" + url.QueryEscape("thank you")},
+		// The refusals matter more: this is the path htmx has to be able to swap
+		// twice, once to show the error and again when the donor fixes it.
+		{"a note that is refused", "editor=fund-note-form-mine&body="},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			html := post(fundID, c.form).Body.String()
+
+			if !strings.Contains(html, `id="fund-note-form-mine"`) {
+				t.Errorf("the reply should wear the id of the editor that asked, got:\n%s", html)
+			}
+		})
+	}
+}
+
+// Nothing sent, so nothing to echo. A hand-made request should still get an
+// editor that works rather than one with no id at all.
+func TestAnUnnamedEditorFallsBackToTheFund(t *testing.T) {
+	post, pool, memberID := noteRig(t)
+
+	fundID := seedFund(t, pool)
+	seedGift(t, pool, fundID, memberID)
+
+	html := post(fundID, "body="+url.QueryEscape("thank you")).Body.String()
+
+	if !strings.Contains(html, `id="fund-note-form-`+fundID+`"`) {
+		t.Errorf("expected the fund-keyed fallback id, got:\n%s", html)
 	}
 }

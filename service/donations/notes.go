@@ -53,9 +53,10 @@ func (n FundNote) Edited() bool {
 
 // SaveFundNote writes or replaces a donor's note on a fund.
 //
-// Eligibility is a payment that survived refunds, not an active donation. A
-// subscription created today that has not charged yet is not money given, and
-// money refunded in full was not given either.
+// Eligibility is money that survived refunds, or a subscription still running.
+// A full refund is not a donation. A monthly gift set up a minute ago is one,
+// even though PayPal has not charged it yet -- and the thank-you screen, which is
+// where we ask, comes before the first payment exists.
 //
 // Checked here rather than at the form: the member comes from the session, the
 // fund from the request, and this is the last place that is true for both.
@@ -160,4 +161,39 @@ func (s DonationService) RemoveFundNote(ctx context.Context, noteID, actorID uui
 	)
 
 	return nil
+}
+
+// RemoveOwnFundNote is a donor taking their own words down.
+//
+// Separate from RemoveFundNote rather than sharing it with a permission check:
+// this one cannot name a note at all, only a fund, so there is no id to get wrong
+// and none to guess.
+func (s DonationService) RemoveOwnFundNote(ctx context.Context, fundID, memberID uuid.UUID) error {
+	if err := s.donationStore.RemoveOwnFundNote(ctx, fundID, memberID); err != nil {
+		s.logger.Error("failed to remove own fund note",
+			slog.String("fund_id", fundID.String()),
+			slog.String("error", err.Error()),
+		)
+
+		return err
+	}
+
+	return nil
+}
+
+// ListFundNotesForMember is every note this member has up, keyed by fund.
+//
+// The my-donations page draws one editor per donation, and each needs to know
+// what is already there. A failure is not fatal to that page: the donations are
+// what it is for, and an editor that opens empty is a smaller wrong than a page
+// that will not load.
+func (s DonationService) ListFundNotesForMember(ctx context.Context, memberID uuid.UUID) (map[uuid.UUID]FundNote, error) {
+	notes, err := s.donationStore.GetFundNotesForMember(ctx, memberID)
+	if err != nil {
+		s.logger.Error("failed to list a member's fund notes", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	return notes, nil
 }

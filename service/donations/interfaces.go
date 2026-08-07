@@ -32,6 +32,8 @@ type donationStore interface {
 	GetFundNotes(ctx context.Context, fundID uuid.UUID) ([]FundNote, error)
 	GetFundNoteForMember(ctx context.Context, fundID, memberID uuid.UUID) (*FundNote, error)
 	RemoveFundNote(ctx context.Context, noteID, actorID uuid.UUID) error
+	RemoveOwnFundNote(ctx context.Context, fundID, memberID uuid.UUID) error
+	GetFundNotesForMember(ctx context.Context, memberID uuid.UUID) (map[uuid.UUID]FundNote, error)
 	GetDonationByID(ctx context.Context, id uuid.UUID) (*Donation, error)
 	SetDonationToInactiveBySubscriptionID(ctx context.Context, arg DeactivateDonationBySubscription) (*Donation, error)
 	ReactivateSuspendedDonation(ctx context.Context, subscriptionID string) (*Donation, error)

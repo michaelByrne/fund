@@ -546,12 +546,24 @@ WHERE bp.fund_id = $1
 -- yet is not money given. And net of refunds, because money that came back was
 -- not given either.
 -- name: MemberHasGivenToFund :one
+-- Money that survived refunds, or a subscription still running.
+--
+-- A payment alone would refuse the donor who just set up a monthly gift: PayPal
+-- has not charged them yet, so there is no payment row until the first webhook
+-- lands, and the thank-you screen is exactly where we ask. A live subscription is
+-- a commitment of money. What this must still refuse is money that came back --
+-- a full refund is not a donation -- and a subscription that ended before it ever
+-- charged, which is why active matters and recurring alone does not.
+--
+-- LEFT JOIN, so a donation with no payments yet can still match on the second arm
+-- rather than being dropped by the join.
 SELECT EXISTS (SELECT 1
                FROM donation d
-                        JOIN donation_payment dp ON dp.donation_id = d.id
+                        LEFT JOIN donation_payment dp ON dp.donation_id = d.id
                WHERE d.fund_id = $1
                  AND d.donor_id = $2
-                 AND dp.amount_cents - dp.refunded_cents > 0);
+                 AND (dp.amount_cents - dp.refunded_cents > 0
+                   OR (d.recurring AND d.active)));
 
 -- One note per donor per fund, so writing one twice edits it.
 -- name: UpsertFundNote :one
@@ -598,3 +610,29 @@ SET removed_at = now(),
 WHERE id = $1
   AND removed_at IS NULL
 RETURNING *;
+
+-- A donor taking down their own note.
+--
+-- Keyed by fund and member rather than by note id. There is no note id to get
+-- wrong and none to guess: this can only ever reach the note the caller wrote.
+-- removed_by is the author, so the record still says who took it down.
+-- name: RemoveOwnFundNote :one
+UPDATE fund_note
+SET removed_at = now(),
+    removed_by = member_id,
+    updated    = now()
+WHERE fund_id = $1
+  AND member_id = $2
+  AND removed_at IS NULL
+RETURNING *;
+
+-- Every note this member has up, for the my-donations page.
+--
+-- One query rather than one per tile: a donor with a dozen donations would
+-- otherwise cost a dozen round trips to draw a page that is mostly about
+-- something else.
+-- name: GetFundNotesForMember :many
+SELECT *
+FROM fund_note
+WHERE member_id = $1
+  AND removed_at IS NULL;

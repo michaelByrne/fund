@@ -3,34 +3,33 @@ package homeweb
 import (
 	"boardfund/service/donations"
 	"fmt"
+	"github.com/google/uuid"
 	"strconv"
 )
 
-// FundNotes is what donors have said about a fund.
+// FundNotes is what donors have said about a fund. Read-only, everywhere it
+// appears.
+//
+// The form used to sit here and it was the wrong place twice over: it was a long
+// way from the donation it belongs to, and a form is an invitation -- put on the
+// fund page it says leave a note, and the server then says no to almost everyone
+// who takes it up. A note is now asked for at the moment it is earned, on the
+// thank-you screen, and changed afterwards from my donations. With no box here,
+// nothing has to explain who may write one.
 //
 // Its own full-width section below the status and chart, rather than a column
 // inside that grid. Notes vary in number and length, so a fixed column would
 // either clip them or leave a hole -- and the grid already changes shape
-// depending on whether the fund has a chart to show. The page reads give, what it
-// is for, how it is going, what people said.
-templ FundNotes(fund donations.Fund, notes []donations.FundNote, own *donations.FundNote, canWrite, isAdmin bool) {
+// depending on whether the fund has a chart to show.
+templ FundNotes(notes []donations.FundNote, isAdmin bool) {
 	<div id="fund-notes" class="mt-6">
 		<div class="text-md font-semibold p-2 inline-block bg-high">notes from donors</div>
-		if canWrite {
-			@FundNoteForm(fund, own, "")
-		}
 		if len(notes) == 0 {
-			<p class="text-sm p-2">
-				if canWrite {
-					nobody has left a note yet.
-				} else {
-					no notes yet.
-				}
-			</p>
+			<p class="text-sm p-2">no notes yet.</p>
 		} else {
-			<div class="mt-2 space-y-3 md:w-[70%]">
+			<div class="mt-2 space-y-4 md:w-[70%]">
 				for _, note := range notes {
-					<div id={ "note-" + note.ID.String() } class="p-3 bg-even">
+					<div id={ "note-" + note.ID.String() } class="p-3 bg-even shadow-blue-boxy">
 						<p class="text-sm whitespace-pre-wrap">{ note.Body }</p>
 						<p class="text-xs text-gray-600 mt-2">
 							if note.Anonymous {
@@ -67,19 +66,50 @@ templ FundNotes(fund donations.Fund, notes []donations.FundNote, own *donations.
 	</div>
 }
 
-// FundNoteForm is also what the save swaps itself for, so the section redraws
-// from what the server stored rather than from what was typed.
-templ FundNoteForm(fund donations.Fund, own *donations.FundNote, failure string) {
+// noteEditorID names one editor on one page.
+// A note belongs to a fund, but the editor belongs to wherever it is drawn, and a
+// donor can have two donations to the same fund -- a one-off and then a monthly.
+// Keying the element by the fund would give that page two elements with one id
+// and htmx would swap the wrong one. Both edit the same note, which is correct:
+// there is one note per fund either way.
+func noteEditorID(scope uuid.UUID) string {
+	return "fund-note-form-" + scope.String()
+}
+
+// FundNoteForm is the note editor, and also what saving one swaps itself for, so
+// what a donor sees afterwards is what the server stored rather than what they
+// typed.
+//
+// It takes a fund id rather than a fund because the id is all it needs, and
+// asking for the whole fund meant loading one on every path that renders this --
+// including the ones that have no reason to.
+//
+// bg-fore rather than bg-odd or bg-even: those two mean something on the my
+// donations page -- live tile, ended tile -- and an editor drawn inside a tile in
+// one of them would either vanish into its background or claim a state it does
+// not have.
+//
+// It targets itself for both outcomes. It is rendered in three different places
+// now, and a target naming some surrounding section would have to be right in all
+// of them.
+templ FundNoteForm(editorID string, fundID uuid.UUID, own *donations.FundNote, failure, success string) {
 	<form
-		id="fund-note-form"
-		hx-post={ fmt.Sprintf("/fund/%s/note", fund.ID.String()) }
-		hx-target="#fund-notes"
-		hx-target-error="#fund-note-form"
+		id={ editorID }
+		hx-post={ fmt.Sprintf("/fund/%s/note", fundID.String()) }
+		hx-target={ "#" + editorID }
+		hx-target-error={ "#" + editorID }
 		hx-swap="outerHTML"
-		class="mt-2 p-3 bg-odd md:w-[70%] flex flex-col"
+		class="mt-2 p-3 bg-fore flex flex-col"
 	>
+		// The editor names itself, so the response can come back wearing the same id
+		// and the next edit still has something to swap. Without it the server would
+		// have to guess which of a page's editors it was answering.
+		<input type="hidden" name="editor" value={ editorID }/>
 		if failure != "" {
 			<p class="mb-2 p-2 text-sm bg-odd-hover">{ failure }</p>
+		}
+		if success != "" {
+			<p class="mb-2 p-2 text-sm bg-high">{ success }</p>
 		}
 		<label for="note-body" class="text-sm mb-1">
 			if own != nil {
@@ -109,6 +139,21 @@ templ FundNoteForm(fund donations.Fund, own *donations.FundNote, failure string)
 				}
 				post without my name
 			</label>
+			if own != nil {
+				// Their own note, so no confirmation of who is asking is needed and the
+				// route is scoped to them: it can only ever reach the note they wrote.
+				<button
+					hx-post={ fmt.Sprintf("/fund/%s/note/remove", fundID.String()) }
+					hx-target={ "#" + editorID }
+					hx-target-error={ "#" + editorID }
+					hx-vals={ fmt.Sprintf(`{"editor": %q}`, editorID) }
+					hx-swap="outerHTML"
+					hx-confirm="take your note down?"
+					class="text-xs text-red-700 hover:underline"
+				>
+					remove
+				</button>
+			}
 			<button
 				type="submit"
 				class="ml-auto px-4 py-1 text-sm bg-button hover:shadow-blue-boxy-thin shadow-blue-boxy"
@@ -121,4 +166,44 @@ templ FundNoteForm(fund donations.Fund, own *donations.FundNote, failure string)
 			</button>
 		</div>
 	</form>
+}
+
+// ThankYouNote is the ask, at the moment it is earned.
+//
+// Optional and visibly so. Somebody has just given money; the last thing this
+// screen should do is feel like another form standing between them and being
+// finished. "no thanks" is a real link to the fund, not a dismissal that leaves
+// them nowhere.
+templ ThankYouNote(fundID uuid.UUID) {
+	<div class="mt-8 mx-auto w-[90%] md:w-[50%]" hx-ext="response-targets">
+		<div class="text-md font-semibold p-2 inline-block bg-high">want to say why?</div>
+		<p class="text-sm p-2">
+			it goes on the fund's page for other people to read. entirely optional.
+		</p>
+		@FundNoteForm(noteEditorID(fundID), fundID, nil, "", "")
+		<p class="text-sm p-2">
+			<a href={ templ.SafeURL("/donate/" + fundID.String()) } class="text-links hover:underline">
+				no thanks, take me to the fund
+			</a>
+		</p>
+	</div>
+}
+
+// MyDonationNote is where a note is changed after the fact.
+//
+// On the donation it belongs to, on a page only its owner sees. A donor who
+// skipped the ask at the thank-you screen would otherwise have no second chance,
+// and nobody could fix a typo or take their own words down without asking an
+// admin to do it for them.
+templ MyDonationNote(donationID, fundID uuid.UUID, own *donations.FundNote) {
+	<details class="mt-3 text-sm">
+		<summary class="cursor-pointer hover:underline">
+			if own != nil {
+				your note on this fund
+			} else {
+				leave a note on this fund
+			}
+		</summary>
+		@FundNoteForm(noteEditorID(donationID), fundID, own, "", "")
+	</details>
 }

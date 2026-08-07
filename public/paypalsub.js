@@ -48,7 +48,7 @@ window.paypal_sub.Buttons({
         });
 
         if (resp.ok) {
-            window.location.href = '/donation/success?name=' + subscription.subscriber.name.given_name;
+            window.location.href = '/donation/success?fund=' + encodeURIComponent(fundId);
         }
     }
 }).render('#paypal-button-container')

@@ -13,6 +13,7 @@ import (
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"fmt"
+	"github.com/google/uuid"
 	"strings"
 )
 
@@ -21,7 +22,7 @@ import (
 // Its own page rather than a panel on the front page: the front page is for
 // finding a fund to support, and a donor comes here to check or change something
 // they have already decided.
-func MyDonations(donationsForMember []donations.MemberDonation, member *members.Member, path string) templ.Component {
+func MyDonations(donationsForMember []donations.MemberDonation, notes map[uuid.UUID]donations.FundNote, member *members.Member, path string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -65,7 +66,7 @@ func MyDonations(donationsForMember []donations.MemberDonation, member *members.
 				}
 			} else {
 				for _, donation := range donationsForMember {
-					templ_7745c5c3_Err = MyDonationRow(donation, "").Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = MyDonationRow(donation, noteOn(notes, donation.FundID), "").Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -87,7 +88,7 @@ func MyDonations(donationsForMember []donations.MemberDonation, member *members.
 
 // MyDonationRow is also what the cancel button swaps itself for, so the row
 // always redraws from what the server did rather than what the click assumed.
-func MyDonationRow(donation donations.MemberDonation, failure string) templ.Component {
+func MyDonationRow(donation donations.MemberDonation, note *donations.FundNote, failure string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -122,7 +123,7 @@ func MyDonationRow(donation donations.MemberDonation, failure string) templ.Comp
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs("donation-" + donation.ID.String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 46, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 47, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -153,7 +154,7 @@ func MyDonationRow(donation donations.MemberDonation, failure string) templ.Comp
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(failure)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 55, Col: 69}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 56, Col: 69}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -171,7 +172,7 @@ func MyDonationRow(donation donations.MemberDonation, failure string) templ.Comp
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(donation.FundName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 58, Col: 58}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 59, Col: 58}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -194,7 +195,7 @@ func MyDonationRow(donation donations.MemberDonation, failure string) templ.Comp
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(endedBecause(donation.InactiveReason))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 65, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 66, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -212,7 +213,7 @@ func MyDonationRow(donation donations.MemberDonation, failure string) templ.Comp
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDecimalString64(donation.TotalGivenCents))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 72, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 73, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -230,7 +231,7 @@ func MyDonationRow(donation donations.MemberDonation, failure string) templ.Comp
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDecimalString(donation.PlanAmountCents))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 77, Col: 60}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 78, Col: 60}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -243,7 +244,7 @@ func MyDonationRow(donation donations.MemberDonation, failure string) templ.Comp
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(strings.ToLower(string(donation.PlanIntervalUnit)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 77, Col: 121}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 78, Col: 121}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -266,7 +267,7 @@ func MyDonationRow(donation donations.MemberDonation, failure string) templ.Comp
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(donation.Started.Format("01-02-2006"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 82, Col: 91}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 83, Col: 91}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -284,7 +285,7 @@ func MyDonationRow(donation donations.MemberDonation, failure string) templ.Comp
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(donation.LastPayment.Format("01-02-2006"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 84, Col: 101}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 85, Col: 101}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -299,6 +300,10 @@ func MyDonationRow(donation donations.MemberDonation, failure string) templ.Comp
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
+		templ_7745c5c3_Err = MyDonationNote(donation.ID, donation.FundID, note).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
 		if donation.Cancellable() {
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"mt-3\"><button hx-post=\"")
 			if templ_7745c5c3_Err != nil {
@@ -307,7 +312,7 @@ func MyDonationRow(donation donations.MemberDonation, failure string) templ.Comp
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/donation/cancel/%s", donation.ID.String()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 90, Col: 71}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 92, Col: 71}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -320,7 +325,7 @@ func MyDonationRow(donation donations.MemberDonation, failure string) templ.Comp
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs("#donation-" + donation.ID.String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 91, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 93, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -333,7 +338,7 @@ func MyDonationRow(donation donations.MemberDonation, failure string) templ.Comp
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs("#donation-" + donation.ID.String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 92, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 94, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -346,7 +351,7 @@ func MyDonationRow(donation donations.MemberDonation, failure string) templ.Comp
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("stop your recurring donation to %s?", donation.FundName))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 94, Col: 87}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/mydonations.templ`, Line: 96, Col: 87}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -363,6 +368,18 @@ func MyDonationRow(donation donations.MemberDonation, failure string) templ.Comp
 		}
 		return templ_7745c5c3_Err
 	})
+}
+
+// noteOn is the member's note for a fund, or nil when there is none. A map lookup
+// rather than a comma-ok in the template, because templ cannot bind the second
+// return value.
+func noteOn(notes map[uuid.UUID]donations.FundNote, fundID uuid.UUID) *donations.FundNote {
+	note, ok := notes[fundID]
+	if !ok {
+		return nil
+	}
+
+	return &note
 }
 
 // endedBecause renders the provider's reason where there is one, and nothing

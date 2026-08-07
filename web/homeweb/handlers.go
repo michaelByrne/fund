@@ -55,6 +55,7 @@ func (h *FundHandlers) Register(r *mux.Router) {
 	r.HandleFunc("/donation/success", h.withAuth(h.donationSuccess))
 	r.HandleFunc("GET /donations", h.withAuth(h.myDonations))
 	r.HandleFunc("POST /fund/{fundId}/note", h.withAuth(h.saveFundNote))
+	r.HandleFunc("POST /fund/{fundId}/note/remove", h.withAuth(h.removeOwnFundNote))
 	r.HandleFunc("POST /donation/cancel/{id}", h.withAuth(h.cancelMyDonation))
 	r.HandleFunc("/donate/{fundId}", h.withAuth(h.donate))
 	r.HandleFunc("/error", h.error)
@@ -254,41 +255,22 @@ func (h *FundHandlers) donate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	notes, own, canWrite := h.fundNotes(ctx, fund.ID, member.ID)
-
-	w.Header().Set("HX-Redirect", r.URL.Path)
-	Fund(*fund, fund.Stats, notes, own, canWrite, &member, r.URL.Path).Render(ctx, w)
-}
-
-// fundNotes gathers what the notes section needs.
-//
-// A failure to read them does not cost the donation page: somebody came here to
-// give, and the notes are not why. They are logged and the section renders empty.
-func (h *FundHandlers) fundNotes(ctx context.Context, fundID, memberID uuid.UUID) ([]donations.FundNote, *donations.FundNote, bool) {
-	notes, err := h.donationService.ListFundNotes(ctx, fundID)
+	notes, err := h.donationService.ListFundNotes(ctx, fund.ID)
 	if err != nil {
+		// Somebody came here to give, and the notes are not why. Logged, and the
+		// section renders empty rather than costing them the donation form.
 		h.logger.Error("failed to list fund notes", slog.String("error", err.Error()))
 	}
 
-	own, err := h.donationService.GetFundNoteForMember(ctx, fundID, memberID)
-	if err != nil {
-		h.logger.Error("failed to get the member's own note", slog.String("error", err.Error()))
-	}
-
-	// The form is only offered to somebody the server would accept one from, so
-	// the page never asks for something it will then refuse.
-	canWrite, err := h.donationService.MemberHasGivenToFund(ctx, fundID, memberID)
-	if err != nil {
-		h.logger.Error("failed to check whether the member has given", slog.String("error", err.Error()))
-	}
-
-	return notes, own, canWrite
+	w.Header().Set("HX-Redirect", r.URL.Path)
+	Fund(*fund, fund.Stats, notes, &member, r.URL.Path).Render(ctx, w)
 }
 
 // saveFundNote writes or replaces the signed-in donor's note on a fund.
 //
 // The member comes from the session and never from the request, so a caller can
-// only ever write their own.
+// only ever write their own. The fund is not loaded here: eligibility already
+// answers for a fund that is not there, since nobody has given to one.
 func (h *FundHandlers) saveFundNote(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -301,36 +283,22 @@ func (h *FundHandlers) saveFundNote(w http.ResponseWriter, r *http.Request) {
 
 	fundID, err := uuid.Parse(r.PathValue("fundId"))
 	if err != nil {
-		h.badNote(ctx, w, http.StatusBadRequest, donations.Fund{ID: fundID}, nil, "that is not a fund")
+		h.badNote(ctx, w, http.StatusBadRequest, noteEditorID(fundID), fundID, nil, "that is not a fund")
 
 		return
 	}
 
 	if err = r.ParseForm(); err != nil {
-		h.badNote(ctx, w, http.StatusBadRequest, donations.Fund{ID: fundID}, nil, "we could not read that")
+		h.badNote(ctx, w, http.StatusBadRequest, noteEditorID(fundID), fundID, nil, "we could not read that")
 
 		return
 	}
 
 	body := r.FormValue("body")
 	anonymous := r.FormValue("anonymous") == "true"
-	attempt := &donations.FundNote{Body: body, Anonymous: anonymous}
+	editorID := noteEditor(r, fundID)
 
-	fund, err := h.donationService.GetFundByID(ctx, fundID)
-	if err != nil {
-		// A fragment, like every other failure here. This is swapped into the form
-		// by hx-target-error, and a whole layout document dropped inside a form is
-		// not something a browser can make sense of: the section it lands in is the
-		// one that breaks.
-		h.logger.Error("failed to read the fund a note was left on", slog.String("error", err.Error()))
-
-		h.badNote(ctx, w, http.StatusInternalServerError, donations.Fund{ID: fundID}, attempt,
-			"we could not save your note. please try again.")
-
-		return
-	}
-
-	_, err = h.donationService.SaveFundNote(ctx, fundID, member.ID, body, anonymous)
+	note, err := h.donationService.SaveFundNote(ctx, fundID, member.ID, body, anonymous)
 	if err != nil {
 		// Each refusal says what it was. "Something went wrong" would leave a donor
 		// retyping a note the server was never going to take.
@@ -341,14 +309,50 @@ func (h *FundHandlers) saveFundNote(w http.ResponseWriter, r *http.Request) {
 			message = "we could not save your note. please try again."
 		}
 
-		h.badNote(ctx, w, status, *fund, attempt, message)
+		// Carrying what they typed, so a refusal does not throw their words away.
+		h.badNote(ctx, w, status, editorID, fundID, &donations.FundNote{Body: body, Anonymous: anonymous}, message)
 
 		return
 	}
 
-	notes, own, canWrite := h.fundNotes(ctx, fundID, member.ID)
+	// The editor again, holding what was stored. It is rendered on the thank-you
+	// screen and on my donations, and both want the same thing afterwards: the
+	// note as it now is, still editable.
+	FundNoteForm(editorID, fundID, note, "", "your note is up on the fund's page.").Render(ctx, w)
+}
 
-	FundNotes(*fund, notes, own, canWrite, member.IsAdmin()).Render(ctx, w)
+// removeOwnFundNote takes down the note the signed-in donor wrote.
+//
+// Scoped to the member rather than taking a note id: a donor cannot name somebody
+// else's note because there is nowhere to say which note, only which fund.
+func (h *FundHandlers) removeOwnFundNote(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		common.Redirect(w, r, "/login")
+
+		return
+	}
+
+	fundID, err := uuid.Parse(r.PathValue("fundId"))
+	if err != nil {
+		h.badNote(ctx, w, http.StatusBadRequest, noteEditorID(fundID), fundID, nil, "that is not a fund")
+
+		return
+	}
+
+	if err = h.donationService.RemoveOwnFundNote(ctx, fundID, member.ID); err != nil {
+		h.logger.Error("failed to remove own fund note", slog.String("error", err.Error()))
+
+		h.badNote(ctx, w, http.StatusInternalServerError, noteEditor(r, fundID), fundID, nil,
+			"we could not take your note down. please try again.")
+
+		return
+	}
+
+	// An empty editor: the note is gone and they can write another.
+	FundNoteForm(noteEditor(r, fundID), fundID, nil, "", "your note has been taken down.").Render(ctx, w)
 }
 
 // noteFailure maps a refusal onto what the donor should be told. An empty message
@@ -366,12 +370,29 @@ func noteFailure(err error) (int, string) {
 	}
 }
 
-// badNote redraws the form carrying what the donor typed, so a refusal does not
-// throw their words away.
+// badNote redraws the editor with what went wrong.
+//
+// A fragment, always. Every one of these is swapped into the form by
+// hx-target-error, and a whole layout document dropped inside a form is not
+// something a browser can make sense of: the section it lands in is the one that
+// breaks, and the note the donor typed goes with it.
 func (h *FundHandlers) badNote(ctx context.Context, w http.ResponseWriter, status int,
-	fund donations.Fund, attempt *donations.FundNote, message string) {
+	editorID string, fundID uuid.UUID, attempt *donations.FundNote, message string) {
 	w.WriteHeader(status)
-	FundNoteForm(fund, attempt, message).Render(ctx, w)
+	FundNoteForm(editorID, fundID, attempt, message, "").Render(ctx, w)
+}
+
+// noteEditor is which editor on the page this answer belongs to.
+//
+// The form sends its own element id back so the reply can wear it and remain
+// swappable. A page can hold several, and the server has no other way to tell
+// them apart. Falling back to the fund keeps a hand-made request working.
+func noteEditor(r *http.Request, fundID uuid.UUID) string {
+	if sent := r.FormValue("editor"); sent != "" {
+		return sent
+	}
+
+	return noteEditorID(fundID)
 }
 
 // myDonations is a donor's own record, and the only place they can stop giving.
@@ -393,7 +414,14 @@ func (h *FundHandlers) myDonations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	MyDonations(donationsForMember, &member, r.URL.Path).Render(ctx, w)
+	// Not fatal: the donations are what this page is for, and an editor that opens
+	// empty is a smaller wrong than a page that will not load.
+	notes, err := h.donationService.ListFundNotesForMember(ctx, member.ID)
+	if err != nil {
+		h.logger.Error("failed to list the member's notes", slog.String("error", err.Error()))
+	}
+
+	MyDonations(donationsForMember, notes, &member, r.URL.Path).Render(ctx, w)
 }
 
 // cancelMyDonation stops a recurring donation at the provider and then here.
@@ -492,7 +520,15 @@ func (h *FundHandlers) renderDonationRow(ctx context.Context, w http.ResponseWri
 	if err == nil {
 		for _, donation := range forMember {
 			if donation.ID == donationID {
-				MyDonationRow(donation, failure).Render(ctx, w)
+				// The note comes along, because this row replaces itself: leaving it
+				// out would make cancelling a donation quietly remove the control for
+				// a note that is still up.
+				note, errNote := h.donationService.GetFundNoteForMember(ctx, donation.FundID, member.ID)
+				if errNote != nil {
+					h.logger.Error("failed to read the member's note", slog.String("error", errNote.Error()))
+				}
+
+				MyDonationRow(donation, note, failure).Render(ctx, w)
 
 				return
 			}
@@ -521,7 +557,28 @@ func (h *FundHandlers) donationSuccess(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ThankYou(member, r.URL.Path).Render(ctx, w)
+	// The fund the thank-you is for, so it can ask for a note about the thing just
+	// given to. It comes from the query string and is therefore untrusted, which
+	// costs nothing: SaveFundNote checks that this member gave to this fund, so a
+	// forged id buys an editor whose every submission is refused.
+	//
+	// Asked for here rather than on the fund page. A form is an invitation, and on
+	// the fund page it invited everybody and was accepted from almost nobody. Here
+	// it is offered to exactly the person who earned it, at the moment they did.
+	fundID, err := uuid.Parse(r.URL.Query().Get("fund"))
+	if err != nil {
+		// No fund named, so nothing to ask about. Still a thank-you.
+		ThankYou(member, uuid.Nil, false, r.URL.Path).Render(ctx, w)
+
+		return
+	}
+
+	canWrite, err := h.donationService.MemberHasGivenToFund(ctx, fundID, member.ID)
+	if err != nil {
+		h.logger.Error("failed to check whether the member has given", slog.String("error", err.Error()))
+	}
+
+	ThankYou(member, fundID, canWrite, r.URL.Path).Render(ctx, w)
 }
 
 func (h *FundHandlers) completeOneTimeDonation(w http.ResponseWriter, r *http.Request) {
@@ -732,7 +789,10 @@ func (h *FundHandlers) completeRecurringDonation(w http.ResponseWriter, r *http.
 		return
 	}
 
-	ThankYou(member, r.URL.Path).Render(ctx, w)
+	// The browser discards this body and redirects to /donation/success, which is
+	// where the note is asked for. Rendered anyway so the response is not empty,
+	// but with nothing to ask: this is not a page anybody sees.
+	ThankYou(member, fundUUID, false, r.URL.Path).Render(ctx, w)
 }
 
 func (h *FundHandlers) createDonationPlan(w http.ResponseWriter, r *http.Request) {

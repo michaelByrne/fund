@@ -57,7 +57,7 @@ func TestTheArchiveOffersNoNoteForm(t *testing.T) {
 		{ID: uuid.New(), Body: "this paid my rent", Created: time.Now()},
 	}, &members.Member{})
 
-	if strings.Contains(html, `id="fund-note-form"`) {
+	if strings.Contains(html, "fund-note-form") {
 		t.Error("a closed fund must not invite a note it cannot accept")
 	}
 }

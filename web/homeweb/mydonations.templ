@@ -5,6 +5,7 @@ import (
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"fmt"
+	"github.com/google/uuid"
 	"strings"
 )
 
@@ -13,7 +14,7 @@ import (
 // Its own page rather than a panel on the front page: the front page is for
 // finding a fund to support, and a donor comes here to check or change something
 // they have already decided.
-templ MyDonations(donationsForMember []donations.MemberDonation, member *members.Member, path string) {
+templ MyDonations(donationsForMember []donations.MemberDonation, notes map[uuid.UUID]donations.FundNote, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div class="w-[95%] mx-auto mt-4">
 			<h2 class="font-semibold text-lg p-2 inline-block bg-high shadow-blue-boxy-thin mx-4">my donations</h2>
@@ -27,7 +28,7 @@ templ MyDonations(donationsForMember []donations.MemberDonation, member *members
 					</p>
 				} else {
 					for _, donation := range donationsForMember {
-						@MyDonationRow(donation, "")
+						@MyDonationRow(donation, noteOn(notes, donation.FundID), "")
 					}
 				}
 			</div>
@@ -37,7 +38,7 @@ templ MyDonations(donationsForMember []donations.MemberDonation, member *members
 
 // MyDonationRow is also what the cancel button swaps itself for, so the row
 // always redraws from what the server did rather than what the click assumed.
-templ MyDonationRow(donation donations.MemberDonation, failure string) {
+templ MyDonationRow(donation donations.MemberDonation, note *donations.FundNote, failure string) {
 	// Coloured by state rather than by position. Alternating odd and even meant
 	// the shade said where a tile sat in the list, which is nothing a donor needs
 	// to know, and two live donations next to each other looked like two different
@@ -84,6 +85,7 @@ templ MyDonationRow(donation donations.MemberDonation, failure string) {
 				<p><span class="font-bold">last payment:</span> &nbsp;{ donation.LastPayment.Format("01-02-2006") }</p>
 			}
 		</div>
+		@MyDonationNote(donation.ID, donation.FundID, note)
 		if donation.Cancellable() {
 			<div class="mt-3">
 				<button
@@ -99,6 +101,18 @@ templ MyDonationRow(donation donations.MemberDonation, failure string) {
 			</div>
 		}
 	</div>
+}
+
+// noteOn is the member's note for a fund, or nil when there is none. A map lookup
+// rather than a comma-ok in the template, because templ cannot bind the second
+// return value.
+func noteOn(notes map[uuid.UUID]donations.FundNote, fundID uuid.UUID) *donations.FundNote {
+	note, ok := notes[fundID]
+	if !ok {
+		return nil
+	}
+
+	return &note
 }
 
 // endedBecause renders the provider's reason where there is one, and nothing

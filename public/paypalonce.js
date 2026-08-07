@@ -41,7 +41,11 @@ window.paypal_once.Buttons({
         })
 
         if (response.ok) {
-            window.location.href = '/donation/success?name=' + capture.payer.name.given_name
+            // The fund travels to the thank-you screen so it can offer a note on
+            // what was just given to. It is untrusted, like anything from here --
+            // the server checks that this donor gave to it before taking one.
+            window.location.href = '/donation/success?fund=' + encodeURIComponent(
+                JSON.parse(document.getElementById('fund-id').textContent))
             return
         }
 

@@ -870,6 +870,48 @@ func (q *Queries) GetFundNotes(ctx context.Context, fundID uuid.UUID) ([]GetFund
 	return items, nil
 }
 
+const getFundNotesForMember = `-- name: GetFundNotesForMember :many
+SELECT id, fund_id, member_id, body, anonymous, removed_at, removed_by, created, updated
+FROM fund_note
+WHERE member_id = $1
+  AND removed_at IS NULL
+`
+
+// Every note this member has up, for the my-donations page.
+//
+// One query rather than one per tile: a donor with a dozen donations would
+// otherwise cost a dozen round trips to draw a page that is mostly about
+// something else.
+func (q *Queries) GetFundNotesForMember(ctx context.Context, memberID uuid.UUID) ([]FundNote, error) {
+	rows, err := q.db.Query(ctx, getFundNotesForMember, memberID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FundNote
+	for rows.Next() {
+		var i FundNote
+		if err := rows.Scan(
+			&i.ID,
+			&i.FundID,
+			&i.MemberID,
+			&i.Body,
+			&i.Anonymous,
+			&i.RemovedAt,
+			&i.RemovedBy,
+			&i.Created,
+			&i.Updated,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getFundPaymentsForAudit = `-- name: GetFundPaymentsForAudit :many
 SELECT dp.id,
        dp.donation_id,
@@ -1481,10 +1523,11 @@ func (q *Queries) InsertFund(ctx context.Context, arg InsertFundParams) (Fund, e
 const memberHasGivenToFund = `-- name: MemberHasGivenToFund :one
 SELECT EXISTS (SELECT 1
                FROM donation d
-                        JOIN donation_payment dp ON dp.donation_id = d.id
+                        LEFT JOIN donation_payment dp ON dp.donation_id = d.id
                WHERE d.fund_id = $1
                  AND d.donor_id = $2
-                 AND dp.amount_cents - dp.refunded_cents > 0)
+                 AND (dp.amount_cents - dp.refunded_cents > 0
+                   OR (d.recurring AND d.active)))
 `
 
 type MemberHasGivenToFundParams struct {
@@ -1497,6 +1540,17 @@ type MemberHasGivenToFundParams struct {
 // A payment, not a donation: a subscription created today that has not charged
 // yet is not money given. And net of refunds, because money that came back was
 // not given either.
+// Money that survived refunds, or a subscription still running.
+//
+// A payment alone would refuse the donor who just set up a monthly gift: PayPal
+// has not charged them yet, so there is no payment row until the first webhook
+// lands, and the thank-you screen is exactly where we ask. A live subscription is
+// a commitment of money. What this must still refuse is money that came back --
+// a full refund is not a donation -- and a subscription that ended before it ever
+// charged, which is why active matters and recurring alone does not.
+//
+// LEFT JOIN, so a donation with no payments yet can still match on the second arm
+// rather than being dropped by the join.
 func (q *Queries) MemberHasGivenToFund(ctx context.Context, arg MemberHasGivenToFundParams) (bool, error) {
 	row := q.db.QueryRow(ctx, memberHasGivenToFund, arg.FundID, arg.DonorID)
 	var exists bool
@@ -1577,6 +1631,44 @@ type RemoveFundNoteParams struct {
 // Soft delete, recording who did it.
 func (q *Queries) RemoveFundNote(ctx context.Context, arg RemoveFundNoteParams) (FundNote, error) {
 	row := q.db.QueryRow(ctx, removeFundNote, arg.ID, arg.RemovedBy)
+	var i FundNote
+	err := row.Scan(
+		&i.ID,
+		&i.FundID,
+		&i.MemberID,
+		&i.Body,
+		&i.Anonymous,
+		&i.RemovedAt,
+		&i.RemovedBy,
+		&i.Created,
+		&i.Updated,
+	)
+	return i, err
+}
+
+const removeOwnFundNote = `-- name: RemoveOwnFundNote :one
+UPDATE fund_note
+SET removed_at = now(),
+    removed_by = member_id,
+    updated    = now()
+WHERE fund_id = $1
+  AND member_id = $2
+  AND removed_at IS NULL
+RETURNING id, fund_id, member_id, body, anonymous, removed_at, removed_by, created, updated
+`
+
+type RemoveOwnFundNoteParams struct {
+	FundID   uuid.UUID
+	MemberID uuid.UUID
+}
+
+// A donor taking down their own note.
+//
+// Keyed by fund and member rather than by note id. There is no note id to get
+// wrong and none to guess: this can only ever reach the note the caller wrote.
+// removed_by is the author, so the record still says who took it down.
+func (q *Queries) RemoveOwnFundNote(ctx context.Context, arg RemoveOwnFundNoteParams) (FundNote, error) {
+	row := q.db.QueryRow(ctx, removeOwnFundNote, arg.FundID, arg.MemberID)
 	var i FundNote
 	err := row.Scan(
 		&i.ID,
