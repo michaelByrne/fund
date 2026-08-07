@@ -36,7 +36,16 @@ templ Paypal(fund donations.Fund, amountCents int32, clientID string) {
 // while the giving is still the thing that just happened.
 templ ThankYou(member members.Member, fundID uuid.UUID, canWrite bool, path string) {
 	@common.Layout(&member, path) {
-		<div id="bouncing-elements" style="position: relative;">
+		// A bounded arena, and the reason it needs one: the animation used #donation
+		// -- the whole page container -- as its walls, so the bouncers wandered over
+		// everything below them. With a note form on this page that meant a moving
+		// target sailing across the box somebody is trying to type in, and swallowing
+		// the click that would have focused it.
+		//
+		// A fixed height because the children are absolutely positioned and this
+		// would otherwise collapse to nothing. overflow-hidden so a resize mid-flight
+		// cannot leave one outside the walls it is now measured against.
+		<div id="bouncing-elements" class="relative overflow-hidden h-72 md:h-80">
 			<div id="bouncing-element" class="absolute font-semibold text-responsive">
 				<div class="inline-block">
 					<div class="blingy p-4 text-white font-papyrus">
@@ -63,7 +72,9 @@ templ ThankYou(member members.Member, fundID uuid.UUID, canWrite bool, path stri
                 };
             }
 
-            const container = document.getElementById('donation');
+            // The arena, not the page. Bounding these to #donation is what let them
+            // cross the rest of the page.
+            const container = document.getElementById('bouncing-elements');
             const bouncer1 = createBouncer('bouncing-element', 2, 1.5);
             const bouncer2 = createBouncer('bouncing-element2', 1.5, 2);
             let containerSize = {};

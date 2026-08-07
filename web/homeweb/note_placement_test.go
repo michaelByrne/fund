@@ -179,3 +179,67 @@ func TestNoteCardsCarryTheBoxShadow(t *testing.T) {
 		t.Error("the filter shadow applies to text inside it too, which doubles the words")
 	}
 }
+
+// The bouncing thank-you and "donate more money" were bounded by #donation, the
+// whole page container, so they wandered over everything below them. With a note
+// form on this page that is a moving target crossing the box somebody is trying to
+// type in, and taking the click that would have focused it.
+func TestTheAnimationStaysInItsOwnBox(t *testing.T) {
+	html := render(t, ThankYou(members.Member{}, uuid.New(), true, "/donation/success"))
+
+	if strings.Contains(html, `getElementById('donation')`) {
+		t.Error("bounding the animation to the page container is what let it cross the form")
+	}
+
+	if !strings.Contains(html, `getElementById('bouncing-elements')`) {
+		t.Error("the animation should be bounded by its own arena")
+	}
+
+	arena := html[strings.Index(html, `id="bouncing-elements"`):]
+	arena = arena[:strings.Index(arena, ">")]
+
+	// The children are absolutely positioned, so without a height this collapses
+	// to nothing and the walls it is measured against are zero apart.
+	if !strings.Contains(arena, "h-72") {
+		t.Error("the arena needs a height of its own or it collapses")
+	}
+
+	// A resize mid-flight remeasures the walls. Anything already outside them
+	// would otherwise be loose on the page.
+	if !strings.Contains(arena, "overflow-hidden") {
+		t.Error("nothing should be able to escape the arena")
+	}
+}
+
+// The ask reads as a card like everything else it sits among, rather than as
+// text floating on the page background.
+func TestTheNoteAskIsACard(t *testing.T) {
+	html := render(t, ThankYouNote(uuid.New()))
+
+	heading := html[strings.Index(html, "want to say why?"):]
+	if !strings.Contains(html[:strings.Index(html, "want to say why?")], "shadow-blue-boxy-thin") {
+		t.Error("the heading should carry a shadow like the other heading cards")
+	}
+
+	if !strings.Contains(heading, "shadow-blue-boxy") {
+		t.Error("the editor should be a card in its own right")
+	}
+
+	// bg-fore is what the page container behind it already is, so a card in it
+	// would be defined by its shadow alone.
+	if strings.Contains(heading, "bg-fore") {
+		t.Error("the editor should not be the same colour as the page behind it")
+	}
+}
+
+// Same treatment on the fund page, where the notes are read rather than written.
+func TestTheFundNotesHeadingIsACard(t *testing.T) {
+	html := render(t, FundNotes([]donations.FundNote{
+		{ID: uuid.New(), Body: "this paid my rent", Created: time.Now()},
+	}, false))
+
+	heading := html[:strings.Index(html, "notes from donors")]
+	if !strings.Contains(heading, "shadow-blue-boxy-thin") {
+		t.Error("the notes heading should carry a shadow like the other heading cards")
+	}
+}

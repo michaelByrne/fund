@@ -23,7 +23,7 @@ import (
 // depending on whether the fund has a chart to show.
 templ FundNotes(notes []donations.FundNote, isAdmin bool) {
 	<div id="fund-notes" class="mt-6">
-		<div class="text-md font-semibold p-2 inline-block bg-high">notes from donors</div>
+		<div class="text-md font-semibold p-2 inline-block bg-high shadow-blue-boxy-thin">notes from donors</div>
 		if len(notes) == 0 {
 			<p class="text-sm p-2">no notes yet.</p>
 		} else {
@@ -84,10 +84,12 @@ func noteEditorID(scope uuid.UUID) string {
 // asking for the whole fund meant loading one on every path that renders this --
 // including the ones that have no reason to.
 //
-// bg-fore rather than bg-odd or bg-even: those two mean something on the my
+// A card in its own right, with the same shadow as the note cards it writes to.
+//
+// bg-contrast rather than bg-odd or bg-even: those two mean something on the my
 // donations page -- live tile, ended tile -- and an editor drawn inside a tile in
-// one of them would either vanish into its background or claim a state it does
-// not have.
+// one of them would claim a state it does not have. Not bg-fore either, which is
+// what the page container behind it already is.
 //
 // It targets itself for both outcomes. It is rendered in three different places
 // now, and a target naming some surrounding section would have to be right in all
@@ -99,7 +101,7 @@ templ FundNoteForm(editorID string, fundID uuid.UUID, own *donations.FundNote, f
 		hx-target={ "#" + editorID }
 		hx-target-error={ "#" + editorID }
 		hx-swap="outerHTML"
-		class="mt-2 p-3 bg-fore flex flex-col"
+		class="mt-4 p-3 bg-contrast shadow-blue-boxy flex flex-col"
 	>
 		// The editor names itself, so the response can come back wearing the same id
 		// and the next edit still has something to swap. Without it the server would
@@ -176,7 +178,7 @@ templ FundNoteForm(editorID string, fundID uuid.UUID, own *donations.FundNote, f
 // them nowhere.
 templ ThankYouNote(fundID uuid.UUID) {
 	<div class="mt-8 mx-auto w-[90%] md:w-[50%]" hx-ext="response-targets">
-		<div class="text-md font-semibold p-2 inline-block bg-high">want to say why?</div>
+		<div class="text-md font-semibold p-2 inline-block bg-high shadow-blue-boxy-thin">want to say why?</div>
 		<p class="text-sm p-2">
 			it goes on the fund's page for other people to read. entirely optional.
 		</p>
