@@ -71,6 +71,13 @@ func TestFundRowLinksToTheAudit(t *testing.T) {
 		t.Error("a real href, so it can be opened in a tab and shows where it goes")
 	}
 
+	// It has to look like a link. text-links resolves to #333 on this theme, which
+	// is the colour of the text beside it, so the only thing marking this as
+	// clickable was the pointer cursor -- and the whole row has one of those.
+	if !strings.Contains(html, "text-blue-500") {
+		t.Error("the audit link should be a colour that says it is a link")
+	}
+
 	// The row carries its own hx-get to the fund page. Without stopping the click
 	// here, one click does both.
 	if !strings.Contains(html, "event.stopPropagation()") {

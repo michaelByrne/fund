@@ -157,3 +157,25 @@ func TestTheEditorSendsItsOwnID(t *testing.T) {
 		t.Error("including on failure -- htmx discards 4xx bodies with nowhere to put them")
 	}
 }
+
+// The note cards sit on a page of things that all have the same drop shadow, and
+// without one they read as a flat list rather than as cards.
+//
+// shadow-blue-boxy, not blue-boxy-filter. The filter version is a drop-shadow on
+// everything inside the element, which is what put a second copy of the caption
+// behind the audit page's text.
+func TestNoteCardsCarryTheBoxShadow(t *testing.T) {
+	notes := []donations.FundNote{
+		{ID: uuid.New(), Body: "this paid my rent", AuthorName: "ada", Created: time.Now()},
+	}
+
+	html := render(t, FundNotes(notes, false))
+
+	if !strings.Contains(html, "shadow-blue-boxy") {
+		t.Error("a note card should carry the same box shadow as everything else on the page")
+	}
+
+	if strings.Contains(html, "blue-boxy-filter") {
+		t.Error("the filter shadow applies to text inside it too, which doubles the words")
+	}
+}

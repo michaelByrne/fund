@@ -93,11 +93,15 @@ templ FundRow(fund donations.Fund) {
 			//
 			// stopPropagation because the row carries its own hx-get to the fund
 			// page, and a click here would otherwise trigger both.
+			//
+			// text-blue-500 rather than text-links. --color-links is #333 on this
+			// theme, which is what body text already is, so the only thing marking
+			// this as a link was the pointer cursor -- and the whole row has one.
 			<a
 				href={ templ.SafeURL(fmt.Sprintf("/admin/fund/audit?fund=%s", fund.ID.String())) }
 				onclick="event.stopPropagation()"
 				title="payments checked against PayPal"
-				class="ml-4 shrink-0 text-sm text-links hover:underline whitespace-nowrap"
+				class="ml-4 shrink-0 text-sm text-blue-500 hover:underline whitespace-nowrap"
 			>
 				view audit
 			</a>
