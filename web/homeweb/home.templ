@@ -5,11 +5,10 @@ import (
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"fmt"
-	"strings"
-	"time"
-
 	"github.com/google/uuid"
 	"strconv"
+	"strings"
+	"time"
 )
 
 templ FundsTitle() {
@@ -41,7 +40,7 @@ templ Funds(funds []donations.Fund, closed []donations.ClosedFund, images map[uu
 									// middle-click and a URL the browser can show. See RowLink.
 									<tr class="clickable relative odd:bg-odd odd:hover:bg-odd-hover even:bg-even even:hover:bg-even-hover">
 										<td class="p-2">
-											@FundThumbnail(imageFor(images, fund.ID), fund.Name) {
+											@FundThumbnail(imageFor(images, fund.ID)) {
 												@RowLink(fmt.Sprintf("/donate/%s", fund.ID.String()), fund.Name)
 											}
 										</td>
@@ -107,7 +106,7 @@ templ ClosedFunds(funds []donations.ClosedFund, images map[uuid.UUID]donations.F
 						for _, fund := range funds {
 							<tr class="clickable relative odd:bg-odd odd:hover:bg-odd-hover even:bg-even even:hover:bg-even-hover">
 								<td class="p-2">
-									@FundThumbnail(imageFor(images, fund.ID), fund.Name) {
+									@FundThumbnail(imageFor(images, fund.ID)) {
 										@RowLink(fmt.Sprintf("/fund/%s/summary", fund.ID.String()), fund.Name)
 									}
 								</td>

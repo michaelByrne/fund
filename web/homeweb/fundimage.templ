@@ -40,7 +40,11 @@ templ FundImageBanner(fund donations.Fund, image *donations.FundImage) {
 //
 // Inside the name cell rather than a column of its own: a column needs a heading,
 // and there is nothing to call it.
-templ FundThumbnail(image *donations.FundImage, name string) {
+//
+// It takes no name. alt is empty on purpose -- the name is the text beside it, in
+// the children -- and holding a name it does not use invited the reading that it
+// was being used for something.
+templ FundThumbnail(image *donations.FundImage) {
 	<span class="inline-flex items-center gap-2">
 		<span class="shrink-0 w-10 h-10 bg-even inline-block">
 			if image != nil {

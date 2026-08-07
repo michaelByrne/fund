@@ -106,7 +106,7 @@ func TestListPicturesReserveTheirSpace(t *testing.T) {
 	}
 
 	for name, html := range map[string]string{
-		"thumbnail": render(t, FundThumbnail(image, "human fund")),
+		"thumbnail": render(t, FundThumbnail(image)),
 		"card":      render(t, FundCardImage(image)),
 	} {
 		require.Containsf(t, html, `width="800"`, "%s should reserve its width", name)

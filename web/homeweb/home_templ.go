@@ -13,11 +13,10 @@ import (
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"fmt"
-	"strings"
-	"time"
-
 	"github.com/google/uuid"
 	"strconv"
+	"strings"
+	"time"
 )
 
 func FundsTitle() templ.Component {
@@ -117,7 +116,7 @@ func Funds(funds []donations.Fund, closed []donations.ClosedFund, images map[uui
 					}
 					return templ_7745c5c3_Err
 				})
-				templ_7745c5c3_Err = FundThumbnail(imageFor(images, fund.ID), fund.Name).Render(templ.WithChildren(ctx, templ_7745c5c3_Var4), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = FundThumbnail(imageFor(images, fund.ID)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var4), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -128,7 +127,7 @@ func Funds(funds []donations.Fund, closed []donations.ClosedFund, images map[uui
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", fund.Stats.TotalDonors))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 48, Col: 69}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 47, Col: 69}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -141,7 +140,7 @@ func Funds(funds []donations.Fund, closed []donations.ClosedFund, images map[uui
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDecimalString(fund.Stats.TotalDonated))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 49, Col: 74}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 48, Col: 74}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -162,7 +161,7 @@ func Funds(funds []donations.Fund, closed []donations.ClosedFund, images map[uui
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(string(fund.PayoutFrequency))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 51, Col: 56}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 50, Col: 56}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -210,7 +209,7 @@ func Funds(funds []donations.Fund, closed []donations.ClosedFund, images map[uui
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fund.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 65, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 64, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -223,7 +222,7 @@ func Funds(funds []donations.Fund, closed []donations.ClosedFund, images map[uui
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", fund.Stats.TotalDonors))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 67, Col: 94}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 66, Col: 94}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -236,7 +235,7 @@ func Funds(funds []donations.Fund, closed []donations.ClosedFund, images map[uui
 				var templ_7745c5c3_Var11 string
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDecimalString(fund.Stats.TotalDonated))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 68, Col: 100}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 67, Col: 100}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 				if templ_7745c5c3_Err != nil {
@@ -257,7 +256,7 @@ func Funds(funds []donations.Fund, closed []donations.ClosedFund, images map[uui
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(string(fund.PayoutFrequency))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 72, Col: 84}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 71, Col: 84}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {
@@ -350,7 +349,7 @@ func ClosedFunds(funds []donations.ClosedFund, images map[uuid.UUID]donations.Fu
 					}
 					return templ_7745c5c3_Err
 				})
-				templ_7745c5c3_Err = FundThumbnail(imageFor(images, fund.ID), fund.Name).Render(templ.WithChildren(ctx, templ_7745c5c3_Var14), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = FundThumbnail(imageFor(images, fund.ID)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var14), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -361,7 +360,7 @@ func ClosedFunds(funds []donations.ClosedFund, images map[uuid.UUID]donations.Fu
 				var templ_7745c5c3_Var15 string
 				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", fund.Stats.TotalDonors))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 114, Col: 67}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 113, Col: 67}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 				if templ_7745c5c3_Err != nil {
@@ -374,7 +373,7 @@ func ClosedFunds(funds []donations.ClosedFund, images map[uuid.UUID]donations.Fu
 				var templ_7745c5c3_Var16 string
 				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDecimalString(fund.Stats.TotalDonated))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 115, Col: 85}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 114, Col: 85}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {
@@ -387,7 +386,7 @@ func ClosedFunds(funds []donations.ClosedFund, images map[uuid.UUID]donations.Fu
 				var templ_7745c5c3_Var17 string
 				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDecimalString64(fund.Payouts.TotalPaidCents))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 116, Col: 91}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 115, Col: 91}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 				if templ_7745c5c3_Err != nil {
@@ -400,7 +399,7 @@ func ClosedFunds(funds []donations.ClosedFund, images map[uuid.UUID]donations.Fu
 				var templ_7745c5c3_Var18 string
 				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", fund.Payouts.TotalRecipients))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 117, Col: 86}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 116, Col: 86}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 				if templ_7745c5c3_Err != nil {
@@ -413,7 +412,7 @@ func ClosedFunds(funds []donations.ClosedFund, images map[uuid.UUID]donations.Fu
 				var templ_7745c5c3_Var19 string
 				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(fund.ClosedOn().Format("01-02-2006"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 118, Col: 62}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 117, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 				if templ_7745c5c3_Err != nil {
@@ -453,7 +452,7 @@ func ClosedFunds(funds []donations.ClosedFund, images map[uuid.UUID]donations.Fu
 				var templ_7745c5c3_Var21 string
 				templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(fund.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 131, Col: 55}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 130, Col: 55}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 				if templ_7745c5c3_Err != nil {
@@ -466,7 +465,7 @@ func ClosedFunds(funds []donations.ClosedFund, images map[uuid.UUID]donations.Fu
 				var templ_7745c5c3_Var22 string
 				templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDecimalString(fund.Stats.TotalDonated))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 133, Col: 100}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 132, Col: 100}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 				if templ_7745c5c3_Err != nil {
@@ -479,7 +478,7 @@ func ClosedFunds(funds []donations.ClosedFund, images map[uuid.UUID]donations.Fu
 				var templ_7745c5c3_Var23 string
 				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDecimalString64(fund.Payouts.TotalPaidCents))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 134, Col: 105}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 133, Col: 105}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 				if templ_7745c5c3_Err != nil {
@@ -492,7 +491,7 @@ func ClosedFunds(funds []donations.ClosedFund, images map[uuid.UUID]donations.Fu
 				var templ_7745c5c3_Var24 string
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", fund.Payouts.TotalRecipients))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 135, Col: 102}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 134, Col: 102}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
@@ -505,7 +504,7 @@ func ClosedFunds(funds []donations.ClosedFund, images map[uuid.UUID]donations.Fu
 				var templ_7745c5c3_Var25 string
 				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(fund.ClosedOn().Format("01-02-2006"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 136, Col: 87}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 135, Col: 87}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 				if templ_7745c5c3_Err != nil {
@@ -573,7 +572,7 @@ func RowLink(href, label string) templ.Component {
 		var templ_7745c5c3_Var28 string
 		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 161, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 160, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 		if templ_7745c5c3_Err != nil {
@@ -621,7 +620,7 @@ func TableNextPayment(nextPayment time.Time) templ.Component {
 			var templ_7745c5c3_Var30 string
 			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(nextPayment.Format("01-02-2006"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 169, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 168, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 			if templ_7745c5c3_Err != nil {
@@ -666,7 +665,7 @@ func TableExpires(expires *time.Time) templ.Component {
 			var templ_7745c5c3_Var32 string
 			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(expires.Format("01-02-2006"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 177, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 176, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 			if templ_7745c5c3_Err != nil {
@@ -715,7 +714,7 @@ func TableGoal(goal int32) templ.Component {
 			var templ_7745c5c3_Var34 string
 			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(centsToDecimalString(goal))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 185, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/home.templ`, Line: 184, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 			if templ_7745c5c3_Err != nil {
