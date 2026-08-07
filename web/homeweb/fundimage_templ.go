@@ -14,20 +14,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// FundImageBanner is a fund's picture, above what the fund is for.
+// FundImagePanel is a fund's picture on the fund's own page.
 //
-// A fixed height with object-fit: cover, so one upload works at any shape without
-// the page jumping between funds. A portrait photograph and a wide banner both
-// fill the same band; what varies is how much of them is shown, not where
-// everything below them sits.
+// A square, and not a band across the top. Full width at h-48 is roughly six to
+// one on a wide screen, and almost nothing is that shape -- a portrait
+// photograph lost everything but a strip of its middle, and a logo lost its top
+// and bottom. The complaint was the crop, and the crop was the aspect ratio.
 //
-// width and height are given so the browser reserves the space before the bytes
-// arrive, rather than reflowing the description out from under a reader.
+// object-contain rather than object-cover, so nothing is cropped at all. A square
+// crops far more gently than a band did, but "gently" is still deciding which
+// part of somebody's picture to throw away, and there is nothing here that knows
+// where the subject is. What is uploaded is what appears, letterboxed against the
+// same background the page already uses.
 //
-// The alt text is the fund's name because that is what the picture is of, as far
-// as anything here knows. There is no caption field and inventing one from the
-// filename would describe an upload rather than an image.
-func FundImageBanner(fund donations.Fund, image *donations.FundImage) templ.Component {
+// Bounded rather than full width, because a full-width square on a desktop is the
+// size of the screen.
+func FundImagePanel(fund donations.Fund, image *donations.FundImage) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -49,14 +51,14 @@ func FundImageBanner(fund donations.Fund, image *donations.FundImage) templ.Comp
 		}
 		ctx = templ.ClearChildren(ctx)
 		if image != nil {
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<img src=\"")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"w-48 h-48 md:w-64 md:h-64 bg-even shadow-blue-boxy mb-4 shrink-0\"><img src=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(image.URL())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 25, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 28, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -69,7 +71,7 @@ func FundImageBanner(fund donations.Fund, image *donations.FundImage) templ.Comp
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fund.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 26, Col: 18}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 29, Col: 19}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -82,7 +84,7 @@ func FundImageBanner(fund donations.Fund, image *donations.FundImage) templ.Comp
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", image.Width))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 27, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 30, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -95,13 +97,13 @@ func FundImageBanner(fund donations.Fund, image *donations.FundImage) templ.Comp
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", image.Height))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 28, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 31, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" loading=\"lazy\" class=\"w-full h-48 md:h-64 object-cover bg-even shadow-blue-boxy mb-4\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" loading=\"lazy\" class=\"w-full h-full object-contain\"></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -155,7 +157,7 @@ func FundThumbnail(image *donations.FundImage) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(image.URL())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 52, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 56, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -168,7 +170,7 @@ func FundThumbnail(image *donations.FundImage) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", image.Width))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 54, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 58, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -181,7 +183,7 @@ func FundThumbnail(image *donations.FundImage) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", image.Height))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 55, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 59, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -239,7 +241,7 @@ func FundCardImage(image *donations.FundImage) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(image.URL())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 70, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 74, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -252,7 +254,7 @@ func FundCardImage(image *donations.FundImage) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", image.Width))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 72, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 76, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -265,7 +267,7 @@ func FundCardImage(image *donations.FundImage) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", image.Height))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 73, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fundimage.templ`, Line: 77, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {

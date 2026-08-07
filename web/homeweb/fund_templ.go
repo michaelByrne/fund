@@ -63,7 +63,7 @@ func Fund(fund donations.Fund, fundStats donations.FundStats, notes []donations.
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = FundImageBanner(fund, image).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = FundImagePanel(fund, image).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -359,7 +359,7 @@ func ClosedFundSummary(fund donations.ClosedFund, fundStats donations.FundStats,
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = FundImageBanner(fund.Fund, image).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = FundImagePanel(fund.Fund, image).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

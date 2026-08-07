@@ -6,29 +6,33 @@ import (
 	"github.com/google/uuid"
 )
 
-// FundImageBanner is a fund's picture, above what the fund is for.
+// FundImagePanel is a fund's picture on the fund's own page.
 //
-// A fixed height with object-fit: cover, so one upload works at any shape without
-// the page jumping between funds. A portrait photograph and a wide banner both
-// fill the same band; what varies is how much of them is shown, not where
-// everything below them sits.
+// A square, and not a band across the top. Full width at h-48 is roughly six to
+// one on a wide screen, and almost nothing is that shape -- a portrait
+// photograph lost everything but a strip of its middle, and a logo lost its top
+// and bottom. The complaint was the crop, and the crop was the aspect ratio.
 //
-// width and height are given so the browser reserves the space before the bytes
-// arrive, rather than reflowing the description out from under a reader.
+// object-contain rather than object-cover, so nothing is cropped at all. A square
+// crops far more gently than a band did, but "gently" is still deciding which
+// part of somebody's picture to throw away, and there is nothing here that knows
+// where the subject is. What is uploaded is what appears, letterboxed against the
+// same background the page already uses.
 //
-// The alt text is the fund's name because that is what the picture is of, as far
-// as anything here knows. There is no caption field and inventing one from the
-// filename would describe an upload rather than an image.
-templ FundImageBanner(fund donations.Fund, image *donations.FundImage) {
+// Bounded rather than full width, because a full-width square on a desktop is the
+// size of the screen.
+templ FundImagePanel(fund donations.Fund, image *donations.FundImage) {
 	if image != nil {
-		<img
-			src={ image.URL() }
-			alt={ fund.Name }
-			width={ fmt.Sprintf("%d", image.Width) }
-			height={ fmt.Sprintf("%d", image.Height) }
-			loading="lazy"
-			class="w-full h-48 md:h-64 object-cover bg-even shadow-blue-boxy mb-4"
-		/>
+		<div class="w-48 h-48 md:w-64 md:h-64 bg-even shadow-blue-boxy mb-4 shrink-0">
+			<img
+				src={ image.URL() }
+				alt={ fund.Name }
+				width={ fmt.Sprintf("%d", image.Width) }
+				height={ fmt.Sprintf("%d", image.Height) }
+				loading="lazy"
+				class="w-full h-full object-contain"
+			/>
+		</div>
 	}
 }
 

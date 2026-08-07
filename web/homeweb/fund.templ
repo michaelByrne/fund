@@ -21,7 +21,7 @@ func donationURL(freq donations.PayoutFrequency) string {
 templ Fund(fund donations.Fund, fundStats donations.FundStats, notes []donations.FundNote, image *donations.FundImage, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div id="donation-form" class="p-5 mt-2">
-			@FundImageBanner(fund, image)
+			@FundImagePanel(fund, image)
 			<span class="blue-boxy-filter">
 				@Title(fund.Name)
 				<br/>
@@ -115,7 +115,7 @@ templ Title(text string) {
 templ ClosedFundSummary(fund donations.ClosedFund, fundStats donations.FundStats, notes []donations.FundNote, image *donations.FundImage, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div class="p-5 mt-2">
-			@FundImageBanner(fund.Fund, image)
+			@FundImagePanel(fund.Fund, image)
 			<span class="blue-boxy-filter">
 				@Title(fund.Name)
 			</span>
