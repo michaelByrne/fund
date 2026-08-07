@@ -144,7 +144,7 @@ type donationStore interface {
 
 type paymentsProvider interface {
 	GetProviderDonationSubscriptionStatus(ctx context.Context, providerSubscriptionID string) (string, error)
-	GetTransactionsForDonationSubscription(ctx context.Context, subscriptionID string) ([]ProviderTransaction, error)
+	GetTransactionsForDonationSubscription(ctx context.Context, subscriptionID string, start, end time.Time) ([]ProviderTransaction, error)
 	GetTransaction(ctx context.Context, id string, start, end time.Time) (*ProviderTransaction, error)
 }
 
@@ -277,24 +277,29 @@ func (s FinanceService) RunRecurringDonationReconciliation(ctx context.Context) 
 //
 // Insertion is idempotent on the provider's payment id, so this is safe to run as
 // often as it likes: everything already recorded conflicts and does nothing.
-func (s FinanceService) backfillMissingPayments(ctx context.Context, donation donations.Donation, known []donations.DonationPayment) int {
+func (s FinanceService) backfillMissingPayments(ctx context.Context, donation donations.Donation, known []donations.DonationPayment) (int, error) {
 	// Recovery here is by subscription, so a donation without one has nothing to
 	// look up. A one-time donation is the case in point: its payment came from a
 	// capture, and asking the provider to list transactions for an empty
 	// subscription is a request with no answer.
 	if donation.ProviderSubscriptionID == "" {
-		return 0
+		return 0, nil
 	}
 
 	logger := s.logger.With(slog.String("donation_id", donation.ID.String()))
 
-	transactions, err := s.paymentsProvider.GetTransactionsForDonationSubscription(ctx, donation.ProviderSubscriptionID)
+	// From just before the donation existed. Asking earlier is asking about
+	// transactions that cannot exist, and PayPal requires a window either way.
+	transactions, err := s.paymentsProvider.GetTransactionsForDonationSubscription(ctx,
+		donation.ProviderSubscriptionID, donation.Created.AddDate(0, 0, -1), time.Now())
 	if err != nil {
-		// Not fatal for the run: one unreadable subscription should not stop the
-		// other funds being reconciled.
+		// Returned as well as logged. One unreadable subscription should not stop
+		// the other funds, so the caller decides -- but a run where every listing
+		// failed used to report success, which is how this endpoint stayed broken:
+		// it had never worked, and nothing said so.
 		logger.Error("failed to list provider transactions", slog.String("error", err.Error()))
 
-		return 0
+		return 0, err
 	}
 
 	have := make(map[string]bool, len(known))
@@ -359,7 +364,7 @@ func (s FinanceService) backfillMissingPayments(ctx context.Context, donation do
 		})
 	}
 
-	return recovered
+	return recovered, nil
 }
 
 func (s FinanceService) reconcileRecurringDonationsForFund(ctx context.Context, fundID uuid.UUID) error {
@@ -419,7 +424,12 @@ func (s FinanceService) reconcileRecurringDonationsForFund(ctx context.Context, 
 
 		// Before the verification pass below, so a payment recovered here is
 		// verified and reported in the same run rather than the next one.
-		if recovered := s.backfillMissingPayments(ctx, donation, payments); recovered > 0 {
+		recovered, errBackfill := s.backfillMissingPayments(ctx, donation, payments)
+		if errBackfill != nil {
+			return errBackfill
+		}
+
+		if recovered > 0 {
 			payments, errInner = s.donationStore.GetDonationPaymentsByDonationID(ctx, donation.ID)
 			if errInner != nil {
 				logger.Error("failed to re-read donation payments after backfill",

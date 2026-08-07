@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -229,8 +230,20 @@ func (p Paypal) GetProviderDonationSubscriptionStatus(ctx context.Context, provi
 	return subscription.Status, nil
 }
 
-func (p Paypal) GetTransactionsForDonationSubscription(ctx context.Context, subscriptionID string) ([]finance.ProviderTransaction, error) {
-	transactionsBytes, err := p.client.get(ctx, "/v1/billing/subscriptions/"+subscriptionID+"/transactions")
+// GetTransactionsForDonationSubscription lists what a subscription has paid
+// between two instants.
+//
+// start_time and end_time are required by PayPal, and this asked for neither, so
+// every call returned MISSING_REQUIRED_PARAMETER and the reconciliation that
+// depends on it recovered nothing. The window is the caller's because only the
+// caller knows how far back is worth asking: a donation created last week has no
+// transactions before it existed.
+func (p Paypal) GetTransactionsForDonationSubscription(ctx context.Context, subscriptionID string, start, end time.Time) ([]finance.ProviderTransaction, error) {
+	path := "/v1/billing/subscriptions/" + subscriptionID + "/transactions" +
+		"?start_time=" + url.QueryEscape(start.UTC().Format(time.RFC3339)) +
+		"&end_time=" + url.QueryEscape(end.UTC().Format(time.RFC3339))
+
+	transactionsBytes, err := p.client.get(ctx, path)
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +300,7 @@ func (p Paypal) GetTransaction(ctx context.Context, id string, start, end time.T
 		status = "OTHER"
 	}
 
-	transactionDate, err := time.Parse("2006-01-02T15:04:05-0700", transactionInfo.TransactionInitiationDate)
+	transactionDate, err := parseProviderTime(transactionInfo.TransactionInitiationDate)
 	if err != nil {
 		return nil, err
 	}
@@ -298,6 +311,33 @@ func (p Paypal) GetTransaction(ctx context.Context, id string, start, end time.T
 		Status:            status,
 		AmountCents:       decimalDollarStringToCents(transactionInfo.TransactionAmount.Value),
 	}, nil
+}
+
+// providerTimeLayouts are the shapes PayPal timestamps arrive in.
+//
+// The reporting API returns UTC as a trailing Z, and this parsed with a layout
+// demanding a numeric offset -- so every transaction it returned failed to parse
+// and the whole lookup errored. RFC3339 covers Z and +hh:mm; the third is the
+// offset without its colon, which some PayPal responses use and RFC3339 rejects.
+var providerTimeLayouts = []string{
+	time.RFC3339,
+	"2006-01-02T15:04:05-0700",
+	"2006-01-02T15:04:05",
+}
+
+func parseProviderTime(value string) (time.Time, error) {
+	var err error
+
+	for _, layout := range providerTimeLayouts {
+		var parsed time.Time
+
+		parsed, err = time.Parse(layout, value)
+		if err == nil {
+			return parsed, nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("unreadable provider timestamp %q: %w", value, err)
 }
 
 func centsToDecimalString(cents int32) string {
