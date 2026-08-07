@@ -87,3 +87,53 @@ func TestASuccessfulRedrawShowsNoFailure(t *testing.T) {
 		t.Error("an ended donation should not offer cancellation")
 	}
 }
+
+// Colour says whether a donation is live, not where it sits in the list.
+// Alternating odd and even meant two active donations next to each other looked
+// like two different kinds of thing.
+func TestTileColourFollowsState(t *testing.T) {
+	live := donations.NewMemberDonation(donations.MemberDonationRow{
+		ID: uuid.New(), FundName: "human fund",
+		Active: true, Recurring: true, HasSubscription: true,
+	})
+
+	ended := donations.NewMemberDonation(donations.MemberDonationRow{
+		ID: uuid.New(), FundName: "human fund",
+		Active: false, Recurring: true, InactiveReason: "CANCELLED",
+	})
+
+	expired := donations.NewMemberDonation(donations.MemberDonationRow{
+		ID: uuid.New(), FundName: "human fund",
+		Active: false, Recurring: true, InactiveReason: "EXPIRED",
+	})
+
+	liveHTML := renderRow(t, live, "")
+
+	if !strings.Contains(liveHTML, "bg-odd") {
+		t.Error("a live donation should take the lighter tile")
+	}
+
+	if strings.Contains(liveHTML, "bg-even") {
+		t.Error("a live donation should not take the ended tile as well")
+	}
+
+	// Cancelled and expired are the same thing to a donor: it has stopped.
+	for name, donation := range map[string]donations.MemberDonation{
+		"cancelled": ended, "expired": expired,
+	} {
+		html := renderRow(t, donation, "")
+
+		if !strings.Contains(html, "bg-even") {
+			t.Errorf("a %s donation should take the darker tile", name)
+		}
+
+		if strings.Contains(html, "bg-odd") {
+			t.Errorf("a %s donation should not take the live tile", name)
+		}
+	}
+
+	// Nothing should depend on position any more.
+	if strings.Contains(liveHTML, "odd:bg-odd") || strings.Contains(liveHTML, "even:bg-even") {
+		t.Error("tiles still alternate by position")
+	}
+}

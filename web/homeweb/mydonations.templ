@@ -38,7 +38,16 @@ templ MyDonations(donationsForMember []donations.MemberDonation, member *members
 // MyDonationRow is also what the cancel button swaps itself for, so the row
 // always redraws from what the server did rather than what the click assumed.
 templ MyDonationRow(donation donations.MemberDonation, failure string) {
-	<div id={ "donation-" + donation.ID.String() } class="mb-4 p-4 w-full md:w-[70%] odd:bg-odd even:bg-even shadow-blue-boxy">
+	// Coloured by state rather than by position. Alternating odd and even meant
+	// the shade said where a tile sat in the list, which is nothing a donor needs
+	// to know, and two live donations next to each other looked like two different
+	// kinds of thing.
+	<div
+		id={ "donation-" + donation.ID.String() }
+		class={ "mb-4 p-4 w-full md:w-[70%] shadow-blue-boxy",
+			templ.KV("bg-odd", donation.Active),
+			templ.KV("bg-even", !donation.Active) }
+	>
 		if failure != "" {
 			// Rendered inside the row rather than replacing it, so the donation and
 			// its cancel button survive the failure. Replacing the row would take
