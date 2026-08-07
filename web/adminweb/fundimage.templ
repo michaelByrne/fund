@@ -6,80 +6,82 @@ import (
 	"github.com/google/uuid"
 )
 
-// FundImageControl is where a fund's picture is set, and what the upload swaps
-// itself for, so what an admin sees afterwards is what the server stored rather
-// than what they chose.
+// FundImageControl is the picture and the two things you can do to it.
 //
-// hx-encoding, because a file cannot travel in a urlencoded body -- without it
-// htmx sends the filename and nothing else, and the server sees an empty upload.
+// No card of its own: it is one setting inside fund details, which supplies the
+// card. It keeps its own id, because uploading swaps just this part rather than
+// redrawing the description and the goal around it.
+//
+// Deliberately narrow. It was max-w-xs and object-cover, which on this page meant
+// a cropped photograph twice the height of the form beside it -- the picture is
+// the smaller half of what this card is for.
 templ FundImageControl(fundID uuid.UUID, image *donations.FundImage, failure string) {
-	// No card of its own any more: it is one setting inside fund details, which
-	// supplies the card. Its own id stays, because uploading still swaps just this
-	// part rather than redrawing the description and the goal around it.
-	<div id="fund-image-control" class="w-full md:w-56">
-		<div class="text-xs font-semibold mb-1">picture</div>
-		<div>
-			if failure != "" {
-				<p class="mb-2 p-2 text-sm bg-odd-hover">{ failure }</p>
-			}
+	<div id="fund-image-control" class="w-32 shrink-0">
+		if failure != "" {
+			<p class="mb-2 p-2 text-xs bg-odd-hover">{ failure }</p>
+		}
+		// A square that shows the whole picture, which is how the fund page shows
+		// it. Cropping here would preview something nobody is ever served.
+		<div class="w-32 h-32 bg-even shadow-blue-boxy-thin mb-2">
 			if image != nil {
-				// The stored picture, not the chosen file: proof of what is actually
-				// being served, at the shape it will be served in.
 				<img
 					src={ image.URL() }
-					alt="the current fund image"
+					alt="the current fund picture"
 					width={ fmt.Sprintf("%d", image.Width) }
 					height={ fmt.Sprintf("%d", image.Height) }
-					class="mb-2 w-full max-w-xs object-cover shadow-blue-boxy-thin"
+					class="w-full h-full object-contain"
 				/>
+			} else {
+				<span class="w-full h-full flex items-center justify-center text-xs text-gray-600">
+					no picture
+				</span>
 			}
-			<form
-				hx-post={ fmt.Sprintf("/admin/fund/image/%s", fundID.String()) }
-				hx-target="#fund-image-control"
-				hx-target-error="#fund-image-control"
-				hx-swap="outerHTML"
-				hx-encoding="multipart/form-data"
-				class="flex flex-col gap-2"
-			>
-				<input
-					type="file"
-					name="image"
-					accept="image/jpeg,image/png,image/webp"
-					class="text-xs"
-				/>
-				<div class="flex items-center gap-3">
-					if image != nil {
-						<button
-							type="button"
-							hx-post={ fmt.Sprintf("/admin/fund/image/remove/%s", fundID.String()) }
-							hx-target="#fund-image-control"
-							hx-target-error="#fund-image-control"
-							hx-swap="outerHTML"
-							hx-confirm="remove this fund's image?"
-							class="text-xs text-red-700 hover:underline"
-						>
-							remove
-						</button>
-					}
-					<button
-						type="submit"
-						class="ml-auto px-3 py-1 text-sm bg-button hover:shadow-blue-boxy-thin shadow-blue-boxy"
-					>
-						if image != nil {
-							replace image
-						} else {
-							add image
-						}
-					</button>
-				</div>
-			</form>
-			// accept= is a filter on the picker and nothing more -- it is trivially
-			// bypassed and the server never trusts it. Said here because the limits are
-			// worth knowing before choosing a 40 megabyte photograph.
-			<p class="mt-2 text-xs text-gray-600">
-				jpeg, png or webp, up to { fmt.Sprintf("%d", donations.MaxImageBytes>>20) }mb. larger
-				pictures are scaled down to { fmt.Sprintf("%d", donations.MaxImageDimension) } pixels.
-			</p>
 		</div>
+		<form
+			hx-post={ fmt.Sprintf("/admin/fund/image/%s", fundID.String()) }
+			hx-target="#fund-image-control"
+			hx-target-error="#fund-image-control"
+			hx-swap="outerHTML"
+			hx-encoding="multipart/form-data"
+			class="flex flex-col gap-1"
+		>
+			<input
+				type="file"
+				name="image"
+				accept="image/jpeg,image/png,image/webp"
+				class="w-full text-xs"
+			/>
+			<button
+				type="submit"
+				class="w-full px-2 py-1 text-xs bg-button hover:shadow-blue-boxy-thin shadow-blue-boxy"
+			>
+				if image != nil {
+					replace
+				} else {
+					upload
+				}
+			</button>
+			if image != nil {
+				<button
+					type="button"
+					hx-post={ fmt.Sprintf("/admin/fund/image/remove/%s", fundID.String()) }
+					hx-target="#fund-image-control"
+					hx-target-error="#fund-image-control"
+					hx-swap="outerHTML"
+					hx-confirm="remove this fund's picture?"
+					class="text-xs text-red-700 hover:underline"
+				>
+					remove
+				</button>
+			}
+		</form>
+		// accept= filters the picker and nothing more: it is trivially bypassed and
+		// the server never trusts it. Said here because the limit is worth knowing
+		// before choosing a 40 megabyte photograph.
+		<p class="mt-2 text-xs text-gray-600 leading-tight">
+			jpeg, png or webp,
+			<br/>
+			up to { fmt.Sprintf("%d", donations.MaxImageBytes>>20) }mb
+		</p>
 	</div>
 }

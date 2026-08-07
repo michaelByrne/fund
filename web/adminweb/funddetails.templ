@@ -9,70 +9,86 @@ import (
 
 // FundDetails is what a fund is, and the only place any of it can be changed.
 //
-// The picture used to be a control of its own at the bottom of this page, which
-// made the most visible thing about a fund the one thing you set from a box
-// nowhere near anything else about it. It is a setting, so it lives with the
-// settings.
+// Labels above their fields rather than in a column beside them. At three columns
+// the label and the box shared a row and "description" ran into the textarea,
+// which is what happens when a two-word label meets a one-third column.
 //
-// Name and frequency are not here. Both are held by PayPal as well as by us --
-// the name is the product name and the descriptor a donor sees on their card
-// statement, and the frequency decides which plan a subscription is bound to.
-// Changing either here would write a value we hold and PayPal does not, which is
-// worse than not offering it.
+// Name and frequency are shown, disabled, rather than described in a sentence
+// underneath. They were, and the sentence came out as "board costs fund is once"
+// -- a form saying what it holds beats prose apologising for what it does not.
+// Both are held by PayPal as well as by us: the name is the product name and the
+// descriptor a donor sees on their card statement, and the frequency decides
+// which plan a subscription is bound to. Changing either here would write a value
+// we hold and PayPal does not.
 templ FundDetails(fund donations.Fund, image *donations.FundImage, failure, success string) {
 	<div id="fund-details">
 		@common.Section("fund details") {
 			if failure != "" {
-				<p class="mb-2 p-2 text-sm bg-odd-hover">{ failure }</p>
+				<p class="mb-3 p-2 text-sm bg-odd-hover">{ failure }</p>
 			}
 			if success != "" {
-				<p class="mb-2 p-2 text-sm bg-high">{ success }</p>
+				<p class="mb-3 p-2 text-sm bg-high">{ success }</p>
 			}
-			<div class="flex flex-col md:flex-row gap-4">
-				<div class="shrink-0">
-					@FundImageControl(fund.ID, image, "")
-				</div>
+			// The picture is beside the form, not inside it. Its controls are a form of
+			// their own -- a file upload to a different route -- and a form inside a
+			// form is not something a browser keeps: it drops the inner one, and the
+			// upload button quietly stops doing anything.
+			<div class="flex flex-col sm:flex-row gap-4 text-sm">
+				@FundImageControl(fund.ID, image, "")
 				<form
 					hx-post={ fmt.Sprintf("/admin/fund/details/%s", fund.ID.String()) }
 					hx-target="#fund-details"
 					hx-target-error="#fund-details"
 					hx-swap="outerHTML"
-					class="flex-grow grid grid-cols-3 gap-3 text-sm"
+					class="flex-grow min-w-0 flex flex-col gap-3"
 				>
-					<label for="fund-description" class="col-span-1">description</label>
-					<textarea
-						name="description"
-						id="fund-description"
-						rows="3"
-						class="col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm"
-					>{ fund.Description }</textarea>
-					<label for="fund-goal" class="col-span-1">goal</label>
-					<div class="col-span-2 relative">
-						<span class="absolute left-1 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
-						<input
-							type="number"
-							name="goal"
-							id="fund-goal"
-							min="0"
-							step="0.01"
-							placeholder="optional"
-							value={ goalValue(fund.GoalCents) }
-							class="w-full pl-6 text-sm border border-slate-300 shadow-sm"
-						/>
+					<div class="flex gap-3">
+						<div class="flex-grow min-w-0">
+							@lockedField("name", fund.Name)
+						</div>
+						<div class="w-28 shrink-0">
+							@lockedField("frequency", string(fund.PayoutFrequency))
+						</div>
 					</div>
-					<label for="fund-expires" class="col-span-1">end date</label>
-					<input
-						type="date"
-						name="date"
-						id="fund-expires"
-						value={ expiresValue(fund.Expires) }
-						class="col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm"
-					/>
-					<p class="col-span-3 text-xs text-gray-600">
-						{ fund.Name } is { string(fund.PayoutFrequency) }. neither can be changed here:
-						paypal holds both, and this would only change our copy.
-					</p>
-					<div class="col-span-3 flex">
+					<div>
+						<label for="fund-description" class="block mb-1">description</label>
+						<textarea
+							name="description"
+							id="fund-description"
+							rows="3"
+							class="w-full p-1 text-sm border border-slate-300 shadow-sm"
+						>{ fund.Description }</textarea>
+					</div>
+					<div class="flex gap-3">
+						<div class="flex-grow min-w-0">
+							<label for="fund-goal" class="block mb-1">goal</label>
+							<div class="relative">
+								<span class="absolute left-1 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+								<input
+									type="number"
+									name="goal"
+									id="fund-goal"
+									min="0"
+									step="0.01"
+									placeholder="none"
+									value={ goalValue(fund.GoalCents) }
+									class="w-full pl-5 p-1 text-sm border border-slate-300 shadow-sm"
+								/>
+							</div>
+						</div>
+						<div class="flex-grow min-w-0">
+							<label for="fund-expires" class="block mb-1">end date</label>
+							<input
+								type="date"
+								name="date"
+								id="fund-expires"
+								value={ expiresValue(fund.Expires) }
+								class="w-full p-1 text-sm border border-slate-300 shadow-sm"
+							/>
+						</div>
+					</div>
+					<div class="flex items-center gap-3">
+						<span class="text-xs text-gray-600">paypal holds name and frequency</span>
 						<button
 							type="submit"
 							class="ml-auto px-3 py-1 text-sm bg-button hover:shadow-blue-boxy-thin shadow-blue-boxy"
@@ -83,6 +99,24 @@ templ FundDetails(fund donations.Fund, image *donations.FundImage, failure, succ
 				</form>
 			</div>
 		}
+	</div>
+}
+
+// lockedField shows a value the way the editable fields show theirs, so the card
+// reads as one form with two fields you cannot reach.
+//
+// disabled rather than readonly: a disabled field is not submitted at all, so
+// there is nothing for the handler to ignore. It ignores them anyway -- a form is
+// not the only thing that can post to a route -- but the two agree.
+templ lockedField(label, value string) {
+	<div>
+		<span class="block mb-1 text-gray-600">{ label }</span>
+		<input
+			type="text"
+			value={ value }
+			disabled
+			class="w-full p-1 text-sm border border-slate-200 bg-even text-gray-600 shadow-sm"
+		/>
 	</div>
 }
 
