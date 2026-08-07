@@ -64,9 +64,13 @@ type fakeProvider struct {
 
 	transactions []ProviderTransaction
 	err          error
+
+	start, end time.Time
 }
 
-func (f *fakeProvider) GetTransactionsForDonationSubscription(context.Context, string) ([]ProviderTransaction, error) {
+func (f *fakeProvider) GetTransactionsForDonationSubscription(_ context.Context, _ string, start, end time.Time) ([]ProviderTransaction, error) {
+	f.start, f.end = start, end
+
 	return f.transactions, f.err
 }
 
@@ -116,8 +120,11 @@ func TestBackfillRecordsPaymentsTheProviderHasAndWeDoNot(t *testing.T) {
 		// SALE-1 is already ours; only SALE-2 went missing.
 		known := []donations.DonationPayment{{ProviderPaymentID: "SALE-1"}}
 
-		recovered := newService(store, provider, events).
+		recovered, errBackfill := newService(store, provider, events).
 			backfillMissingPayments(context.Background(), donation, known)
+		if errBackfill != nil {
+			t.Fatalf("backfill: %v", errBackfill)
+		}
 
 		if recovered != 1 {
 			t.Fatalf("recovered %d, want 1", recovered)
@@ -161,8 +168,13 @@ func TestBackfillRecordsPaymentsTheProviderHasAndWeDoNot(t *testing.T) {
 
 		// A pending or failed transaction is not money the fund can pay out, and
 		// recording it would inflate the balance the planner divides up.
-		if recovered := newService(store, provider, &capturedEvents{}).
-			backfillMissingPayments(context.Background(), donation, nil); recovered != 0 {
+		recovered, errBackfill := newService(store, provider, &capturedEvents{}).
+			backfillMissingPayments(context.Background(), donation, nil)
+		if errBackfill != nil {
+			t.Fatalf("backfill: %v", errBackfill)
+		}
+
+		if recovered != 0 {
 			t.Errorf("recovered %d unsettled transactions, want 0", recovered)
 		}
 
@@ -179,8 +191,11 @@ func TestBackfillRecordsPaymentsTheProviderHasAndWeDoNot(t *testing.T) {
 		store := &fakeStore{conflict: true}
 		events := &capturedEvents{}
 
-		recovered := newService(store, provider, events).
+		recovered, errBackfill := newService(store, provider, events).
 			backfillMissingPayments(context.Background(), donation, nil)
+		if errBackfill != nil {
+			t.Fatalf("backfill: %v", errBackfill)
+		}
 
 		if recovered != 0 {
 			t.Errorf("recovered %d, want 0 -- the payment was already ours", recovered)
@@ -194,10 +209,16 @@ func TestBackfillRecordsPaymentsTheProviderHasAndWeDoNot(t *testing.T) {
 	t.Run("an unreadable subscription does not stop the run", func(t *testing.T) {
 		provider := &fakeProvider{err: errors.New("provider timeout")}
 
-		// One subscription the provider will not talk about must not prevent every
-		// other fund from being reconciled.
-		if recovered := newService(&fakeStore{}, provider, &capturedEvents{}).
-			backfillMissingPayments(context.Background(), donation, nil); recovered != 0 {
+		// Reported rather than swallowed. A run where every listing failed used to
+		// exit zero, which is how a call that had never worked went unnoticed.
+		recovered, errBackfill := newService(&fakeStore{}, provider, &capturedEvents{}).
+			backfillMissingPayments(context.Background(), donation, nil)
+
+		if errBackfill == nil {
+			t.Error("a provider that would not answer should fail the run")
+		}
+
+		if recovered != 0 {
 			t.Errorf("recovered %d, want 0", recovered)
 		}
 	})
@@ -209,9 +230,34 @@ func TestBackfillRecordsPaymentsTheProviderHasAndWeDoNot(t *testing.T) {
 		}}
 		store := &fakeStore{insertErr: errors.New("deadlock")}
 
-		if recovered := newService(store, provider, &capturedEvents{}).
-			backfillMissingPayments(context.Background(), donation, nil); recovered != 0 {
+		recovered, _ := newService(store, provider, &capturedEvents{}).
+			backfillMissingPayments(context.Background(), donation, nil)
+
+		if recovered != 0 {
 			t.Errorf("recovered %d, want 0", recovered)
+		}
+	})
+
+	t.Run("asks for a window, because PayPal requires one", func(t *testing.T) {
+		provider := &fakeProvider{}
+
+		// Without start_time and end_time PayPal answers
+		// MISSING_REQUIRED_PARAMETER and nothing is ever recovered.
+		_, _ = newService(&fakeStore{}, provider, &capturedEvents{}).
+			backfillMissingPayments(context.Background(), donation, nil)
+
+		if provider.start.IsZero() || provider.end.IsZero() {
+			t.Fatal("both ends of the window must be given")
+		}
+
+		if !provider.start.Before(provider.end) {
+			t.Error("the window should start before it ends")
+		}
+
+		// Asking earlier than the donation is asking about transactions that could
+		// not exist.
+		if provider.start.After(donation.Created) {
+			t.Error("the window should reach back to before the donation existed")
 		}
 	})
 }
@@ -263,8 +309,11 @@ func TestBackfillSkipsDonationsWithNoSubscription(t *testing.T) {
 		ProviderSubscriptionID: "",
 	}
 
-	recovered := newService(&fakeStore{}, provider, &capturedEvents{}).
+	recovered, err := newService(&fakeStore{}, provider, &capturedEvents{}).
 		backfillMissingPayments(context.Background(), oneTime, nil)
+	if err != nil {
+		t.Fatalf("a donation with no subscription is not an error: %v", err)
+	}
 
 	if recovered != 0 {
 		t.Errorf("recovered %d, want 0", recovered)
@@ -281,7 +330,7 @@ type countingProvider struct {
 	calls int
 }
 
-func (c *countingProvider) GetTransactionsForDonationSubscription(context.Context, string) ([]ProviderTransaction, error) {
+func (c *countingProvider) GetTransactionsForDonationSubscription(context.Context, string, time.Time, time.Time) ([]ProviderTransaction, error) {
 	c.calls++
 
 	return nil, nil
