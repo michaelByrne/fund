@@ -145,7 +145,11 @@ func (s DonationService) SaveFundImage(ctx context.Context, fundID uuid.UUID, up
 		return nil, ErrImageUnreadable
 	}
 
-	encoded, contentType, err := reencode(scaleDown(decoded))
+	// Resampled once. This is the expensive step on a large upload, and it was
+	// being done twice -- once to encode and once to ask the result its size.
+	scaled := scaleDown(decoded)
+
+	encoded, contentType, err := reencode(scaled)
 	if err != nil {
 		s.logger.Error("failed to re-encode a fund image", slog.String("error", err.Error()))
 
@@ -154,7 +158,6 @@ func (s DonationService) SaveFundImage(ctx context.Context, fundID uuid.UUID, up
 
 	sum := sha256.Sum256(encoded)
 	digest := hex.EncodeToString(sum[:])
-	scaled := scaleDown(decoded)
 	bounds := scaled.Bounds()
 	key := fundImageKey(fundID, digest, contentType)
 

@@ -896,7 +896,7 @@ func (h *AdminHandlers) setFundImage(w http.ResponseWriter, r *http.Request) {
 
 	fundID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		h.badImage(ctx, w, fundID, nil, "that is not a fund")
+		h.badImage(ctx, w, http.StatusBadRequest, fundID, nil, "that is not a fund")
 
 		return
 	}
@@ -908,14 +908,27 @@ func (h *AdminHandlers) setFundImage(w http.ResponseWriter, r *http.Request) {
 	// Buffered to the same bound rather than to a temporary file: this never wants
 	// a hostile upload on disk, and the limit is small enough to hold.
 	if err = r.ParseMultipartForm(donations.MaxImageBytes + 1024); err != nil {
-		h.badImage(ctx, w, fundID, nil, donations.ErrImageTooLarge.Error()+".")
+		// Every failure here used to be reported as too large, which was right for
+		// one of them. A malformed body or a missing boundary is not a size problem,
+		// and telling somebody their file is too big when it is not sends them off
+		// to shrink a picture that was never the trouble.
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			h.badImage(ctx, w, http.StatusRequestEntityTooLarge, fundID, nil,
+				donations.ErrImageTooLarge.Error()+".")
+
+			return
+		}
+
+		h.badImage(ctx, w, http.StatusBadRequest, fundID, nil,
+			"we could not read that upload. please try again.")
 
 		return
 	}
 
 	upload, _, err := r.FormFile("image")
 	if err != nil {
-		h.badImage(ctx, w, fundID, nil, "choose an image first.")
+		h.badImage(ctx, w, http.StatusBadRequest, fundID, nil, "choose an image first.")
 
 		return
 	}
@@ -957,13 +970,14 @@ func (h *AdminHandlers) removeFundImage(w http.ResponseWriter, r *http.Request) 
 
 	fundID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		h.badImage(ctx, w, fundID, nil, "that is not a fund")
+		h.badImage(ctx, w, http.StatusBadRequest, fundID, nil, "that is not a fund")
 
 		return
 	}
 
 	if err = h.donationService.RemoveFundImage(ctx, fundID); err != nil {
-		h.badImage(ctx, w, fundID, nil, "we could not remove that image. please try again.")
+		h.badImage(ctx, w, http.StatusInternalServerError, fundID, nil,
+			"we could not remove that image. please try again.")
 
 		return
 	}
@@ -989,8 +1003,8 @@ func imageFailure(err error) (int, string) {
 // badImage redraws the control with what went wrong. A fragment, always: this is
 // swapped into the control by htmx, and a whole page put there is not something a
 // browser can make sense of.
-func (h *AdminHandlers) badImage(ctx context.Context, w http.ResponseWriter, fundID uuid.UUID,
-	image *donations.FundImage, message string) {
-	w.WriteHeader(http.StatusBadRequest)
+func (h *AdminHandlers) badImage(ctx context.Context, w http.ResponseWriter, status int,
+	fundID uuid.UUID, image *donations.FundImage, message string) {
+	w.WriteHeader(status)
 	FundImageControl(fundID, image, message).Render(ctx, w)
 }

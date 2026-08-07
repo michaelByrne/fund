@@ -175,6 +175,8 @@ func TestFundImages(t *testing.T) {
 		_, format, errDecode := image.DecodeConfig(bytes.NewReader(readAll(t, body)))
 		require.NoError(t, errDecode)
 		require.Equal(t, "jpeg", format)
+
+		requireStoredSize(t, ctx, svc, fundID, saved)
 	})
 
 	// Always-JPEG would put a black rectangle behind every logo.
@@ -215,6 +217,12 @@ func TestFundImages(t *testing.T) {
 
 		require.Equal(t, donations.MaxImageDimension, saved.Width)
 		require.Equal(t, donations.MaxImageDimension/2, saved.Height, "proportions should hold")
+
+		// And the stored picture really is that size. Asserting only the recorded
+		// dimensions passes just as well when the full-size image was encoded and
+		// the row describes something it is not -- which is a page reserving space
+		// for a picture half the size of the one arriving.
+		requireStoredSize(t, ctx, svc, fundID, saved)
 	})
 
 	t.Run("refuses something that is not an image", func(t *testing.T) {
@@ -442,15 +450,35 @@ func TestFundImages(t *testing.T) {
 	})
 }
 
+// requireStoredSize checks the object against what the row says about it.
+//
+// The two can disagree -- the dimensions are read from the scaled image and the
+// bytes are whatever was handed to the encoder -- and nothing else here would
+// notice, because every page draws from the row.
+func requireStoredSize(t *testing.T, ctx context.Context, svc *donations.DonationService,
+	fundID uuid.UUID, recorded *donations.FundImage) {
+	t.Helper()
+
+	body, _, err := svc.OpenFundImage(ctx, fundID, recorded.SHA256)
+	require.NoError(t, err)
+	require.NotNil(t, body)
+
+	config, _, err := image.DecodeConfig(bytes.NewReader(readAll(t, body)))
+	require.NoError(t, err)
+
+	require.Equal(t, recorded.Width, config.Width, "the stored picture is not the width recorded for it")
+	require.Equal(t, recorded.Height, config.Height, "the stored picture is not the height recorded for it")
+}
+
 // fundImageKeyFor is the key the service would have written, rebuilt from the
 // outside so a test asserts against the naming rather than trusting it.
-func fundImageKeyFor(fundID uuid.UUID, image *donations.FundImage) string {
+func fundImageKeyFor(fundID uuid.UUID, recorded *donations.FundImage) string {
 	extension := ".jpg"
-	if image.ContentType == "image/png" {
+	if recorded.ContentType == "image/png" {
 		extension = ".png"
 	}
 
-	return "fund/" + fundID.String() + "/" + image.SHA256 + extension
+	return "fund/" + fundID.String() + "/" + recorded.SHA256 + extension
 }
 
 // forgePNGSize rewrites the width and height in a PNG's IHDR and fixes its CRC,
