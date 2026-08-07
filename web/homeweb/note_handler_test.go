@@ -2,6 +2,7 @@ package homeweb
 
 import (
 	"context"
+	"encoding/gob"
 	"io"
 	"log/slog"
 	"net/http"
@@ -41,6 +42,12 @@ func noteRig(t *testing.T) (func(fundID, form string) *httptest.ResponseRecorder
 	t.Cleanup(func() { _ = container.Terminate(ctx) })
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	// scs gob-encodes what it stores. Without this it cannot commit the session,
+	// answers 500 over a handler that worked, and every assertion below that only
+	// looks at the body passes against the failure path instead of the one it names.
+	gob.Register(members.Member{})
+
 	sessions := scs.New()
 
 	handlers := NewFundHandlers(
@@ -203,16 +210,20 @@ func TestTheReplyKeepsTheEditorThatAsked(t *testing.T) {
 	seedGift(t, pool, fundID, memberID)
 
 	for _, c := range []struct {
-		name string
-		form string
+		name   string
+		form   string
+		status int
 	}{
-		{"a note that saves", "editor=fund-note-form-mine&body=" + url.QueryEscape("thank you")},
+		{"a note that saves", "editor=fund-note-form-mine&body=" + url.QueryEscape("thank you"), 200},
 		// The refusals matter more: this is the path htmx has to be able to swap
 		// twice, once to show the error and again when the donor fixes it.
-		{"a note that is refused", "editor=fund-note-form-mine&body="},
+		{"a note that is refused", "editor=fund-note-form-mine&body=", 400},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			html := post(fundID, c.form).Body.String()
+			rec := post(fundID, c.form)
+			require.Equal(t, c.status, rec.Code)
+
+			html := rec.Body.String()
 
 			if !strings.Contains(html, `id="fund-note-form-mine"`) {
 				t.Errorf("the reply should wear the id of the editor that asked, got:\n%s", html)
@@ -229,7 +240,10 @@ func TestAnUnnamedEditorFallsBackToTheFund(t *testing.T) {
 	fundID := seedFund(t, pool)
 	seedGift(t, pool, fundID, memberID)
 
-	html := post(fundID, "body="+url.QueryEscape("thank you")).Body.String()
+	rec := post(fundID, "body="+url.QueryEscape("thank you"))
+	require.Equal(t, 200, rec.Code, "this note should have saved")
+
+	html := rec.Body.String()
 
 	if !strings.Contains(html, `id="fund-note-form-`+fundID+`"`) {
 		t.Errorf("expected the fund-keyed fallback id, got:\n%s", html)
