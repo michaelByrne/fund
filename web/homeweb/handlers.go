@@ -312,16 +312,23 @@ func (h *FundHandlers) saveFundNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	body := r.FormValue("body")
+	anonymous := r.FormValue("anonymous") == "true"
+	attempt := &donations.FundNote{Body: body, Anonymous: anonymous}
+
 	fund, err := h.donationService.GetFundByID(ctx, fundID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
+		// A fragment, like every other failure here. This is swapped into the form
+		// by hx-target-error, and a whole layout document dropped inside a form is
+		// not something a browser can make sense of: the section it lands in is the
+		// one that breaks.
+		h.logger.Error("failed to read the fund a note was left on", slog.String("error", err.Error()))
+
+		h.badNote(ctx, w, http.StatusInternalServerError, donations.Fund{ID: fundID}, attempt,
+			"we could not save your note. please try again.")
 
 		return
 	}
-
-	body := r.FormValue("body")
-	anonymous := r.FormValue("anonymous") == "true"
 
 	_, err = h.donationService.SaveFundNote(ctx, fundID, member.ID, body, anonymous)
 	if err != nil {
@@ -334,7 +341,7 @@ func (h *FundHandlers) saveFundNote(w http.ResponseWriter, r *http.Request) {
 			message = "we could not save your note. please try again."
 		}
 
-		h.badNote(ctx, w, status, *fund, &donations.FundNote{Body: body, Anonymous: anonymous}, message)
+		h.badNote(ctx, w, status, *fund, attempt, message)
 
 		return
 	}
