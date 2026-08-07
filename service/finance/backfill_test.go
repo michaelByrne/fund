@@ -28,6 +28,15 @@ type fakeStore struct {
 	// unique index on the provider payment id does for a payment a webhook
 	// delivered while this run was in flight.
 	conflict bool
+
+	reconcileErr   error
+	reconcileCalls int
+}
+
+func (f *fakeStore) SetPaymentReconciliation(context.Context, donations.SetPaymentReconciliation) error {
+	f.reconcileCalls++
+
+	return f.reconcileErr
 }
 
 func (f *fakeStore) InsertDonationPayment(_ context.Context, payment donations.InsertDonationPayment) (*donations.DonationPayment, error) {
@@ -59,6 +68,13 @@ type fakeProvider struct {
 
 func (f *fakeProvider) GetTransactionsForDonationSubscription(context.Context, string) ([]ProviderTransaction, error) {
 	return f.transactions, f.err
+}
+
+// Returns nothing, which is what PayPal's reporting does for a payment too recent
+// to have appeared in it -- the ordinary case for anything taken since the last
+// run.
+func (f *fakeProvider) GetTransaction(context.Context, string, time.Time, time.Time) (*ProviderTransaction, error) {
+	return nil, nil
 }
 
 type capturedEvents struct {
@@ -305,4 +321,48 @@ func TestEveryFrequencyIsAccountedFor(t *testing.T) {
 			t.Errorf("%s is missing from PayoutFrequencies", frequency)
 		}
 	}
+}
+
+// SetPaymentReconciliation is this job's only durable output now that the CSV is
+// gone. A run whose writes all failed used to report success, leaving the audit
+// page blank with nothing to say why -- and the cron green.
+func TestRecordProviderViewReportsWriteFailures(t *testing.T) {
+	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	payments := []donations.DonationPayment{
+		{ID: uuid.New(), ProviderPaymentID: "SALE-1", AmountCents: 1000},
+		{ID: uuid.New(), ProviderPaymentID: "SALE-2", AmountCents: 2000},
+	}
+
+	t.Run("a failed write fails the run", func(t *testing.T) {
+		store := &fakeStore{reconcileErr: errors.New("deadlock")}
+
+		err := newService(store, &fakeProvider{}, &capturedEvents{}).
+			recordProviderView(context.Background(), payments, quiet)
+
+		if err == nil {
+			t.Fatal("a run that persisted nothing must not report success")
+		}
+
+		// Every payment is still attempted: one bad row should not cost the rest of
+		// the fund.
+		if store.reconcileCalls != len(payments) {
+			t.Errorf("attempted %d of %d payments", store.reconcileCalls, len(payments))
+		}
+	})
+
+	t.Run("a clean run reports success", func(t *testing.T) {
+		store := &fakeStore{}
+
+		if err := newService(store, &fakeProvider{}, &capturedEvents{}).
+			recordProviderView(context.Background(), payments, quiet); err != nil {
+			t.Errorf("nothing failed, so the run should be clean: %v", err)
+		}
+
+		// Recorded even though the provider returned nothing: reconciled_at is what
+		// separates "checked, and it had nothing" from "never checked".
+		if store.reconcileCalls != len(payments) {
+			t.Errorf("recorded %d of %d payments", store.reconcileCalls, len(payments))
+		}
+	})
 }

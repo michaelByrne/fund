@@ -80,7 +80,6 @@ func (h *AdminHandlers) Register(r *mux.Router) {
 	// ambiguity by panicking as it registers.
 	r.HandleFunc("POST /admin/member/promote/{id}", h.withAdmin(h.grantAdmin))
 	r.HandleFunc("POST /admin/member/demote/{id}", h.withAdmin(h.revokeAdmin))
-	r.HandleFunc("GET /admin/fund/audits/{id}", h.withAdmin(h.availableAudits))
 	r.HandleFunc("GET /admin/fund/audit", h.withAdmin(h.fundAudit))
 	r.HandleFunc("GET /admin/fund", h.withAdmin(h.fundPage))
 	r.HandleFunc("GET /admin/members/search", h.withAdmin(h.searchMembers))
@@ -446,18 +445,11 @@ func (h *AdminHandlers) fundAudit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// One live view per fund, so there is no date or report type to choose. There
+	// used to be: the page read a CSV written by a past reconciliation run, so it
+	// could only show a fund on the days a run had left a file.
 	fundID := r.URL.Query().Get("fund")
-	dateStr := r.URL.Query().Get("date")
-	reportType := r.URL.Query().Get("type")
-
-	if fundID == "" || dateStr == "" || reportType == "" {
-		h.badRequest(w, r, "")
-
-		return
-	}
-
-	date, err := time.Parse("01-02-2006", dateStr)
-	if err != nil {
+	if fundID == "" {
 		h.badRequest(w, r, "")
 
 		return
@@ -470,11 +462,7 @@ func (h *AdminHandlers) fundAudit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req := finance.GetAuditRequest{
-		FundID: fundUUID,
-		Type:   reportType,
-		Date:   date,
-	}
+	req := finance.GetAuditRequest{FundID: fundUUID}
 
 	audit, err := h.financeService.GetAudit(ctx, req)
 	if err != nil {
@@ -485,40 +473,6 @@ func (h *AdminHandlers) fundAudit(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("HX-Redirect", r.URL.String())
 	FundPaymentsAudit(*audit, &member, r.URL.Path).Render(ctx, w)
-}
-
-func (h *AdminHandlers) availableAudits(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
-	if !ok {
-		http.Redirect(w, r, "/", http.StatusFound)
-
-		return
-	}
-
-	id := r.PathValue("id")
-	if id == "" {
-		h.badRequest(w, r, "")
-
-		return
-	}
-
-	idUUID, err := uuid.Parse(id)
-	if err != nil {
-		h.badRequest(w, r, "")
-
-		return
-	}
-
-	availAudits, err := h.financeService.GetAvailableAudits(ctx, idUUID)
-	if err != nil {
-		h.internalError(w, r)
-
-		return
-	}
-
-	FundAudits(availAudits).Render(ctx, w)
 }
 
 // AdminAccessState is what the member page knows about a member's admin rights.
