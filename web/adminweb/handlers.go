@@ -82,6 +82,7 @@ func (h *AdminHandlers) Register(r *mux.Router) {
 	r.HandleFunc("POST /admin/member/demote/{id}", h.withAdmin(h.revokeAdmin))
 	r.HandleFunc("GET /admin/fund/audit", h.withAdmin(h.fundAudit))
 	r.HandleFunc("GET /admin/fund", h.withAdmin(h.fundPage))
+	r.HandleFunc("POST /admin/note/remove/{id}", h.withAdmin(h.removeFundNote))
 	r.HandleFunc("GET /admin/members/search", h.withAdmin(h.searchMembers))
 	r.HandleFunc("POST /admin/enrollment", h.withAdmin(h.createEnrollment))
 	r.HandleFunc("GET /admin/enrollment/confirm", h.withAdmin(h.confirmEnrollment))
@@ -433,6 +434,38 @@ func (h *AdminHandlers) fundPage(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Add("HX-Redirect", r.URL.String())
 	Enrollments(*fund, activeEnrollments, events, &member, r.URL.Path).Render(ctx, w)
+}
+
+// removeFundNote takes a donor's note down.
+//
+// The first thing this application publishes that a member wrote, so somebody has
+// to be able to remove one. Soft: the row keeps who wrote it, who removed it and
+// when, which after taking something down is exactly what you want to still have.
+func (h *AdminHandlers) removeFundNote(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		common.Redirect(w, r, "/")
+
+		return
+	}
+
+	noteID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		h.badRequest(w, r, "")
+
+		return
+	}
+
+	if err = h.donationService.RemoveFundNote(ctx, noteID, member.ID); err != nil {
+		h.internalError(w, r)
+
+		return
+	}
+
+	// The row is gone from the list, so nothing replaces it.
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *AdminHandlers) fundAudit(w http.ResponseWriter, r *http.Request) {

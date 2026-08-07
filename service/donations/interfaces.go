@@ -27,6 +27,11 @@ type donationStore interface {
 	GetDonationByProviderSubscriptionID(ctx context.Context, id string) (*Donation, error)
 	GetDonationPlanByID(ctx context.Context, id uuid.UUID) (*DonationPlan, error)
 	GetDonationsForDonor(ctx context.Context, donorID uuid.UUID) ([]MemberDonation, error)
+	MemberHasGivenToFund(ctx context.Context, fundID, memberID uuid.UUID) (bool, error)
+	UpsertFundNote(ctx context.Context, arg UpsertFundNote) (*FundNote, error)
+	GetFundNotes(ctx context.Context, fundID uuid.UUID) ([]FundNote, error)
+	GetFundNoteForMember(ctx context.Context, fundID, memberID uuid.UUID) (*FundNote, error)
+	RemoveFundNote(ctx context.Context, noteID, actorID uuid.UUID) error
 	GetDonationByID(ctx context.Context, id uuid.UUID) (*Donation, error)
 	SetDonationToInactiveBySubscriptionID(ctx context.Context, arg DeactivateDonationBySubscription) (*Donation, error)
 	ReactivateSuspendedDonation(ctx context.Context, subscriptionID string) (*Donation, error)

@@ -204,6 +204,14 @@ type SetPaymentReconciliation struct {
 	ProviderFeeCents    *int32
 }
 
+// UpsertFundNote writes a donor's note on a fund.
+type UpsertFundNote struct {
+	FundID    uuid.UUID
+	MemberID  uuid.UUID
+	Body      string
+	Anonymous bool
+}
+
 // RefundedPayment is what a refund changed, carrying the fund and donor so the
 // activity entry can be written without a second lookup.
 type RefundedPayment struct {

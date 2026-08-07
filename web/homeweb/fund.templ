@@ -18,7 +18,7 @@ func donationURL(freq donations.PayoutFrequency) string {
 	return "/donation/once"
 }
 
-templ Fund(fund donations.Fund, fundStats donations.FundStats, member *members.Member, path string) {
+templ Fund(fund donations.Fund, fundStats donations.FundStats, notes []donations.FundNote, own *donations.FundNote, canWrite bool, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div id="donation-form" class="p-5 mt-2">
 			<span class="blue-boxy-filter">
@@ -39,6 +39,11 @@ templ Fund(fund donations.Fund, fundStats donations.FundStats, member *members.M
 						</canvas>
 					</div>
 				}
+			</div>
+			// response-targets so a refused note reaches the donor. htmx discards
+			// 4xx bodies without it, and the form would silently do nothing.
+			<div hx-ext="response-targets">
+				@FundNotes(fund, notes, own, canWrite, member != nil && member.IsAdmin())
 			</div>
 		</div>
 	}

@@ -358,6 +358,18 @@ type FundEvent struct {
 	DedupeKey       pgtype.Text
 }
 
+type FundNote struct {
+	ID        uuid.UUID
+	FundID    uuid.UUID
+	MemberID  uuid.UUID
+	Body      string
+	Anonymous bool
+	RemovedAt NullDBTime
+	RemovedBy uuid.NullUUID
+	Created   pgtype.Timestamptz
+	Updated   pgtype.Timestamptz
+}
+
 type Member struct {
 	ID              uuid.UUID
 	FirstName       pgtype.Text
