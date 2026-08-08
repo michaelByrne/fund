@@ -5,7 +5,6 @@ import (
 	"boardfund/service/payouts"
 	"boardfund/web/common"
 	"fmt"
-	"github.com/google/uuid"
 	"time"
 )
 
@@ -19,9 +18,15 @@ templ Payouts(batches []payouts.BatchDetail, member *members.Member, path string
 	}
 }
 
+// AwaitingApproval does not box its list into a scroll of its own.
+//
+// The payee panels are positioned against the row they belong to, and an
+// overflow-y-auto ancestor clips anything positioned inside it -- the panel would
+// be cut off at the edge of the box, or hidden entirely for the last row. The page
+// scrolls instead, which is one scrollbar rather than two.
 templ AwaitingApproval(batches []payouts.BatchDetail) {
 	@common.Section("batches awaiting approval") {
-		<div class="flex-grow overflow-y-auto max-h-[300px] sm:max-h-[500px]">
+		<div class="flex-grow">
 			<ul id="batches">
 				@BatchList(batches)
 			</ul>
@@ -71,45 +76,44 @@ templ BatchRow(batch payouts.BatchDetail) {
 	</li>
 }
 
-// PayeeCount is how many are being paid, and on a click, who.
+// PayeeCount is how many are being paid, and on hover, who.
 //
-// A real popover, not a title attribute. That was slow to appear, could not be
-// styled, and on a touch screen there is no hover at all -- so on a phone the
-// names could not be reached.
+// A panel positioned against the count rather than the browser's own popover. A
+// popover renders in the top layer, which is what stopped it being clipped -- and
+// also what put it in the middle of the screen, because placing one beside its
+// button needs CSS anchor positioning and that is Chrome only. Beside the words it
+// belongs to beats escaping a clip that this page no longer does.
 //
-// The browser's own popover rather than a positioned div, because this list sits
-// inside an overflow-y-auto box: anything absolutely positioned in here is
-// clipped by the scroll container. A popover renders in the top layer and is not.
-// It also brings light dismiss and escape-to-close without any of it being
-// written here.
+// Hover, and focus. group-focus-within is what makes this reachable by keyboard
+// and on a touch screen, where there is no hover at all and a tap is a focus.
 templ PayeeCount(batch payouts.BatchDetail) {
 	if len(batch.PayeeNames) == 0 {
 		<span class="text-gray-600">{ fmt.Sprintf("%d payees", batch.NumEnrollments) }</span>
 	} else {
-		<button
-			type="button"
-			popovertarget={ payeePopoverID(batch.ID) }
-			class="underline decoration-dotted underline-offset-2 hover:text-blue-500"
-		>
-			{ fmt.Sprintf("%d payees", batch.NumEnrollments) }
-		</button>
-		<div
-			id={ payeePopoverID(batch.ID) }
-			popover
-			class="p-4 bg-contrast shadow-blue-boxy border border-slate-300 max-w-xs"
-		>
-			<div class="text-sm font-semibold mb-2">
-				{ batch.FundName } &middot; { payoutAmount(batch.AmountCents) }
-			</div>
-			// Scrolls rather than truncating. A batch can pay everybody enrolled in a
-			// fund, and "and 25 more" is the answer only when there is nowhere to put
-			// them -- in a panel there is.
-			<ul class="text-sm max-h-64 overflow-y-auto">
-				for _, name := range batch.PayeeNames {
-					<li class="py-0.5">{ name }</li>
-				}
-			</ul>
-		</div>
+		<span class="group relative inline-block">
+			<button
+				type="button"
+				class="underline decoration-dotted underline-offset-2 hover:text-blue-500"
+			>
+				{ fmt.Sprintf("%d payees", batch.NumEnrollments) }
+			</button>
+			<span
+				class="hidden group-hover:block group-focus-within:block absolute left-0 top-full mt-1 z-50
+					w-56 p-3 text-left bg-contrast border border-slate-300 shadow-blue-boxy"
+			>
+				<span class="block text-xs font-semibold mb-1">
+					{ batch.FundName } &middot; { payoutAmount(batch.AmountCents) }
+				</span>
+				// Scrolls rather than truncating. A batch can pay everybody enrolled in
+				// a fund, and "and 25 more" is the answer only when there is nowhere to
+				// put them.
+				<span class="block text-sm max-h-64 overflow-y-auto">
+					for _, name := range batch.PayeeNames {
+						<span class="block py-0.5">{ name }</span>
+					}
+				</span>
+			</span>
+		</span>
 	}
 }
 
@@ -237,10 +241,4 @@ templ detailRow(label, value string) {
 		<div class="w-48 text-gray-600">{ label }</div>
 		<div class="break-all">{ value }</div>
 	</div>
-}
-
-// payeePopoverID ties a button to its panel. One per batch, because the approval
-// page lists several and two panels sharing an id would open whichever came first.
-func payeePopoverID(batchID uuid.UUID) string {
-	return "payees-" + batchID.String()
 }
