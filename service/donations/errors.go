@@ -38,3 +38,12 @@ var ErrDonationNotYours = errors.New("donation does not belong to this member")
 // ErrDonationNotCancellable means there is nothing to cancel -- a one-off
 // donation, or one already ended.
 var ErrDonationNotCancellable = errors.New("donation cannot be cancelled")
+
+// ErrFundClosed means the fund has ended -- deactivated, or past its end date --
+// and is not something to be changed any more.
+//
+// Enforced in the service rather than by hiding the controls. A closed fund with
+// an editable end date reads as one that can be reopened, and the form being
+// absent is a courtesy: the rule has to hold for anything that posts to the
+// route, not only for what the page drew.
+var ErrFundClosed = errors.New("a closed fund cannot be changed")

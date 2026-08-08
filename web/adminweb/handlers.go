@@ -1029,8 +1029,13 @@ func (h *AdminHandlers) removeFundImage(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err = h.donationService.RemoveFundImage(ctx, fundID); err != nil {
-		h.badImage(ctx, w, http.StatusInternalServerError, fundID, nil,
-			"we could not remove that image. please try again.")
+		status, message := imageFailure(err)
+		if message == "" {
+			status = http.StatusInternalServerError
+			message = "we could not remove that image. please try again."
+		}
+
+		h.badImage(ctx, w, status, fundID, nil, message)
 
 		return
 	}
@@ -1048,6 +1053,8 @@ func imageFailure(err error) (int, string) {
 		return http.StatusBadRequest, donations.ErrImageTooManyPixels.Error() + "."
 	case errors.Is(err, donations.ErrImageUnreadable):
 		return http.StatusBadRequest, donations.ErrImageUnreadable.Error() + "."
+	case errors.Is(err, donations.ErrFundClosed):
+		return http.StatusConflict, "this fund is closed. its picture cannot be changed."
 	default:
 		return http.StatusInternalServerError, ""
 	}
@@ -1130,6 +1137,12 @@ func (h *AdminHandlers) saveFundDetails(w http.ResponseWriter, r *http.Request) 
 
 	saved, err := h.donationService.UpdateFund(ctx, updated)
 	if err != nil {
+		if errors.Is(err, donations.ErrFundClosed) {
+			h.badDetails(ctx, w, *fund, "this fund is closed. nothing about it can be changed.")
+
+			return
+		}
+
 		h.badDetails(ctx, w, *fund, "we could not save that. please try again.")
 
 		return

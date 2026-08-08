@@ -113,6 +113,10 @@ type FundImageObject struct {
 // the bytes served to every visitor are bytes this application produced, so the
 // content type is a fact rather than a claim.
 func (s DonationService) SaveFundImage(ctx context.Context, fundID uuid.UUID, upload io.Reader) (*FundImage, error) {
+	if err := s.fundIsOpen(ctx, fundID); err != nil {
+		return nil, err
+	}
+
 	// One byte past the limit, so a file exactly at it still passes and anything
 	// larger is caught here rather than by reading all of it.
 	raw, err := io.ReadAll(io.LimitReader(upload, MaxImageBytes+1))
@@ -387,6 +391,10 @@ func (s DonationService) OpenFundImage(ctx context.Context, fundID uuid.UUID, sh
 // leaves bytes in a bucket that nothing points at rather than a picture still
 // showing on the site.
 func (s DonationService) RemoveFundImage(ctx context.Context, fundID uuid.UUID) error {
+	if err := s.fundIsOpen(ctx, fundID); err != nil {
+		return err
+	}
+
 	key, err := s.donationStore.GetFundImageKey(ctx, fundID)
 	if err != nil {
 		s.logger.Error("failed to read the fund image key", slog.String("error", err.Error()))
@@ -409,6 +417,25 @@ func (s DonationService) RemoveFundImage(ctx context.Context, fundID uuid.UUID) 
 			slog.String("key", key),
 			slog.String("error", err.Error()),
 		)
+	}
+
+	return nil
+}
+
+// fundIsOpen refuses anything that would change a fund that has ended.
+//
+// Checked before the upload is read, so a closed fund does not decode eight
+// megabytes of somebody's photograph before saying no.
+func (s DonationService) fundIsOpen(ctx context.Context, fundID uuid.UUID) error {
+	fund, err := s.donationStore.GetFundByID(ctx, fundID)
+	if err != nil {
+		s.logger.Error("failed to read the fund being changed", slog.String("error", err.Error()))
+
+		return err
+	}
+
+	if fund.Closed() {
+		return ErrFundClosed
 	}
 
 	return nil
