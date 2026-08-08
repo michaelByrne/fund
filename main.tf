@@ -66,8 +66,29 @@ resource "aws_cognito_user_pool" "bco_fund_pool" {
   # changes the From address and the 50 emails/day cap still applies. Raising that
   # means email_sending_account = "DEVELOPER", which needs the verified identity
   # plus an IAM role for Cognito. Worth revisiting once SES is out of the sandbox.
+  # Cognito's own sender, no-reply@verificationemail.com, is rate limited to a
+  # handful of messages a day and is not a domain anybody recognises. DEVELOPER
+  # sends through our own verified SES identity instead: the address is ours, the
+  # domain is aligned for DKIM and DMARC, and the quota is the account's.
+  #
+  # Do not apply this while SES is in the sandbox. In the sandbox SES will only
+  # deliver to addresses that are themselves verified, so every signup by a real
+  # member silently fails to receive its confirmation code -- and this repository
+  # applies terraform automatically on merge, so merging is the apply.
+  # Check first:  aws sesv2 get-account --region us-west-2 --query ProductionAccessEnabled
+  #
+  # source_arn is the domain identity rather than the welcome@ address identity,
+  # so the local part can change without touching IAM. from_email_address is
+  # required when the identity is a domain -- SES cannot guess which address.
+  #
+  # No SES sending authorization policy is needed for DEVELOPER: Cognito creates a
+  # service-linked role instead, using the credentials of whoever applies. That is
+  # the CI role, which has iam:CreateServiceLinkedRole through its admin policy.
   email_configuration {
-    email_sending_account = "COGNITO_DEFAULT"
+    email_sending_account  = "DEVELOPER"
+    source_arn             = aws_ses_domain_identity.fund_domain.arn
+    from_email_address     = "BCO Fund <welcome@${var.domain}>"
+    reply_to_email_address = "welcome@${var.domain}"
   }
 
   schema {
