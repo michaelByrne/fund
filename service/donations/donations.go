@@ -570,6 +570,7 @@ func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUI
 	insertPayment := InsertDonationPayment{
 		ID:                uuid.New(),
 		AmountCents:       order.AmountCents,
+		ProviderFeeCents:  order.FeeCents,
 		ProviderPaymentID: order.ProviderPaymentID,
 		DonationID:        insertDonation.ID,
 	}
@@ -654,7 +655,24 @@ func (s DonationService) CreateFund(ctx context.Context, createFund Fund) (*Fund
 	return fund, nil
 }
 
+// UpdateFund changes a fund that is still open.
+//
+// A closed one is refused. Reopening is not something this does -- it would mean
+// a fund taking donations again with its payouts already settled -- and letting
+// an end date be edited on one that has passed is how that would happen by
+// accident.
 func (s DonationService) UpdateFund(ctx context.Context, updateFund Fund) (*Fund, error) {
+	current, err := s.donationStore.GetFundByID(ctx, updateFund.ID)
+	if err != nil {
+		s.logger.Error("failed to read the fund being updated", slog.String("error", err.Error()))
+
+		return nil, err
+	}
+
+	if current.Closed() {
+		return nil, ErrFundClosed
+	}
+
 	update := UpdateFund{
 		ID:              updateFund.ID,
 		Name:            updateFund.Name,

@@ -163,12 +163,20 @@ func (p Paypal) GetOrder(ctx context.Context, orderID string) (*donations.Provid
 		return nil, err
 	}
 
+	result := orderFromResponse(order)
+
+	return &result, nil
+}
+
+// orderFromResponse is the mapping, split out so it can be exercised without a
+// PayPal on the other end. Everything interesting about GetOrder happens here.
+func orderFromResponse(order PaymentCaptureResponse) donations.ProviderOrder {
 	result := donations.ProviderOrder{
 		Status: order.Status,
 	}
 
 	if len(order.PurchaseUnits) == 0 {
-		return &result, nil
+		return result
 	}
 
 	unit := order.PurchaseUnits[0]
@@ -185,10 +193,19 @@ func (p Paypal) GetOrder(ctx context.Context, orderID string) (*donations.Provid
 		result.ProviderPaymentID = capture.ID
 		result.AmountCents = decimalDollarStringToCents(capture.Amount.Value)
 
+		// The fee, which PayPal has already taken. It was parsed into this struct
+		// and then never read, so every one-time donation was recorded as though it
+		// had cost nothing to collect -- and the fund balance counted money that was
+		// never in the account.
+		//
+		// PayPal documents this breakdown as absent only while a transaction is
+		// pending, and a pending capture is skipped above.
+		result.FeeCents = feeCentsFromProvider(capture.SellerReceivableBreakdown.PaypalFee.Value)
+
 		break
 	}
 
-	return &result, nil
+	return result
 }
 
 // GetSubscription reads a subscription back so a recurring donation can be
@@ -288,6 +305,13 @@ func (p Paypal) GetTransaction(ctx context.Context, id string, start, end time.T
 		return nil, nil
 	}
 
+	return transactionFromResponse(transaction)
+}
+
+// transactionFromResponse is the mapping, split out so it can be exercised
+// without a PayPal on the other end -- which is how the fee came to be dropped
+// here unnoticed for as long as it was.
+func transactionFromResponse(transaction Transaction) (*finance.ProviderTransaction, error) {
 	var transactionInfo TransactionInfo
 	if len(transaction.TransactionDetails) > 0 {
 		transactionInfo = transaction.TransactionDetails[0].TransactionInfo
@@ -310,7 +334,24 @@ func (p Paypal) GetTransaction(ctx context.Context, id string, start, end time.T
 		Date:              transactionDate,
 		Status:            status,
 		AmountCents:       decimalDollarStringToCents(transactionInfo.TransactionAmount.Value),
+		// Reconciliation is what fills in a fee nothing else recorded, and it never
+		// could: this was parsed and dropped, so the fee it read was always zero and
+		// the guard that only writes a positive fee never fired.
+		FeeCents: feeCentsFromProvider(transactionInfo.FeeAmount.Value),
 	}, nil
+}
+
+// feeCentsFromProvider reads a fee the reporting API states as a negative amount.
+//
+// Always returned as a positive number of cents: a fee is a fee whichever sign
+// the provider writes it with, and every caller subtracts it.
+func feeCentsFromProvider(value string) int32 {
+	cents := decimalDollarStringToCents(strings.TrimPrefix(strings.TrimSpace(value), "-"))
+	if cents < 0 {
+		return -cents
+	}
+
+	return cents
 }
 
 // providerTimeLayouts are the shapes PayPal timestamps arrive in.

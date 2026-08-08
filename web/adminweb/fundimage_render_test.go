@@ -14,6 +14,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// openFund is a fund that is still running.
+//
+// Worth a helper: a zero-value Fund has Active false, which Closed() reads as
+// closed -- so a fixture that does not say otherwise gets the read-only card and
+// none of the controls these tests are about.
+func openFund(name string) donations.Fund {
+	return donations.Fund{ID: uuid.New(), Name: name, Description: "d", Active: true}
+}
+
 func renderAdmin(t *testing.T, c templ.Component) string {
 	t.Helper()
 
@@ -42,7 +51,7 @@ func chrome(t *testing.T, title string) string {
 // The picture is a setting now, so the card it appears in is the settings card,
 // and the picture control is a part of that rather than a box of its own.
 func TestTheDetailsCardIsTheSameCardAsTheRest(t *testing.T) {
-	html := renderAdmin(t, FundDetails(donations.Fund{ID: uuid.New(), Name: "human fund"}, nil, "", ""))
+	html := renderAdmin(t, FundDetails(openFund("human fund"), nil, "", ""))
 
 	require.Contains(t, html, chrome(t, "fund details"),
 		"fund details should be the same card as history and enrollments beside it")
@@ -61,7 +70,7 @@ func TestSectionsDoNotAllShareAnID(t *testing.T) {
 	require.NotContains(t, renderAdmin(t, common.Section("history")), "enrollment-success")
 
 	// Two on a page is the case that was broken, so it is the case worth asserting.
-	both := renderAdmin(t, FundDetails(donations.Fund{ID: uuid.New()}, nil, "", "")) +
+	both := renderAdmin(t, FundDetails(openFund("human fund"), nil, "", "")) +
 		renderAdmin(t, FundHistory(nil))
 
 	ids := regexp.MustCompile(`id="([^"]+)"`).FindAllStringSubmatch(both, -1)
@@ -122,7 +131,7 @@ func TestAFailedPictureStillReportsTheFund(t *testing.T) {
 // -- and a form inside a form is not something a browser keeps. It drops the
 // inner one, and the upload button quietly stops doing anything.
 func TestTheDetailsCardHasNoNestedForms(t *testing.T) {
-	html := renderAdmin(t, FundDetails(donations.Fund{ID: uuid.New(), Name: "human fund"}, nil, "", ""))
+	html := renderAdmin(t, FundDetails(openFund("human fund"), nil, "", ""))
 
 	// Walk the tags: a second <form> before the first </form> is a nested one.
 	depth := 0
@@ -172,9 +181,8 @@ func TestThePictureControlSaysWhenThereIsNone(t *testing.T) {
 // Name and frequency are shown as fields rather than described in a sentence
 // underneath, which came out as "board costs fund is once".
 func TestNameAndFrequencyAreShownLocked(t *testing.T) {
-	fund := donations.Fund{
-		ID: uuid.New(), Name: "board costs", PayoutFrequency: donations.PayoutFrequencyOnce,
-	}
+	fund := openFund("board costs")
+	fund.PayoutFrequency = donations.PayoutFrequencyOnce
 
 	html := renderAdmin(t, FundDetails(fund, nil, "", ""))
 

@@ -507,3 +507,94 @@ func forgePNGSize(t *testing.T, data []byte, width, height uint32) []byte {
 
 	return forged
 }
+
+// A closed fund is finished. Its picture is part of the record of what it was,
+// and the archive still shows it.
+func TestAClosedFundsPictureIsFixed(t *testing.T) {
+	ctx := context.Background()
+
+	container, pool, err := pg.SetupTestDatabase()
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = container.Terminate(ctx) })
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	bucket := newFakeBucket()
+	svc := donations.NewDonationService(donationsstore.NewDonationStore(pool), stubDocumentStorage{},
+		bucket, &mocks.PaymentsProviderMock{},
+		fundevents.NewService(fundeventstore.NewEventStore(pool), logger), nil, logger)
+
+	closeFund := func(t *testing.T, fundID uuid.UUID) {
+		t.Helper()
+
+		_, errClose := pool.Exec(ctx, `UPDATE fund SET active = false WHERE id = $1`, fundID)
+		require.NoError(t, errClose)
+	}
+
+	t.Run("no new picture", func(t *testing.T) {
+		fundID := seedOnceFund(t, ctx, pool)
+		closeFund(t, fundID)
+
+		_, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)))
+		require.ErrorIs(t, errSave, donations.ErrFundClosed)
+	})
+
+	// Refused before the upload is read, so a closed fund does not pull eight
+	// megabytes of somebody's photograph into memory and decode it on its way to
+	// saying no.
+	//
+	// Watching the reader rather than the bucket: nothing reaches the bucket
+	// wherever the check sits, so the bucket cannot tell the two apart.
+	t.Run("refused before the bytes are read", func(t *testing.T) {
+		fundID := seedOnceFund(t, ctx, pool)
+		closeFund(t, fundID)
+
+		upload := &watchedReader{Reader: bytes.NewReader(jpegOf(t, 100, 100))}
+
+		_, errSave := svc.SaveFundImage(ctx, fundID, upload)
+		require.ErrorIs(t, errSave, donations.ErrFundClosed)
+
+		require.False(t, upload.read, "the upload was read before the fund was checked")
+	})
+
+	t.Run("the existing one stays", func(t *testing.T) {
+		fundID := seedOnceFund(t, ctx, pool)
+
+		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)))
+		require.NoError(t, errSave)
+
+		closeFund(t, fundID)
+
+		require.ErrorIs(t, svc.RemoveFundImage(ctx, fundID), donations.ErrFundClosed)
+
+		// And it is still being served, because the archive still shows it.
+		body, _, errOpen := svc.OpenFundImage(ctx, fundID, saved.SHA256)
+		require.NoError(t, errOpen)
+		require.NotNil(t, body)
+		require.NotEmpty(t, readAll(t, body))
+	})
+
+	t.Run("an expired fund counts as closed", func(t *testing.T) {
+		fundID := seedOnceFund(t, ctx, pool)
+
+		_, errExpire := pool.Exec(ctx,
+			`UPDATE fund SET expires = now() - INTERVAL '1 day' WHERE id = $1`, fundID)
+		require.NoError(t, errExpire)
+
+		_, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)))
+		require.ErrorIs(t, errSave, donations.ErrFundClosed)
+	})
+}
+
+// watchedReader reports whether anything read from it.
+type watchedReader struct {
+	io.Reader
+
+	read bool
+}
+
+func (w *watchedReader) Read(p []byte) (int, error) {
+	w.read = true
+
+	return w.Reader.Read(p)
+}

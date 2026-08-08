@@ -23,83 +23,178 @@ import (
 templ FundDetails(fund donations.Fund, image *donations.FundImage, failure, success string) {
 	<div id="fund-details">
 		@common.Section("fund details") {
-			if failure != "" {
-				<p class="mb-3 p-2 text-sm bg-odd-hover">{ failure }</p>
-			}
-			if success != "" {
-				<p class="mb-3 p-2 text-sm bg-high">{ success }</p>
-			}
-			// The picture is beside the form, not inside it. Its controls are a form of
-			// their own -- a file upload to a different route -- and a form inside a
-			// form is not something a browser keeps: it drops the inner one, and the
-			// upload button quietly stops doing anything.
-			<div class="flex flex-col sm:flex-row gap-4 text-sm">
-				@FundImageControl(fund.ID, image, "")
-				<form
-					hx-post={ fmt.Sprintf("/admin/fund/details/%s", fund.ID.String()) }
-					hx-target="#fund-details"
-					hx-target-error="#fund-details"
-					hx-swap="outerHTML"
-					class="flex-grow min-w-0 flex flex-col gap-3"
-				>
-					<div class="flex gap-3">
-						<div class="flex-grow min-w-0">
-							@lockedField("name", fund.Name)
+			if fund.Closed() {
+				@ClosedFundDetails(fund, image)
+			} else {
+				if failure != "" {
+					<p class="mb-3 p-2 text-sm bg-odd-hover">{ failure }</p>
+				}
+				if success != "" {
+					<p class="mb-3 p-2 text-sm bg-high">{ success }</p>
+				}
+				// The picture is beside the form, not inside it. Its controls are a form of
+				// their own -- a file upload to a different route -- and a form inside a
+				// form is not something a browser keeps: it drops the inner one, and the
+				// upload button quietly stops doing anything.
+				<div class="flex flex-col sm:flex-row gap-4 text-sm">
+					@FundImageControl(fund.ID, image, "")
+					<form
+						hx-post={ fmt.Sprintf("/admin/fund/details/%s", fund.ID.String()) }
+						hx-target="#fund-details"
+						hx-target-error="#fund-details"
+						hx-swap="outerHTML"
+						class="flex-grow min-w-0 flex flex-col gap-3"
+					>
+						<div class="flex gap-3">
+							<div class="flex-grow min-w-0">
+								@lockedField("name", fund.Name)
+							</div>
+							<div class="w-28 shrink-0">
+								@lockedField("frequency", string(fund.PayoutFrequency))
+							</div>
 						</div>
-						<div class="w-28 shrink-0">
-							@lockedField("frequency", string(fund.PayoutFrequency))
+						<div>
+							<label for="fund-description" class="block mb-1">description</label>
+							<textarea
+								name="description"
+								id="fund-description"
+								rows="3"
+								class="w-full p-1 text-sm border border-slate-300 shadow-sm"
+							>{ fund.Description }</textarea>
 						</div>
-					</div>
-					<div>
-						<label for="fund-description" class="block mb-1">description</label>
-						<textarea
-							name="description"
-							id="fund-description"
-							rows="3"
-							class="w-full p-1 text-sm border border-slate-300 shadow-sm"
-						>{ fund.Description }</textarea>
-					</div>
-					<div class="flex gap-3">
-						<div class="flex-grow min-w-0">
-							<label for="fund-goal" class="block mb-1">goal</label>
-							<div class="relative">
-								<span class="absolute left-1 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+						<div class="flex gap-3">
+							<div class="flex-grow min-w-0">
+								<label for="fund-goal" class="block mb-1">goal</label>
+								<div class="relative">
+									<span class="absolute left-1 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+									<input
+										type="number"
+										name="goal"
+										id="fund-goal"
+										min="0"
+										step="0.01"
+										placeholder="none"
+										value={ goalValue(fund.GoalCents) }
+										class="w-full pl-5 p-1 text-sm border border-slate-300 shadow-sm"
+									/>
+								</div>
+							</div>
+							<div class="flex-grow min-w-0">
+								<label for="fund-expires" class="block mb-1">end date</label>
 								<input
-									type="number"
-									name="goal"
-									id="fund-goal"
-									min="0"
-									step="0.01"
-									placeholder="none"
-									value={ goalValue(fund.GoalCents) }
-									class="w-full pl-5 p-1 text-sm border border-slate-300 shadow-sm"
+									type="date"
+									name="date"
+									id="fund-expires"
+									value={ expiresValue(fund.Expires) }
+									class="w-full p-1 text-sm border border-slate-300 shadow-sm"
 								/>
 							</div>
 						</div>
-						<div class="flex-grow min-w-0">
-							<label for="fund-expires" class="block mb-1">end date</label>
-							<input
-								type="date"
-								name="date"
-								id="fund-expires"
-								value={ expiresValue(fund.Expires) }
-								class="w-full p-1 text-sm border border-slate-300 shadow-sm"
-							/>
+						<div class="flex items-center gap-3">
+							<span class="text-xs text-gray-600">paypal holds name and frequency</span>
+							<button
+								type="submit"
+								class="ml-auto px-3 py-1 text-sm bg-button hover:shadow-blue-boxy-thin shadow-blue-boxy"
+							>
+								save
+							</button>
 						</div>
-					</div>
-					<div class="flex items-center gap-3">
-						<span class="text-xs text-gray-600">paypal holds name and frequency</span>
-						<button
-							type="submit"
-							class="ml-auto px-3 py-1 text-sm bg-button hover:shadow-blue-boxy-thin shadow-blue-boxy"
-						>
-							save
-						</button>
-					</div>
-				</form>
-			</div>
+					</form>
+				</div>
+			}
 		}
 	</div>
+}
+
+// ClosedFundDetails is the same card with nothing to press.
+//
+// A closed fund is finished: its payouts are settled and its donations have
+// stopped. An editable end date on one reads as a fund that can be reopened,
+// which is not something this does -- so the whole card goes read-only rather
+// than the one field that gives the wrong impression.
+//
+// The service refuses these changes too. This is what the page shows; that is
+// what decides.
+templ ClosedFundDetails(fund donations.Fund, image *donations.FundImage) {
+	<div class="flex flex-col sm:flex-row gap-4 text-sm">
+		<div class="w-32 shrink-0">
+			<div class="text-xs font-semibold mb-1">picture</div>
+			<div class="w-32 h-32 bg-even shadow-blue-boxy-thin">
+				if image != nil {
+					<img
+						src={ image.URL() }
+						alt="the fund picture"
+						width={ fmt.Sprintf("%d", image.Width) }
+						height={ fmt.Sprintf("%d", image.Height) }
+						class="w-full h-full object-contain"
+					/>
+				} else {
+					<span class="w-full h-full flex items-center justify-center text-xs text-gray-600">
+						no picture
+					</span>
+				}
+			</div>
+		</div>
+		<div class="flex-grow min-w-0 flex flex-col gap-3">
+			<div class="flex gap-3">
+				<div class="flex-grow min-w-0">
+					@lockedField("name", fund.Name)
+				</div>
+				<div class="w-28 shrink-0">
+					@lockedField("frequency", string(fund.PayoutFrequency))
+				</div>
+			</div>
+			@lockedDescription(fund.Description)
+			<div class="flex gap-3">
+				<div class="flex-grow min-w-0">
+					@lockedField("goal", goalDisplay(fund.GoalCents))
+				</div>
+				<div class="flex-grow min-w-0">
+					@lockedField("end date", expiresDisplay(fund.Expires))
+				</div>
+			</div>
+			<p class="text-xs text-gray-600">
+				this fund is closed. nothing about it can be changed.
+			</p>
+		</div>
+	</div>
+}
+
+// lockedDescription is the description on a closed fund.
+//
+// A textarea, not the single-line input the other locked fields use. A
+// description is the one field here that can run to several lines, and an input
+// holds its value in an attribute -- where newlines are flattened to spaces and
+// anything past the width of the box is simply not visible. The editable version
+// is a textarea for the same reason; the read-only one should not lose the shape
+// of what was written.
+templ lockedDescription(description string) {
+	<div>
+		<span class="block mb-1 text-gray-600">description</span>
+		<textarea
+			rows="3"
+			disabled
+			class="w-full p-1 text-sm border border-slate-200 bg-even text-gray-600 shadow-sm"
+		>{ description }</textarea>
+	</div>
+}
+
+// goalDisplay and expiresDisplay read for a person rather than for a form field,
+// because on a closed fund these are being read and not typed into.
+func goalDisplay(cents int32) string {
+	if cents == 0 {
+		return "none"
+	}
+
+	return "$" + centsToDecimalString(cents)
+}
+
+func expiresDisplay(expires *time.Time) string {
+	if expires == nil {
+		return "none"
+	}
+
+	return expires.UTC().Format("January 2, 2006")
 }
 
 // lockedField shows a value the way the editable fields show theirs, so the card

@@ -302,3 +302,143 @@ func TestCreatingAFundSurvivesABadPicture(t *testing.T) {
 	require.Contains(t, body, name+" was created", "the admin has to be told the fund exists")
 	require.Contains(t, body, "not a jpeg", "and what was wrong with the picture")
 }
+
+// A closed fund is finished: its payouts are settled and its donations have
+// stopped. Reopening is not something this does, and an editable end date on one
+// is how it would happen by accident.
+func TestAClosedFundCannotBeChanged(t *testing.T) {
+	post, pool := detailsRig(t)
+
+	// closedFund is one past its end date. Expired rather than deactivated, because
+	// that is the state nobody pressed a button to reach.
+	closedFund := func(t *testing.T) uuid.UUID {
+		t.Helper()
+
+		fundID := uuid.New()
+		_, err := pool.Exec(context.Background(),
+			`INSERT INTO fund (id, name, description, provider_id, provider_name, payout_frequency, next_payment, goal_cents, expires)
+			 VALUES ($1, 'human fund', 'the original', $2, 'paypal', 'monthly', now(), 50000, now() - INTERVAL '1 day')`,
+			fundID, fundID.String())
+		require.NoError(t, err)
+
+		return fundID
+	}
+
+	t.Run("the server refuses, whatever the page drew", func(t *testing.T) {
+		fundID := closedFund(t)
+
+		recorder := post(fundID.String(), "description=changed&date=2099-01-01")
+		require.Equal(t, http.StatusBadRequest, recorder.Code)
+
+		fund := readFund(t, pool, fundID)
+		require.Equal(t, "the original", fund.Description)
+	})
+
+	// The one that matters. A closed fund whose end date can be pushed into the
+	// future is a fund taking donations again with its payouts already settled.
+	t.Run("the end date cannot be pushed out", func(t *testing.T) {
+		fundID := closedFund(t)
+
+		before := readFund(t, pool, fundID)
+
+		post(fundID.String(), "description=d&date=2099-12-31")
+
+		after := readFund(t, pool, fundID)
+		require.Equal(t, before.Expires.UTC(), after.Expires.UTC(), "the fund was reopened")
+	})
+
+	t.Run("a deactivated fund is refused the same way", func(t *testing.T) {
+		fundID := seedFundRow(t, pool)
+		_, err := pool.Exec(context.Background(), `UPDATE fund SET active = false WHERE id = $1`, fundID)
+		require.NoError(t, err)
+
+		post(fundID.String(), "description=changed")
+
+		require.Equal(t, "the original", readFund(t, pool, fundID).Description)
+	})
+
+	t.Run("an open fund is still editable", func(t *testing.T) {
+		fundID := seedFundRow(t, pool)
+
+		recorder := post(fundID.String(), "description=changed")
+		require.Equal(t, http.StatusOK, recorder.Code)
+
+		require.Equal(t, "changed", readFund(t, pool, fundID).Description)
+	})
+
+	// Hiding the form is a courtesy. The card is what says so.
+	t.Run("the card offers nothing to press", func(t *testing.T) {
+		past := time.Now().Add(-24 * time.Hour)
+		fund := donations.Fund{
+			ID: uuid.New(), Name: "human fund", Description: "d",
+			Active: true, Expires: &past,
+		}
+
+		html := renderAdmin(t, FundDetails(fund, nil, "", ""))
+
+		require.NotContains(t, html, "<form")
+		require.NotContains(t, html, "type=\"date\"")
+		require.NotContains(t, html, "save")
+		require.NotContains(t, html, "remove")
+		require.Contains(t, html, "this fund is closed")
+
+		// It still says what the fund was.
+		require.Contains(t, html, "human fund")
+	})
+}
+
+// The handler reads the fund, then the service reads it again before refusing.
+// Between those two reads it can expire, or another admin can close it -- so a
+// refusal has to redraw from what is stored now, not from the copy the handler
+// started with. Otherwise the page shows an editable card carrying the message
+// "this fund is closed", which is the page arguing with itself.
+func TestARefusalRedrawsFromWhatIsStoredNow(t *testing.T) {
+	post, pool := detailsRig(t)
+
+	t.Run("a fund closed underneath the request redraws read-only", func(t *testing.T) {
+		fundID := seedFundRow(t, pool)
+
+		// The state the handler's first read would have seen is open; the state at
+		// the moment of refusal is closed. Closing it here stands in for the window
+		// between the two.
+		_, err := pool.Exec(context.Background(),
+			`UPDATE fund SET active = false WHERE id = $1`, fundID)
+		require.NoError(t, err)
+
+		recorder := post(fundID.String(), "description=changed")
+		html := recorder.Body.String()
+
+		require.Contains(t, html, "this fund is closed")
+		require.NotContains(t, html, "<form", "an editable card under a closed-fund message")
+		require.NotContains(t, html, "save")
+	})
+
+	// Every refusal, not just the closed one: the boxes should hold what is stored
+	// rather than what was typed and rejected.
+	t.Run("a validation failure shows what is stored", func(t *testing.T) {
+		fundID := seedFundRow(t, pool)
+
+		html := post(fundID.String(), "description=changed&goal=lots").Body.String()
+
+		require.Contains(t, html, "the original")
+		require.NotContains(t, html, "changed")
+	})
+}
+
+// A description can run to several lines. An input holds its value in an
+// attribute, where newlines flatten to spaces and anything past the width of the
+// box is not visible at all.
+func TestAClosedFundsDescriptionKeepsItsShape(t *testing.T) {
+	past := time.Now().Add(-24 * time.Hour)
+	fund := donations.Fund{
+		ID: uuid.New(), Name: "human fund", Active: true, Expires: &past,
+		Description: "first line\nsecond line",
+	}
+
+	html := renderAdmin(t, FundDetails(fund, nil, "", ""))
+
+	// In element content, where a newline survives -- not in an attribute.
+	require.Contains(t, html, "first line\nsecond line")
+	require.NotContains(t, html, `value="first line`)
+	require.Contains(t, html, "<textarea")
+}

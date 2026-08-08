@@ -1029,8 +1029,13 @@ func (h *AdminHandlers) removeFundImage(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err = h.donationService.RemoveFundImage(ctx, fundID); err != nil {
-		h.badImage(ctx, w, http.StatusInternalServerError, fundID, nil,
-			"we could not remove that image. please try again.")
+		status, message := imageFailure(err)
+		if message == "" {
+			status = http.StatusInternalServerError
+			message = "we could not remove that image. please try again."
+		}
+
+		h.badImage(ctx, w, status, fundID, nil, message)
 
 		return
 	}
@@ -1048,6 +1053,8 @@ func imageFailure(err error) (int, string) {
 		return http.StatusBadRequest, donations.ErrImageTooManyPixels.Error() + "."
 	case errors.Is(err, donations.ErrImageUnreadable):
 		return http.StatusBadRequest, donations.ErrImageUnreadable.Error() + "."
+	case errors.Is(err, donations.ErrFundClosed):
+		return http.StatusConflict, "this fund is closed. its picture cannot be changed."
 	default:
 		return http.StatusInternalServerError, ""
 	}
@@ -1093,7 +1100,7 @@ func (h *AdminHandlers) saveFundDetails(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err = r.ParseForm(); err != nil {
-		h.badDetails(ctx, w, *fund, "we could not read that.")
+		h.badDetails(w, r, fundID, "we could not read that.")
 
 		return
 	}
@@ -1104,7 +1111,7 @@ func (h *AdminHandlers) saveFundDetails(w http.ResponseWriter, r *http.Request) 
 	if goal := r.FormValue("goal"); goal != "" {
 		goalCents, errGoal := dollarStringToCents(goal)
 		if errGoal != nil {
-			h.badDetails(ctx, w, *fund, "that is not an amount.")
+			h.badDetails(w, r, fundID, "that is not an amount.")
 
 			return
 		}
@@ -1118,7 +1125,7 @@ func (h *AdminHandlers) saveFundDetails(w http.ResponseWriter, r *http.Request) 
 	if date := r.FormValue("date"); date != "" {
 		expires, errDate := time.Parse("2006-01-02", date)
 		if errDate != nil {
-			h.badDetails(ctx, w, *fund, "that is not a date.")
+			h.badDetails(w, r, fundID, "that is not a date.")
 
 			return
 		}
@@ -1130,7 +1137,13 @@ func (h *AdminHandlers) saveFundDetails(w http.ResponseWriter, r *http.Request) 
 
 	saved, err := h.donationService.UpdateFund(ctx, updated)
 	if err != nil {
-		h.badDetails(ctx, w, *fund, "we could not save that. please try again.")
+		if errors.Is(err, donations.ErrFundClosed) {
+			h.badDetails(w, r, fundID, "this fund is closed. nothing about it can be changed.")
+
+			return
+		}
+
+		h.badDetails(w, r, fundID, "we could not save that. please try again.")
 
 		return
 	}
@@ -1146,13 +1159,33 @@ func (h *AdminHandlers) saveFundDetails(w http.ResponseWriter, r *http.Request) 
 
 // badDetails redraws the card with what went wrong and the fund as it still is,
 // so a refusal does not leave the boxes showing values that were never stored.
-func (h *AdminHandlers) badDetails(ctx context.Context, w http.ResponseWriter,
-	fund donations.Fund, message string) {
-	image, err := h.donationService.GetFundImage(ctx, fund.ID)
+//
+// It takes an id and reads the fund itself rather than being handed one. The
+// caller's copy was read before the save was attempted, and the save can be
+// refused precisely because the fund changed in between -- it expired, or another
+// admin closed it. Redrawing from the stale copy then produced an editable card
+// carrying the message "this fund is closed", which is the page arguing with
+// itself.
+//
+// Passing no fund at all is what makes that unrepresentable, rather than
+// remembering to refresh it on the one path where it currently matters.
+func (h *AdminHandlers) badDetails(w http.ResponseWriter, r *http.Request,
+	fundID uuid.UUID, message string) {
+	ctx := r.Context()
+
+	fund, err := h.donationService.GetFundByID(ctx, fundID)
+	if err != nil {
+		// No fund, no card to draw it in.
+		h.internalError(w, r)
+
+		return
+	}
+
+	image, err := h.donationService.GetFundImage(ctx, fundID)
 	if err != nil {
 		image = nil
 	}
 
 	w.WriteHeader(http.StatusBadRequest)
-	FundDetails(fund, image, message, "").Render(ctx, w)
+	FundDetails(*fund, image, message, "").Render(ctx, w)
 }

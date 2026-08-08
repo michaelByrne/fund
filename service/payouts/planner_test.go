@@ -87,10 +87,11 @@ func TestPlanDueBatches(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, batches, 1)
 
-		// 1000 / 3 floors to 333 each. The batch commits 999 and the odd cent stays
-		// put -- paying it to whoever sorted first would make the payout depend on
-		// row order.
-		assert.Equal(t, int32(999), batches[0].AmountCents)
+		// 1000 in, less 25 a head held back for what PayPal charges to send each
+		// payout, leaves 925. That floors to 308 each: the batch commits 924 and the
+		// odd cent stays put -- paying it to whoever sorted first would make the
+		// payout depend on row order.
+		assert.Equal(t, int32(924), batches[0].AmountCents)
 		assert.Equal(t, int32(3), batches[0].NumEnrollments)
 
 		items, err := svc.GetPayoutsForBatch(ctx, batches[0].ID)
@@ -98,7 +99,7 @@ func TestPlanDueBatches(t *testing.T) {
 		require.Len(t, items, 3)
 
 		for _, item := range items {
-			assert.Equal(t, int32(333), item.AmountCents)
+			assert.Equal(t, int32(308), item.AmountCents)
 		}
 
 		// Never sent by planning alone, whatever the amounts worked out to.
@@ -387,5 +388,72 @@ func TestDailyFundsAdvanceByADay(t *testing.T) {
 		require.NotNil(t, next)
 		assert.True(t, next.After(time.Now()), "one pass should reach a future date")
 		assert.Less(t, time.Until(*next), 24*time.Hour, "and not overshoot past tomorrow")
+	})
+}
+
+// The fee to send a payout is only known once it has been sent, so the balance
+// cannot already have it taken off. Planning the whole balance means submitting a
+// batch the account cannot cover, and PayPal refuses the whole batch rather than
+// the last item of it.
+func TestPlanningHoldsBackWhatSendingWillCost(t *testing.T) {
+	ctx := context.Background()
+
+	container, pool, err := pg.SetupTestDatabase()
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = container.Terminate(ctx) })
+
+	t.Run("the batch plus its fees fits inside the balance", func(t *testing.T) {
+		svc := newService(t, pool, &stubProvider{batchID: "R-1"})
+
+		fundID := seedFundWithEnrollees(t, ctx, pool, 4)
+		seedDonation(t, ctx, pool, fundID, 1000)
+
+		_, err := svc.PlanDueBatches(ctx)
+		require.NoError(t, err)
+
+		batches, err := svc.GetBatchesForFund(ctx, fundID)
+		require.NoError(t, err)
+		require.Len(t, batches, 1)
+
+		// This is the property that matters, whatever the arithmetic: what leaves
+		// the account is the batch and a fee for every item in it.
+		willCost := int64(batches[0].AmountCents) + payouts.PayoutFeeCents*int64(batches[0].NumEnrollments)
+
+		require.LessOrEqualf(t, willCost, int64(1000),
+			"planned %d plus fees costs %d against a balance of 1000",
+			batches[0].AmountCents, willCost)
+	})
+
+	// A fund holding only slightly more than the fees would plan a batch it cannot
+	// pay for, and the submission would fail rather than the planning.
+	t.Run("a fund that can only cover the fees plans nothing", func(t *testing.T) {
+		svc := newService(t, pool, &stubProvider{batchID: "R-2"})
+
+		fundID := seedFundWithEnrollees(t, ctx, pool, 3)
+		seedDonation(t, ctx, pool, fundID, 70)
+
+		_, err := svc.PlanDueBatches(ctx)
+		require.NoError(t, err)
+
+		batches, err := svc.GetBatchesForFund(ctx, fundID)
+		require.NoError(t, err)
+		require.Empty(t, batches, "75 cents of fees against 70 cents of donations is not a payout")
+	})
+
+	// Not advanced, so the period is still owed and tomorrow's run tries again.
+	t.Run("a fund it could not pay is still due", func(t *testing.T) {
+		svc := newService(t, pool, &stubProvider{batchID: "R-3"})
+
+		fundID := seedFundWithEnrollees(t, ctx, pool, 3)
+		seedDonation(t, ctx, pool, fundID, 70)
+
+		_, err := svc.PlanDueBatches(ctx)
+		require.NoError(t, err)
+
+		var due int
+		require.NoError(t, pool.QueryRow(ctx,
+			`SELECT count(*) FROM fund WHERE id = $1 AND next_payment <= now()`, fundID).Scan(&due))
+		require.Equal(t, 1, due)
 	})
 }

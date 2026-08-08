@@ -192,11 +192,21 @@ ORDER BY next_payment;
 -- Refunds are subtracted, not excluded. A partial refund leaves the rest of the
 -- payment available, and a payment refunded in full contributes nothing while
 -- still existing as a record of what happened.
-SELECT (COALESCE((SELECT SUM(dp.amount_cents - dp.refunded_cents)
+--
+-- Fees are subtracted on both sides, because they are money the fund never has.
+-- Counting donations gross said a fund held what the donor paid rather than what
+-- arrived, and counting payouts at face value ignored what it costs to send one.
+-- Both errors run the same way, so the figure this returns drifted above the
+-- account balance by every fee ever charged -- until a payout was planned for
+-- money that was not there and PayPal refused it.
+--
+-- A refunded payment keeps its fee subtracted: PayPal retains the fee on a
+-- refund, so the money is gone whether or not the donation stayed.
+SELECT (COALESCE((SELECT SUM(dp.amount_cents - dp.refunded_cents - dp.provider_fee_cents)
                   FROM donation
                            JOIN donation_payment dp ON donation.id = dp.donation_id
                   WHERE donation.fund_id = $1), 0)
-    - COALESCE((SELECT SUM(payout.amount_cents)
+    - COALESCE((SELECT SUM(payout.amount_cents + payout.provider_fee_cents)
                 FROM payout
                          JOIN batch_payout ON batch_payout.id = payout.batch_id
                 WHERE batch_payout.fund_id = $1
