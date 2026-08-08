@@ -108,9 +108,28 @@ func fromDBDetailedBatch(row db.GetDetailedBatchPayoutsByStatusRow) payouts.Batc
 			Created:          row.Created.Time,
 			Updated:          row.Updated.Time,
 		},
-		FundName:   row.FundName,
-		PayeeNames: row.PayeeNames,
+		FundName: row.FundName,
+		Payees:   payeesFrom(row.PayeeNames, row.PayeeIds),
 	}
+}
+
+// payeesFrom pairs the two arrays the query returns.
+//
+// They are aggregated with the same ORDER BY, so element n of one belongs with
+// element n of the other. Length is checked rather than assumed: pairing a name
+// with somebody else's id would link a payee to the wrong person's page, which is
+// worse than not linking at all.
+func payeesFrom(names []string, ids []uuid.UUID) []payouts.Payee {
+	if len(names) != len(ids) {
+		return nil
+	}
+
+	payees := make([]payouts.Payee, 0, len(names))
+	for i, name := range names {
+		payees = append(payees, payouts.Payee{ID: ids[i], Name: name})
+	}
+
+	return payees
 }
 
 func toDBInsertPayoutParams(arg payouts.InsertPayout) db.InsertPayoutParams {

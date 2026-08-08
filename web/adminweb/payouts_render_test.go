@@ -32,8 +32,8 @@ func TestPayoutTemplatesRender(t *testing.T) {
 				Status: payouts.StatusAwaitingApproval, PayoutDate: time.Now(),
 				ApprovalDeadline: &future,
 			},
-			FundName:   "human fund",
-			PayeeNames: []string{"ada", "bo", "cyd"},
+			FundName: "human fund",
+			Payees:   []payouts.Payee{{ID: uuid.New(), Name: "ada"}, {ID: uuid.New(), Name: "bo"}, {ID: uuid.New(), Name: "cyd"}},
 		},
 		{
 			// Expired: actions must render as status, not as live buttons.
@@ -42,8 +42,8 @@ func TestPayoutTemplatesRender(t *testing.T) {
 				Status: payouts.StatusAwaitingApproval, PayoutDate: time.Now(),
 				ApprovalDeadline: &past,
 			},
-			FundName:   "winter fund",
-			PayeeNames: []string{"dee"},
+			FundName: "winter fund",
+			Payees:   []payouts.Payee{{ID: uuid.New(), Name: "dee"}},
 		},
 		{
 			Batch: payouts.Batch{

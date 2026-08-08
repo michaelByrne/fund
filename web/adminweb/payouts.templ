@@ -76,18 +76,18 @@ templ BatchRow(batch payouts.BatchDetail) {
 	</li>
 }
 
-// PayeeCount is how many are being paid, and on hover, who.
+// PayeeCount is how many are being paid, and on hover, who -- each one a link to
+// their member page.
 //
 // A panel positioned against the count rather than the browser's own popover. A
 // popover renders in the top layer, which is what stopped it being clipped -- and
 // also what put it in the middle of the screen, because placing one beside its
-// button needs CSS anchor positioning and that is Chrome only. Beside the words it
-// belongs to beats escaping a clip that this page no longer does.
+// button needs CSS anchor positioning and that is Chrome only.
 //
 // Hover, and focus. group-focus-within is what makes this reachable by keyboard
 // and on a touch screen, where there is no hover at all and a tap is a focus.
 templ PayeeCount(batch payouts.BatchDetail) {
-	if len(batch.PayeeNames) == 0 {
+	if len(batch.Payees) == 0 {
 		<span class="text-gray-600">{ fmt.Sprintf("%d payees", batch.NumEnrollments) }</span>
 	} else {
 		<span class="group relative inline-block">
@@ -97,20 +97,35 @@ templ PayeeCount(batch payouts.BatchDetail) {
 			>
 				{ fmt.Sprintf("%d payees", batch.NumEnrollments) }
 			</button>
-			<span
-				class="hidden group-hover:block group-focus-within:block absolute left-0 top-full mt-1 z-50
-					w-56 p-3 text-left bg-contrast border border-slate-300 shadow-blue-boxy"
-			>
-				<span class="block text-xs font-semibold mb-1">
-					{ batch.FundName } &middot; { payoutAmount(batch.AmountCents) }
-				</span>
-				// Scrolls rather than truncating. A batch can pay everybody enrolled in
-				// a fund, and "and 25 more" is the answer only when there is nowhere to
-				// put them.
-				<span class="block text-sm max-h-64 overflow-y-auto">
-					for _, name := range batch.PayeeNames {
-						<span class="block py-0.5">{ name }</span>
-					}
+			// The outer element starts flush against the button and carries the gap as
+			// padding, so the space between the two is inside the panel rather than
+			// beside it. With a margin there, moving the pointer down to a name left
+			// the group for those few pixels and the panel shut before it was reached.
+			<span class="hidden group-hover:block group-focus-within:block absolute left-0 top-full pt-1 z-50">
+				<span class="block w-56 p-3 text-left bg-contrast border border-slate-300 shadow-blue-boxy">
+					<span class="block text-xs font-semibold mb-1">
+						{ batch.FundName } &middot; { payoutAmount(batch.AmountCents) }
+					</span>
+					// Scrolls rather than truncating. A batch can pay everybody enrolled
+					// in a fund, and "and 25 more" is the answer only when there is
+					// nowhere to put them.
+					<span class="block text-sm max-h-64 overflow-y-auto">
+						for _, payee := range batch.Payees {
+							if payee.HasPage() {
+								<a
+									href={ templ.SafeURL("/admin/member/" + payee.ID.String()) }
+									class="block py-0.5 text-links hover:text-blue-500 hover:underline"
+								>
+									{ payee.Name }
+								</a>
+							} else {
+								// No member row behind this one: the name came from the
+								// snapshot taken when they were enrolled. Worth showing,
+								// with nowhere to send anybody.
+								<span class="block py-0.5 text-gray-600">{ payee.Name }</span>
+							}
+						}
+					</span>
 				</span>
 			</span>
 		</span>

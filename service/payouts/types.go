@@ -62,9 +62,23 @@ type BatchDetail struct {
 	Batch
 
 	FundName string
-	// PayeeNames is who the batch pays, by name. Empty when a batch has no
-	// payouts recorded yet, which is a real state and not an error.
-	PayeeNames []string
+	// Payees is who the batch pays. Empty when a batch has no payouts recorded
+	// yet, which is a real state and not an error.
+	Payees []Payee
+}
+
+// Payee is one person a batch pays.
+type Payee struct {
+	// ID is zero when the member row is gone and the name came from the snapshot
+	// taken on the enrollment. There is a name to show and no page to send anybody
+	// to, which is why this is worth distinguishing rather than dropping.
+	ID   uuid.UUID
+	Name string
+}
+
+// HasPage reports whether this payee can be linked to.
+func (p Payee) HasPage() bool {
+	return p.ID != uuid.Nil
 }
 
 // AwaitingApproval reports whether this batch is still gated on a treasurer.
