@@ -3,6 +3,24 @@
 @tailwind utilities;
 
 @layer utilities {
+    /* The payee popovers on the approval page.
+     *
+     * Both rules are needed together. A supporting browser hides a closed
+     * popover from its own stylesheet, but an author rule beats a UA rule, so
+     * "display: none" on its own would keep it shut for ever -- ":popover-open"
+     * is what opens it again.
+     *
+     * A browser without the popover API drops the second rule as invalid and
+     * keeps the first, so the panel stays hidden rather than every payee list on
+     * the page rendering inline underneath the batches. */
+    [popover] {
+        display: none;
+    }
+
+    [popover]:popover-open {
+        display: block;
+    }
+
     .link-disabled {
         color: rgb(var(--color-disabled));
         cursor: default;

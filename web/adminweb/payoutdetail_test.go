@@ -1,7 +1,8 @@
 package adminweb
 
 import (
-	"strings"
+	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -35,24 +36,63 @@ func TestABatchRowNamesItsFund(t *testing.T) {
 
 // The count cannot answer the question a treasurer has before approving: who is
 // being paid.
-func TestThePayeeCountNamesThePayeesOnHover(t *testing.T) {
-	html := renderAdmin(t, BatchRow(awaitingBatch("human fund", []string{"ada", "bo", "cyd"})))
+func TestThePayeeCountOpensAPanelOfNames(t *testing.T) {
+	batch := awaitingBatch("human fund", []string{"ada", "bo", "cyd"})
+
+	// The control on its own. The row also carries a title on the fund name, for
+	// truncation, and that is not what this is about.
+	html := renderAdmin(t, PayeeCount(batch))
 
 	require.Contains(t, html, "3 payees")
 
-	// One title holding all three. Newlines are escaped in the attribute, so this
-	// looks for them as rendered.
-	require.Contains(t, html, "ada")
-	require.Contains(t, html, "bo")
-	require.Contains(t, html, "cyd")
-	require.Contains(t, html, "title=")
+	for _, name := range batch.PayeeNames {
+		require.Contains(t, html, ">"+name+"<", "every payee should be listed")
+	}
 
-	// Reachable without a mouse: a browser shows a title on focus, and without
-	// this the names are information only a pointer can get at.
-	require.Contains(t, html, `tabindex="0"`)
+	// A real popover, not a title. A title is slow, unstylable, and on a touch
+	// screen there is no hover at all -- the names could not be reached on a phone.
+	require.NotContains(t, html, "title=")
 
-	// And it looks hoverable, or nobody hovers it.
+	// The button and its panel have to agree, and the panel has to be one.
+	id := "payees-" + batch.ID.String()
+	require.Contains(t, html, `popovertarget="`+id+`"`)
+	require.Contains(t, html, `id="`+id+`"`)
+	require.Contains(t, html, "popover")
+
+	// A button, so it is clickable and focusable without anything being added.
+	require.Contains(t, html, `type="button"`)
+
+	// And it looks like it does something.
 	require.Contains(t, html, "decoration-dotted")
+}
+
+// The approval page lists several batches. Two panels sharing an id would open
+// whichever the browser found first, which is the wrong list of people.
+func TestEachBatchHasItsOwnPanel(t *testing.T) {
+	first := awaitingBatch("human fund", []string{"ada"})
+	second := awaitingBatch("winter fund", []string{"bo"})
+
+	html := renderAdmin(t, BatchList([]payouts.BatchDetail{first, second}))
+
+	require.Contains(t, html, "payees-"+first.ID.String())
+	require.Contains(t, html, "payees-"+second.ID.String())
+	require.NotEqual(t, first.ID, second.ID)
+}
+
+// A long list scrolls inside the panel rather than being cut short. In a tooltip
+// there was nowhere to put forty names; in a panel there is.
+func TestALongPayeeListScrollsRatherThanTruncating(t *testing.T) {
+	names := make([]string, 40)
+	for i := range names {
+		names[i] = fmt.Sprintf("payee-%02d", i)
+	}
+
+	html := renderAdmin(t, BatchRow(awaitingBatch("human fund", names)))
+
+	require.Contains(t, html, "payee-00")
+	require.Contains(t, html, "payee-39", "the last name should still be there")
+	require.NotContains(t, html, "more")
+	require.Contains(t, html, "overflow-y-auto")
 }
 
 // A batch with no payouts recorded yet is a real state. It still lists, and it
@@ -67,24 +107,20 @@ func TestABatchWithNoNamesOffersNoHover(t *testing.T) {
 	require.NotContains(t, html, "cursor-help")
 }
 
-// A batch can pay everybody in a fund, and a tooltip the height of the screen is
-// not a tooltip.
-func TestALongPayeeListIsCapped(t *testing.T) {
-	names := make([]string, 40)
-	for i := range names {
-		names[i] = "payee-" + string(rune('a'+i%26)) + strings.Repeat("x", i/26)
-	}
+// The stylesheet has to carry both rules or the panel is broken in one direction
+// or the other, and neither shows up in a template test.
+func TestThePopoverStylesAreBuilt(t *testing.T) {
+	css, err := os.ReadFile("../../public/styles.css")
+	require.NoError(t, err)
 
-	listed := payeeList(names)
+	sheet := string(css)
 
-	require.Equal(t, 16, strings.Count(listed, "\n")+1, "fifteen names and a line saying how many more")
-	require.Contains(t, listed, "and 25 more")
-}
+	// A browser without the popover API drops the :popover-open rule as invalid.
+	// Without this one the panel is not hidden by anything, and every payee list
+	// on the page renders inline under the batches.
+	require.Contains(t, sheet, "[popover]{display:none}")
 
-// Under the cap, everybody is named and nothing says there is more.
-func TestAShortPayeeListIsWhole(t *testing.T) {
-	listed := payeeList([]string{"ada", "bo", "cyd"})
-
-	require.Equal(t, "ada\nbo\ncyd", listed)
-	require.NotContains(t, listed, "more")
+	// And with only the first rule it never opens: an author rule beats the UA
+	// stylesheet that would otherwise reveal it.
+	require.Contains(t, sheet, ":popover-open")
 }
