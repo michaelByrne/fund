@@ -58,7 +58,7 @@ func (h *AdminHandlers) payoutsPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	batches, err := h.payoutService.GetBatchesAwaitingApproval(ctx)
+	batches, err := h.payoutService.GetDetailedBatchesAwaitingApproval(ctx)
 	if err != nil {
 		h.renderError(w, r, http.StatusInternalServerError, msgUnavailable)
 

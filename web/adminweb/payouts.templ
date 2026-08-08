@@ -5,10 +5,11 @@ import (
 	"boardfund/service/payouts"
 	"boardfund/web/common"
 	"fmt"
+	"strings"
 	"time"
 )
 
-templ Payouts(batches []payouts.Batch, member *members.Member, path string) {
+templ Payouts(batches []payouts.BatchDetail, member *members.Member, path string) {
 	@Admin(member, path) {
 		<div class="grid grid-cols-1 gap-6 overflow-visible">
 			<div class="flex flex-col overflow-visible">
@@ -18,7 +19,7 @@ templ Payouts(batches []payouts.Batch, member *members.Member, path string) {
 	}
 }
 
-templ AwaitingApproval(batches []payouts.Batch) {
+templ AwaitingApproval(batches []payouts.BatchDetail) {
 	@common.Section("batches awaiting approval") {
 		<div class="flex-grow overflow-y-auto max-h-[300px] sm:max-h-[500px]">
 			<ul id="batches">
@@ -28,7 +29,7 @@ templ AwaitingApproval(batches []payouts.Batch) {
 	}
 }
 
-templ BatchList(batches []payouts.Batch) {
+templ BatchList(batches []payouts.BatchDetail) {
 	if len(batches) == 0 {
 		<li class="p-2 text-gray-600">nothing awaiting approval</li>
 	} else {
@@ -38,27 +39,58 @@ templ BatchList(batches []payouts.Batch) {
 	}
 }
 
-templ BatchRow(batch payouts.Batch) {
+// BatchRow is one batch awaiting a decision.
+//
+// The fund is named, because "$40.00, 4 payees" does not say which fund is about
+// to send money -- and on a page listing several batches, that was the whole
+// question. The payees are named on hover, because who is being paid is the other
+// half of it and there is no room to list four names in a row.
+templ BatchRow(batch payouts.BatchDetail) {
 	<li
 		id={ "batch-" + batch.ID.String() }
 		class="batch-row p-2 flex flex-col even:bg-even odd:bg-odd odd:hover:bg-odd-hover even:hover:bg-even-hover transition-opacity duration-300"
 	>
 		<div class="flex flex-col w-full md:flex-row md:items-center">
-			<div class="w-full md:w-64 font-medium">
+			<div class="w-full md:w-48 font-medium">
 				<a href={ templ.SafeURL("/admin/payout/" + batch.ID.String()) } class="hover:underline">
 					{ payoutAmount(batch.AmountCents) }
 				</a>
 			</div>
-			<div class="w-full md:w-48">{ fmt.Sprintf("%d payees", batch.NumEnrollments) }</div>
+			<div class="w-full md:w-48 truncate" title={ batch.FundName }>{ batch.FundName }</div>
+			<div class="w-full md:w-32">
+				@PayeeCount(batch)
+			</div>
 			<div class="w-full md:w-48">{ batch.PayoutDate.Format("01-02-2006") }</div>
 			<div class="w-full md:flex-1">
-				@ApprovalDeadline(batch)
+				@ApprovalDeadline(batch.Batch)
 			</div>
 		</div>
 		<div id={ "batch-actions-" + batch.ID.String() } class="mt-2">
-			@BatchActions(batch)
+			@BatchActions(batch.Batch)
 		</div>
 	</li>
+}
+
+// PayeeCount is how many are being paid, and on hover, who.
+//
+// A title attribute rather than a popover: it needs no javascript, no library and
+// no decision about where it opens near the edge of a list that scrolls. tabindex
+// so it can be reached without a mouse -- a browser shows the title on focus, and
+// without it this is information only a pointer can get at.
+//
+// The names are already loaded with the batch, so hovering costs nothing.
+templ PayeeCount(batch payouts.BatchDetail) {
+	if len(batch.PayeeNames) == 0 {
+		<span class="text-gray-600">{ fmt.Sprintf("%d payees", batch.NumEnrollments) }</span>
+	} else {
+		<span
+			title={ payeeList(batch.PayeeNames) }
+			tabindex="0"
+			class="underline decoration-dotted underline-offset-2 cursor-help"
+		>
+			{ fmt.Sprintf("%d payees", batch.NumEnrollments) }
+		</span>
+	}
 }
 
 // ApprovalDeadline is the one thing a treasurer needs at a glance: an expired batch
@@ -185,4 +217,20 @@ templ detailRow(label, value string) {
 		<div class="w-48 text-gray-600">{ label }</div>
 		<div class="break-all">{ value }</div>
 	</div>
+}
+
+// payeeList is what the hover says.
+// Capped, because a batch can pay everybody enrolled in a fund and a tooltip the
+// height of the screen is not a tooltip. The count is beside it either way, so
+// the tail is not information being hidden -- it is a list saying how much more
+// of itself there is.
+func payeeList(names []string) string {
+	const most = 15
+
+	if len(names) <= most {
+		return strings.Join(names, "\n")
+	}
+
+	return strings.Join(names[:most], "\n") +
+		fmt.Sprintf("\nand %d more", len(names)-most)
 }

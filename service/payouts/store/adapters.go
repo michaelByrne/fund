@@ -87,6 +87,32 @@ func fromDBBatch(dbBatch db.BatchPayout) payouts.Batch {
 	}
 }
 
+func fromDBDetailedBatch(row db.GetDetailedBatchPayoutsByStatusRow) payouts.BatchDetail {
+	return payouts.BatchDetail{
+		Batch: payouts.Batch{
+			ID:               row.ID,
+			FundID:           row.FundID,
+			SenderBatchID:    row.SenderBatchID,
+			ProviderBatchID:  row.ProviderBatchID.String,
+			AmountCents:      row.AmountCents,
+			NumEnrollments:   row.NumEnrollments,
+			Status:           payouts.Status(row.Status),
+			FailureReason:    row.FailureReason.String,
+			Notes:            row.Notes.String,
+			Description:      row.Description.String,
+			PayoutDate:       row.PayoutDate.Time,
+			ApprovalDeadline: timePtr(row.ApprovalDeadline),
+			ApprovedBy:       uuidPtr(row.ApprovedBy),
+			ApprovedAt:       timePtr(row.ApprovedAt),
+			ReminderSentAt:   timePtr(row.ReminderSentAt),
+			Created:          row.Created.Time,
+			Updated:          row.Updated.Time,
+		},
+		FundName:   row.FundName,
+		PayeeNames: row.PayeeNames,
+	}
+}
+
 func toDBInsertPayoutParams(arg payouts.InsertPayout) db.InsertPayoutParams {
 	return db.InsertPayoutParams{
 		ID:               arg.ID,

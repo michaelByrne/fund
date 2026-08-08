@@ -84,6 +84,14 @@ func (s PayoutStore) GetBatchesByStatus(ctx context.Context, status payouts.Stat
 	return pg.FetchMany(ctx, status, s.queries.GetBatchPayoutsByStatus, argIn, fromDBBatch)
 }
 
+// GetDetailedBatchesByStatus is the reading version: the same batches with the
+// fund they belong to and the people they pay.
+func (s PayoutStore) GetDetailedBatchesByStatus(ctx context.Context, status payouts.Status) ([]payouts.BatchDetail, error) {
+	argIn := func(s payouts.Status) db.PayoutStatus { return db.PayoutStatus(s) }
+
+	return pg.FetchMany(ctx, status, s.queries.GetDetailedBatchPayoutsByStatus, argIn, fromDBDetailedBatch)
+}
+
 func (s PayoutStore) GetPayoutsForBatch(ctx context.Context, batchID uuid.UUID) ([]payouts.Payout, error) {
 	return pg.FetchMany(ctx, batchID, s.queries.GetPayoutsByBatchId, uuidIdentity, fromDBPayout)
 }
