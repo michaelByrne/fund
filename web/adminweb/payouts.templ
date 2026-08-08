@@ -5,7 +5,7 @@ import (
 	"boardfund/service/payouts"
 	"boardfund/web/common"
 	"fmt"
-	"strings"
+	"github.com/google/uuid"
 	"time"
 )
 
@@ -71,25 +71,45 @@ templ BatchRow(batch payouts.BatchDetail) {
 	</li>
 }
 
-// PayeeCount is how many are being paid, and on hover, who.
+// PayeeCount is how many are being paid, and on a click, who.
 //
-// A title attribute rather than a popover: it needs no javascript, no library and
-// no decision about where it opens near the edge of a list that scrolls. tabindex
-// so it can be reached without a mouse -- a browser shows the title on focus, and
-// without it this is information only a pointer can get at.
+// A real popover, not a title attribute. That was slow to appear, could not be
+// styled, and on a touch screen there is no hover at all -- so on a phone the
+// names could not be reached.
 //
-// The names are already loaded with the batch, so hovering costs nothing.
+// The browser's own popover rather than a positioned div, because this list sits
+// inside an overflow-y-auto box: anything absolutely positioned in here is
+// clipped by the scroll container. A popover renders in the top layer and is not.
+// It also brings light dismiss and escape-to-close without any of it being
+// written here.
 templ PayeeCount(batch payouts.BatchDetail) {
 	if len(batch.PayeeNames) == 0 {
 		<span class="text-gray-600">{ fmt.Sprintf("%d payees", batch.NumEnrollments) }</span>
 	} else {
-		<span
-			title={ payeeList(batch.PayeeNames) }
-			tabindex="0"
-			class="underline decoration-dotted underline-offset-2 cursor-help"
+		<button
+			type="button"
+			popovertarget={ payeePopoverID(batch.ID) }
+			class="underline decoration-dotted underline-offset-2 hover:text-blue-500"
 		>
 			{ fmt.Sprintf("%d payees", batch.NumEnrollments) }
-		</span>
+		</button>
+		<div
+			id={ payeePopoverID(batch.ID) }
+			popover
+			class="p-4 bg-contrast shadow-blue-boxy border border-slate-300 max-w-xs"
+		>
+			<div class="text-sm font-semibold mb-2">
+				{ batch.FundName } &middot; { payoutAmount(batch.AmountCents) }
+			</div>
+			// Scrolls rather than truncating. A batch can pay everybody enrolled in a
+			// fund, and "and 25 more" is the answer only when there is nowhere to put
+			// them -- in a panel there is.
+			<ul class="text-sm max-h-64 overflow-y-auto">
+				for _, name := range batch.PayeeNames {
+					<li class="py-0.5">{ name }</li>
+				}
+			</ul>
+		</div>
 	}
 }
 
@@ -219,18 +239,8 @@ templ detailRow(label, value string) {
 	</div>
 }
 
-// payeeList is what the hover says.
-// Capped, because a batch can pay everybody enrolled in a fund and a tooltip the
-// height of the screen is not a tooltip. The count is beside it either way, so
-// the tail is not information being hidden -- it is a list saying how much more
-// of itself there is.
-func payeeList(names []string) string {
-	const most = 15
-
-	if len(names) <= most {
-		return strings.Join(names, "\n")
-	}
-
-	return strings.Join(names[:most], "\n") +
-		fmt.Sprintf("\nand %d more", len(names)-most)
+// payeePopoverID ties a button to its panel. One per batch, because the approval
+// page lists several and two panels sharing an id would open whichever came first.
+func payeePopoverID(batchID uuid.UUID) string {
+	return "payees-" + batchID.String()
 }
