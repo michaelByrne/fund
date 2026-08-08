@@ -232,3 +232,53 @@ SET next_payment = CASE
     updated      = now()
 WHERE id = $1
 RETURNING *;
+
+-- What the approval page needs to show a batch, rather than what the jobs need to
+-- act on one.
+--
+-- Separate from GetBatchPayoutsByStatus because that one is also read by the
+-- submit and reconcile jobs, and neither of those wants a join to every payee in
+-- the batch. This is the only place a person is reading.
+--
+-- The fund name, because "$40.00, 4 payees" says nothing about which fund is
+-- about to send money. The payee names, because the count alone cannot answer the
+-- question a treasurer actually has before approving: who is being paid.
+--
+-- Names come from the member, falling back to the snapshot taken on the
+-- enrollment -- a member row can be gone, and a batch that names nobody is worse
+-- than one naming who it was planned for.
+--
+-- LEFT JOIN throughout, so a batch with no payouts recorded yet still lists,
+-- rather than disappearing from the page that exists to approve it.
+-- name: GetDetailedBatchPayoutsByStatus :many
+SELECT bp.id,
+       bp.fund_id,
+       bp.amount_cents,
+       bp.num_enrollments,
+       bp.status,
+       bp.failure_reason,
+       bp.notes,
+       bp.description,
+       bp.provider_batch_id,
+       bp.payout_date,
+       bp.sender_batch_id,
+       bp.approval_deadline,
+       bp.approved_by,
+       bp.approved_at,
+       bp.reminder_sent_at,
+       bp.created,
+       bp.updated,
+       f.name                                                          AS fund_name,
+       COALESCE(
+               array_agg(COALESCE(m.bco_name, fe.member_bco_name))
+               FILTER (WHERE COALESCE(m.bco_name, fe.member_bco_name) IS NOT NULL),
+               '{}'
+       )::text[]                                                       AS payee_names
+FROM batch_payout bp
+         JOIN fund f ON f.id = bp.fund_id
+         LEFT JOIN payout p ON p.batch_id = bp.id
+         LEFT JOIN fund_enrollment fe ON fe.id = p.fund_enrollment_id
+         LEFT JOIN member m ON m.id = fe.member_id
+WHERE bp.status = $1
+GROUP BY bp.id, f.name
+ORDER BY bp.payout_date;

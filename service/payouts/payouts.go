@@ -52,6 +52,7 @@ type payoutStore interface {
 	GetBatchBySenderBatchID(ctx context.Context, id uuid.UUID) (*Batch, error)
 	GetBatchesForFund(ctx context.Context, fundID uuid.UUID) ([]Batch, error)
 	GetBatchesByStatus(ctx context.Context, status Status) ([]Batch, error)
+	GetDetailedBatchesByStatus(ctx context.Context, status Status) ([]BatchDetail, error)
 	GetPayoutsForBatch(ctx context.Context, batchID uuid.UUID) ([]Payout, error)
 	GetEnrollmentsForPayout(ctx context.Context, fundID uuid.UUID) ([]PayoutEnrollment, error)
 	GetFundsDueForPayout(ctx context.Context) ([]DueFund, error)
@@ -592,6 +593,12 @@ func (s PayoutService) GetBatchesForFund(ctx context.Context, fundID uuid.UUID) 
 
 func (s PayoutService) GetBatchesAwaitingApproval(ctx context.Context) ([]Batch, error) {
 	return s.payoutStore.GetBatchesByStatus(ctx, StatusAwaitingApproval)
+}
+
+// GetDetailedBatchesAwaitingApproval is for the approval page. The jobs use
+// GetBatchesAwaitingApproval, which does not pay for a join to every payee.
+func (s PayoutService) GetDetailedBatchesAwaitingApproval(ctx context.Context) ([]BatchDetail, error) {
+	return s.payoutStore.GetDetailedBatchesByStatus(ctx, StatusAwaitingApproval)
 }
 
 func (s PayoutService) GetBatchByID(ctx context.Context, id uuid.UUID) (*Batch, error) {

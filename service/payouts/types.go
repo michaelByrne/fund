@@ -54,6 +54,19 @@ type Batch struct {
 	Updated          time.Time
 }
 
+// BatchDetail is a batch as a person reads it, rather than as a job acts on it.
+//
+// A treasurer approving a payout is answering "which fund, and who is being
+// paid". The batch alone answers neither: it holds a fund id and a count.
+type BatchDetail struct {
+	Batch
+
+	FundName string
+	// PayeeNames is who the batch pays, by name. Empty when a batch has no
+	// payouts recorded yet, which is a real state and not an error.
+	PayeeNames []string
+}
+
 // AwaitingApproval reports whether this batch is still gated on a treasurer.
 func (b Batch) AwaitingApproval() bool {
 	return b.Status == StatusAwaitingApproval

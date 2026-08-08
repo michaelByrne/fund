@@ -25,28 +25,42 @@ func TestPayoutTemplatesRender(t *testing.T) {
 	future := time.Now().Add(48 * time.Hour)
 	past := time.Now().Add(-time.Hour)
 
-	batches := []payouts.Batch{
+	batches := []payouts.BatchDetail{
 		{
-			ID: uuid.New(), FundID: uuid.New(), AmountCents: 7500, NumEnrollments: 3,
-			Status: payouts.StatusAwaitingApproval, PayoutDate: time.Now(),
-			ApprovalDeadline: &future,
+			Batch: payouts.Batch{
+				ID: uuid.New(), FundID: uuid.New(), AmountCents: 7500, NumEnrollments: 3,
+				Status: payouts.StatusAwaitingApproval, PayoutDate: time.Now(),
+				ApprovalDeadline: &future,
+			},
+			FundName:   "human fund",
+			PayeeNames: []string{"ada", "bo", "cyd"},
 		},
 		{
 			// Expired: actions must render as status, not as live buttons.
-			ID: uuid.New(), FundID: uuid.New(), AmountCents: 2500, NumEnrollments: 1,
-			Status: payouts.StatusAwaitingApproval, PayoutDate: time.Now(),
-			ApprovalDeadline: &past,
+			Batch: payouts.Batch{
+				ID: uuid.New(), FundID: uuid.New(), AmountCents: 2500, NumEnrollments: 1,
+				Status: payouts.StatusAwaitingApproval, PayoutDate: time.Now(),
+				ApprovalDeadline: &past,
+			},
+			FundName:   "winter fund",
+			PayeeNames: []string{"dee"},
 		},
 		{
-			ID: uuid.New(), FundID: uuid.New(), AmountCents: 1000, NumEnrollments: 1,
-			Status: payouts.StatusReady, PayoutDate: time.Now(),
-			ApprovalDeadline: &future, ApprovedBy: &approver, ApprovedAt: &approvedAt,
+			Batch: payouts.Batch{
+				ID: uuid.New(), FundID: uuid.New(), AmountCents: 1000, NumEnrollments: 1,
+				Status: payouts.StatusReady, PayoutDate: time.Now(),
+				ApprovalDeadline: &future, ApprovedBy: &approver, ApprovedAt: &approvedAt,
+			},
+			FundName: "rent fund",
 		},
 		{
 			// Every optional field nil, and a terminal status with a reason.
-			ID: uuid.New(), FundID: uuid.New(), AmountCents: 500, NumEnrollments: 1,
-			Status: payouts.StatusCancelled, PayoutDate: time.Now(),
-			FailureReason: "approval window expired",
+			Batch: payouts.Batch{
+				ID: uuid.New(), FundID: uuid.New(), AmountCents: 500, NumEnrollments: 1,
+				Status: payouts.StatusCancelled, PayoutDate: time.Now(),
+				FailureReason: "approval window expired",
+			},
+			FundName: "board costs",
 		},
 	}
 
@@ -88,7 +102,7 @@ func TestPayoutTemplatesRender(t *testing.T) {
 
 	for _, batch := range batches {
 		var detail strings.Builder
-		if err := PayoutDetail(batch, items, &member, "/admin/payouts").Render(ctx, &detail); err != nil {
+		if err := PayoutDetail(batch.Batch, items, &member, "/admin/payouts").Render(ctx, &detail); err != nil {
 			t.Fatalf("PayoutDetail render (status %s): %v", batch.Status, err)
 		}
 
