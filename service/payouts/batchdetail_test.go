@@ -106,14 +106,27 @@ func TestDetailedBatchesCarryTheFundAndThePayees(t *testing.T) {
 		require.Equal(t, "human fund", find(t, batches, withPayees).FundName[:10])
 	})
 
-	t.Run("carries every payee", func(t *testing.T) {
-		names := find(t, batches, withPayees).PayeeNames
-		require.Len(t, names, 2)
+	t.Run("carries every payee, with the member behind them", func(t *testing.T) {
+		payees := find(t, batches, withPayees).Payees
+		require.Len(t, payees, 2)
+
+		// The id is what the panel links to. Pairing a name with the wrong id would
+		// send a treasurer to somebody else's page, so the query aggregates both
+		// with the same ordering and the store refuses to pair mismatched lengths.
+		for _, payee := range payees {
+			require.NotEmpty(t, payee.Name)
+			require.True(t, payee.HasPage(), "a payee with a member row should link to it")
+
+			var name string
+			require.NoError(t, pool.QueryRow(ctx,
+				`SELECT bco_name FROM member WHERE id = $1`, payee.ID).Scan(&name))
+			require.Equal(t, payee.Name, name, "the name and the id are not the same person")
+		}
 	})
 
 	t.Run("a batch with no payouts still lists", func(t *testing.T) {
 		batch := find(t, batches, emptyBatch)
-		require.Empty(t, batch.PayeeNames)
+		require.Empty(t, batch.Payees)
 		require.Equal(t, int32(3), batch.NumEnrollments, "the count is on the batch, not the join")
 	})
 
@@ -123,8 +136,8 @@ func TestDetailedBatchesCarryTheFundAndThePayees(t *testing.T) {
 		refreshed, errList := store.GetDetailedBatchesByStatus(ctx, payouts.StatusAwaitingApproval)
 		require.NoError(t, errList)
 
-		require.Len(t, find(t, refreshed, other).PayeeNames, 1)
-		require.Len(t, find(t, refreshed, withPayees).PayeeNames, 2,
+		require.Len(t, find(t, refreshed, other).Payees, 1)
+		require.Len(t, find(t, refreshed, withPayees).Payees, 2,
 			"the group by must keep each batch's payees to itself")
 	})
 

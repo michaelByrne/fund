@@ -428,10 +428,23 @@ SELECT bp.id,
        bp.updated,
        f.name                                                          AS fund_name,
        COALESCE(
-               array_agg(COALESCE(m.bco_name, fe.member_bco_name))
+               array_agg(COALESCE(m.bco_name, fe.member_bco_name)
+                         ORDER BY COALESCE(m.bco_name, fe.member_bco_name))
                FILTER (WHERE COALESCE(m.bco_name, fe.member_bco_name) IS NOT NULL),
                '{}'
-       )::text[]                                                       AS payee_names
+       )::text[]                                                       AS payee_names,
+       -- Ordered the same way, so the two arrays line up element for element.
+       --
+       -- The nil uuid where there is no member row and the name came from the
+       -- enrollment's snapshot: uuid[] cannot hold a NULL, and a payee with no
+       -- member is one whose name is worth showing and whose page is not there to
+       -- link to.
+       COALESCE(
+               array_agg(COALESCE(m.id, '00000000-0000-0000-0000-000000000000'::uuid)
+                         ORDER BY COALESCE(m.bco_name, fe.member_bco_name))
+               FILTER (WHERE COALESCE(m.bco_name, fe.member_bco_name) IS NOT NULL),
+               '{}'
+       )::uuid[]                                                       AS payee_ids
 FROM batch_payout bp
          JOIN fund f ON f.id = bp.fund_id
          LEFT JOIN payout p ON p.batch_id = bp.id
@@ -462,6 +475,7 @@ type GetDetailedBatchPayoutsByStatusRow struct {
 	Updated          pgtype.Timestamptz
 	FundName         string
 	PayeeNames       []string
+	PayeeIds         []uuid.UUID
 }
 
 // What the approval page needs to show a batch, rather than what the jobs need to
@@ -510,6 +524,7 @@ func (q *Queries) GetDetailedBatchPayoutsByStatus(ctx context.Context, status Pa
 			&i.Updated,
 			&i.FundName,
 			&i.PayeeNames,
+			&i.PayeeIds,
 		); err != nil {
 			return nil, err
 		}

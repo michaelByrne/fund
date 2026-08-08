@@ -16,14 +16,19 @@ import (
 func awaitingBatch(fundName string, names []string) payouts.BatchDetail {
 	deadline := time.Now().Add(time.Hour)
 
+	payees := make([]payouts.Payee, 0, len(names))
+	for _, name := range names {
+		payees = append(payees, payouts.Payee{ID: uuid.New(), Name: name})
+	}
+
 	return payouts.BatchDetail{
 		Batch: payouts.Batch{
 			ID: uuid.New(), FundID: uuid.New(), AmountCents: 4000,
 			NumEnrollments: int32(len(names)), Status: payouts.StatusAwaitingApproval,
 			PayoutDate: time.Now(), ApprovalDeadline: &deadline,
 		},
-		FundName:   fundName,
-		PayeeNames: names,
+		FundName: fundName,
+		Payees:   payees,
 	}
 }
 
@@ -46,8 +51,8 @@ func TestThePayeeCountOpensAPanelOfNames(t *testing.T) {
 
 	require.Contains(t, html, "3 payees")
 
-	for _, name := range batch.PayeeNames {
-		require.Contains(t, html, ">"+name+"<", "every payee should be listed")
+	for _, payee := range batch.Payees {
+		require.Contains(t, html, ">"+payee.Name+"<", "every payee should be listed")
 	}
 
 	// Not a title. It is slow, unstylable, and on a touch screen there is no hover
@@ -141,4 +146,44 @@ func TestThePanelStylesAreBuilt(t *testing.T) {
 	for _, class := range []string{"group-hover", "group-focus-within", "z-50", "top-full"} {
 		require.Containsf(t, sheet, class, "%s is not in the built stylesheet", class)
 	}
+}
+
+// The names are the point of the panel, and a treasurer reading them is one click
+// from wanting the person behind one.
+func TestEachPayeeLinksToTheirMemberPage(t *testing.T) {
+	batch := awaitingBatch("human fund", []string{"ada", "bo"})
+
+	html := renderAdmin(t, PayeeCount(batch))
+
+	for _, payee := range batch.Payees {
+		require.Contains(t, html, `href="/admin/member/`+payee.ID.String()+`"`)
+	}
+}
+
+// A payee whose member row is gone still has a name, from the snapshot taken when
+// they were enrolled. There is nowhere to send anybody, and a link to
+// /admin/member/00000000-... is worse than no link.
+func TestAPayeeWithNoMemberIsNotLinked(t *testing.T) {
+	batch := awaitingBatch("human fund", nil)
+	batch.NumEnrollments = 2
+	batch.Payees = []payouts.Payee{
+		{ID: uuid.New(), Name: "ada"},
+		{Name: "someone who left"},
+	}
+
+	html := renderAdmin(t, PayeeCount(batch))
+
+	require.Contains(t, html, "someone who left")
+	require.NotContains(t, html, uuid.Nil.String())
+}
+
+// Moving the pointer from the count down to a name crosses the space between
+// them. With that space outside the panel it is not hovered, so the panel shut
+// before any name could be reached.
+func TestNothingUnhoverableSitsBetweenTheCountAndTheNames(t *testing.T) {
+	html := renderAdmin(t, PayeeCount(awaitingBatch("human fund", []string{"ada"})))
+
+	// The gap is padding inside the panel, not a margin beside it.
+	require.Contains(t, html, "top-full pt-1")
+	require.NotContains(t, html, "top-full mt-1")
 }
