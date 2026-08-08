@@ -144,7 +144,7 @@ templ ClosedFundDetails(fund donations.Fund, image *donations.FundImage) {
 					@lockedField("frequency", string(fund.PayoutFrequency))
 				</div>
 			</div>
-			@lockedField("description", fund.Description)
+			@lockedDescription(fund.Description)
 			<div class="flex gap-3">
 				<div class="flex-grow min-w-0">
 					@lockedField("goal", goalDisplay(fund.GoalCents))
@@ -157,6 +157,25 @@ templ ClosedFundDetails(fund donations.Fund, image *donations.FundImage) {
 				this fund is closed. nothing about it can be changed.
 			</p>
 		</div>
+	</div>
+}
+
+// lockedDescription is the description on a closed fund.
+//
+// A textarea, not the single-line input the other locked fields use. A
+// description is the one field here that can run to several lines, and an input
+// holds its value in an attribute -- where newlines are flattened to spaces and
+// anything past the width of the box is simply not visible. The editable version
+// is a textarea for the same reason; the read-only one should not lose the shape
+// of what was written.
+templ lockedDescription(description string) {
+	<div>
+		<span class="block mb-1 text-gray-600">description</span>
+		<textarea
+			rows="3"
+			disabled
+			class="w-full p-1 text-sm border border-slate-200 bg-even text-gray-600 shadow-sm"
+		>{ description }</textarea>
 	</div>
 }
 

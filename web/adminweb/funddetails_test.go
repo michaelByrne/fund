@@ -386,3 +386,59 @@ func TestAClosedFundCannotBeChanged(t *testing.T) {
 		require.Contains(t, html, "human fund")
 	})
 }
+
+// The handler reads the fund, then the service reads it again before refusing.
+// Between those two reads it can expire, or another admin can close it -- so a
+// refusal has to redraw from what is stored now, not from the copy the handler
+// started with. Otherwise the page shows an editable card carrying the message
+// "this fund is closed", which is the page arguing with itself.
+func TestARefusalRedrawsFromWhatIsStoredNow(t *testing.T) {
+	post, pool := detailsRig(t)
+
+	t.Run("a fund closed underneath the request redraws read-only", func(t *testing.T) {
+		fundID := seedFundRow(t, pool)
+
+		// The state the handler's first read would have seen is open; the state at
+		// the moment of refusal is closed. Closing it here stands in for the window
+		// between the two.
+		_, err := pool.Exec(context.Background(),
+			`UPDATE fund SET active = false WHERE id = $1`, fundID)
+		require.NoError(t, err)
+
+		recorder := post(fundID.String(), "description=changed")
+		html := recorder.Body.String()
+
+		require.Contains(t, html, "this fund is closed")
+		require.NotContains(t, html, "<form", "an editable card under a closed-fund message")
+		require.NotContains(t, html, "save")
+	})
+
+	// Every refusal, not just the closed one: the boxes should hold what is stored
+	// rather than what was typed and rejected.
+	t.Run("a validation failure shows what is stored", func(t *testing.T) {
+		fundID := seedFundRow(t, pool)
+
+		html := post(fundID.String(), "description=changed&goal=lots").Body.String()
+
+		require.Contains(t, html, "the original")
+		require.NotContains(t, html, "changed")
+	})
+}
+
+// A description can run to several lines. An input holds its value in an
+// attribute, where newlines flatten to spaces and anything past the width of the
+// box is not visible at all.
+func TestAClosedFundsDescriptionKeepsItsShape(t *testing.T) {
+	past := time.Now().Add(-24 * time.Hour)
+	fund := donations.Fund{
+		ID: uuid.New(), Name: "human fund", Active: true, Expires: &past,
+		Description: "first line\nsecond line",
+	}
+
+	html := renderAdmin(t, FundDetails(fund, nil, "", ""))
+
+	// In element content, where a newline survives -- not in an attribute.
+	require.Contains(t, html, "first line\nsecond line")
+	require.NotContains(t, html, `value="first line`)
+	require.Contains(t, html, "<textarea")
+}
