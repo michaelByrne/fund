@@ -570,6 +570,7 @@ func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUI
 	insertPayment := InsertDonationPayment{
 		ID:                uuid.New(),
 		AmountCents:       order.AmountCents,
+		ProviderFeeCents:  order.FeeCents,
 		ProviderPaymentID: order.ProviderPaymentID,
 		DonationID:        insertDonation.ID,
 	}

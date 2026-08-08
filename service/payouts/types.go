@@ -34,6 +34,17 @@ func (s Status) Terminal() bool {
 	}
 }
 
+// PayoutFeeCents is what the provider charges to send one payout.
+//
+// PayPal's Payouts API is a flat 25 cents per item domestically, which is what
+// this account is actually billed -- the published 2% capped at $1 applies to
+// other ways of sending, and on the amounts here would be less.
+//
+// A constant rather than a lookup because it is the same for every item and
+// there is one provider. When there are two, it belongs on whatever answers for
+// the fund's provider.
+const PayoutFeeCents = 25
+
 type Batch struct {
 	ID               uuid.UUID
 	FundID           uuid.UUID

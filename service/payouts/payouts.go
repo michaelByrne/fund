@@ -708,13 +708,23 @@ func (s PayoutService) planOneDueFund(ctx context.Context, fund DueFund, logger 
 		return false, err
 	}
 
-	perHead := available / int64(payable)
+	// Held back for what sending the money will cost. The fee on a payout is only
+	// known once it has been sent, so the balance cannot already have it
+	// subtracted -- planning the whole balance means submitting a batch the account
+	// cannot cover, and PayPal refuses the lot rather than the last item.
+	//
+	// Reserved high rather than exactly: what is not spent stays in the fund and
+	// rolls into the next payout, which is where a remainder goes anyway.
+	reserved := PayoutFeeCents * int64(payable)
+
+	perHead := (available - reserved) / int64(payable)
 	if perHead <= 0 {
 		// Deliberately not advanced: the payout is still owed, and donations may
 		// arrive tomorrow. Retrying is the right behaviour even though it means
 		// this warning repeats until the fund is funded or deactivated.
 		logger.Warn("fund is due but has nothing to pay out, will retry",
 			slog.Int64("available_cents", available),
+			slog.Int64("reserved_for_fees_cents", reserved),
 			slog.Int("payable", payable),
 		)
 
@@ -728,10 +738,11 @@ func (s PayoutService) planOneDueFund(ctx context.Context, fund DueFund, logger 
 		// The scheduled date, not today. A run that catches up a missed period must
 		// record the date it is paying for, and the (fund_id, payout_date) unique
 		// index is what stops a second run paying it twice.
-		PayoutDate:      fund.NextPayment,
-		AmountCents:     int32(perHead),
-		Description:     fmt.Sprintf("%s payout", fund.Name),
-		Notes:           fmt.Sprintf("planned automatically: %d cents available, %d payees", available, payable),
+		PayoutDate:  fund.NextPayment,
+		AmountCents: int32(perHead),
+		Description: fmt.Sprintf("%s payout", fund.Name),
+		Notes: fmt.Sprintf("planned automatically: %d cents available, %d reserved for fees, %d payees",
+			available, reserved, payable),
 		RequireApproval: true,
 	})
 	if err != nil {
@@ -756,7 +767,8 @@ func (s PayoutService) planOneDueFund(ctx context.Context, fund DueFund, logger 
 		slog.String("batch_id", batch.ID.String()),
 		slog.Int64("per_head_cents", perHead),
 		slog.Int("payees", payable),
-		slog.Int64("remainder_cents", available-perHead*int64(payable)),
+		slog.Int64("reserved_for_fees_cents", reserved),
+		slog.Int64("remainder_cents", available-reserved-perHead*int64(payable)),
 	)
 
 	return true, nil

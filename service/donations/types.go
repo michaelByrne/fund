@@ -52,6 +52,10 @@ func (f PayoutFrequency) Recurring() bool {
 // invented donation disbursed real money, out of a PayPal balance shared with
 // every other fund.
 type ProviderOrder struct {
+	// FeeCents is what the provider took to collect it. Recorded with the payment,
+	// because the fund never holds it.
+	FeeCents int32
+
 	Status string
 	// FundReferenceID is the reference we set when creating the order, so it
 	// cannot be chosen by whoever completes it.
