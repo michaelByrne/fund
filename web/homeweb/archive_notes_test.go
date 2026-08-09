@@ -25,7 +25,7 @@ func renderArchive(t *testing.T, notes []donations.FundNote, member *members.Mem
 	}
 
 	var out strings.Builder
-	if err := ClosedFundSummary(fund, donations.FundStats{}, notes, nil, member, "/archive").
+	if err := ClosedFundSummary(fund, donations.FundStats{}, notes, nil, nil, member, "/archive").
 		Render(context.Background(), &out); err != nil {
 		t.Fatalf("render: %v", err)
 	}

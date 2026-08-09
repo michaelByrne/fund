@@ -73,6 +73,7 @@ const (
 	FundEventKindPaymentFailed        FundEventKind = "payment_failed"
 	FundEventKindDonationResumed      FundEventKind = "donation_resumed"
 	FundEventKindPaymentRefunded      FundEventKind = "payment_refunded"
+	FundEventKindFundUpdated          FundEventKind = "fund_updated"
 )
 
 func (e *FundEventKind) Scan(src interface{}) error {

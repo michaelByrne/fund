@@ -2,6 +2,7 @@ package homeweb
 
 import (
 	"boardfund/service/donations"
+	"boardfund/service/fundevents"
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"boardfund/web/mux"
@@ -21,8 +22,20 @@ import (
 
 const internalErrMessage = "internal error"
 
+// publicEvents is the fund timeline, public projection only.
+//
+// Narrowed to the one method deliberately. Everything in this package renders
+// pages that any signed-in member can read, and the full feed names the donor
+// behind every payment and the recipient behind every enrollment. Holding the
+// whole *fundevents.Service here would make reaching for GetFundEvents a
+// plausible next edit; this way it does not compile.
+type publicEvents interface {
+	GetPublicFundEvents(ctx context.Context, fundID uuid.UUID, limit int32) ([]fundevents.PublicEvent, error)
+}
+
 type FundHandlers struct {
 	donationService *donations.DonationService
+	fundEvents      publicEvents
 	sessionManager  *scs.SessionManager
 	withAuth        func(http.HandlerFunc) http.HandlerFunc
 	logger          *slog.Logger
@@ -32,6 +45,7 @@ type FundHandlers struct {
 
 func NewFundHandlers(
 	donationService *donations.DonationService,
+	fundEvents publicEvents,
 	sessionManager *scs.SessionManager,
 	withAuth func(http.HandlerFunc) http.HandlerFunc,
 	logger *slog.Logger,
@@ -39,6 +53,7 @@ func NewFundHandlers(
 ) *FundHandlers {
 	return &FundHandlers{
 		donationService: donationService,
+		fundEvents:      fundEvents,
 		sessionManager:  sessionManager,
 		withAuth:        withAuth,
 		logger:          logger,
@@ -1013,7 +1028,15 @@ func (h *FundHandlers) closedFundSummary(w http.ResponseWriter, r *http.Request)
 		image = nil
 	}
 
-	ClosedFundSummary(*fund, fund.Stats, notes, image, &member, r.URL.Path).Render(ctx, w)
+	// Not fatal. The ledger figures above it are the substance of this page, and
+	// a fund whose history could not be read is better shown without a timeline
+	// than not shown at all.
+	timeline, err := h.fundEvents.GetPublicFundEvents(ctx, fundID, fundevents.DefaultLimit)
+	if err != nil {
+		h.logger.Error("failed to read the public fund timeline", slog.String("error", err.Error()))
+	}
+
+	ClosedFundSummary(*fund, fund.Stats, notes, image, timeline, &member, r.URL.Path).Render(ctx, w)
 }
 
 func sendJSON(w http.ResponseWriter, status int, v any) {

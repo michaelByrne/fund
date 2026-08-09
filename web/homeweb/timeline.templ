@@ -1,0 +1,63 @@
+package homeweb
+
+import "boardfund/service/fundevents"
+
+// FundTimeline is what a donor can see of how a fund was run.
+//
+// The ledger above it gives the totals -- collected, paid out, to how many
+// people. This gives the sequence, which is the part that says whether the fund
+// was run the way it said it would be: when payouts were planned, who approved
+// them, when the money actually went out, and when the fund closed.
+//
+// Nobody is named except the person who approved or rejected a payout. That is
+// deliberate and enforced a layer down, in fundevents.PublicEvent, which has no
+// field for the member an event was about -- a donor giving quietly is not
+// listed, and a recipient of mutual aid is never listed.
+templ FundTimeline(events []fundevents.PublicEvent) {
+	// Omitted entirely when empty rather than shown as an empty box. Funds that
+	// closed before any of this was recorded have no timeline, and "nothing
+	// recorded" sitting directly beneath a ledger reporting four completed
+	// payouts reads as a contradiction rather than as a gap.
+	if len(events) > 0 {
+		<div class="my-6">
+			<div class="text-md font-semibold p-2 inline-block bg-high">what happened</div>
+			<ol class="bg-odd">
+				for _, event := range chronological(events) {
+					@FundTimelineRow(event)
+				}
+			</ol>
+			<p class="text-xs text-gray-600 p-2">
+				recorded as it happened and never edited afterwards. donors and
+				recipients are not named.
+			</p>
+		</div>
+	}
+}
+
+templ FundTimelineRow(event fundevents.PublicEvent) {
+	<li class="px-3 py-2 even:bg-even odd:bg-odd">
+		<div class="flex flex-row items-baseline gap-2">
+			<span class="font-medium">{ timelineLabel(event.Kind) }</span>
+			if event.AmountCents != nil {
+				<span class="ml-auto shrink-0 tabular-nums">{ "$" + centsToDecimalString(*event.AmountCents) }</span>
+			}
+		</div>
+		<div class="flex flex-row flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs text-gray-600">
+			<span class="tabular-nums">{ event.OccurredAt.Format("January 2, 2006") }</span>
+			if event.Detail != "" {
+				<span>&#183; { event.Detail }</span>
+			}
+			// Approving a payout is the accountable act on this page, so the person
+			// who did it is named. An automated step says so rather than leaving a
+			// blank that reads as a withheld name.
+			if event.ByProvider() {
+				<span class="italic">&#183; automatic</span>
+			} else if event.ActorName != "" {
+				<span>&#183; by { event.ActorName }</span>
+			} else {
+				// member.bco_name is nullable, so a person can act and have no name.
+				<span class="italic">&#183; by an unnamed member</span>
+			}
+		</div>
+	</li>
+}

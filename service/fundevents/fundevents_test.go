@@ -191,6 +191,93 @@ func TestFundEvents(t *testing.T) {
 		assert.Len(t, events, 2)
 	})
 
+	// The closed-fund page reads this. Everything it returns is visible to any
+	// member, so what it leaves out is the whole point.
+	t.Run("the public feed keeps the money and drops the donors", func(t *testing.T) {
+		fundID := seedFund(t, ctx, pool)
+		donor := seedMember(t, ctx, pool, "donor")
+		treasurer := seedMember(t, ctx, pool, "treasurer")
+
+		base := time.Now().Add(-72 * time.Hour)
+		amount := int32(7500)
+
+		svc.Record(ctx, fundevents.Record{
+			FundID:          fundID,
+			Kind:            fundevents.KindPaymentReceived,
+			OccurredAt:      base,
+			SubjectMemberID: &donor,
+			AmountCents:     &amount,
+		})
+		svc.Record(ctx, fundevents.Record{
+			FundID:          fundID,
+			Kind:            fundevents.KindMemberEnrolled,
+			OccurredAt:      base.Add(time.Hour),
+			SubjectMemberID: &donor,
+		})
+		svc.Record(ctx, fundevents.Record{
+			FundID:        fundID,
+			Kind:          fundevents.KindBatchApproved,
+			OccurredAt:    base.Add(2 * time.Hour),
+			ActorMemberID: &treasurer,
+			AmountCents:   &amount,
+			Detail:        "3 payees",
+		})
+		svc.Record(ctx, fundevents.Record{
+			FundID:     fundID,
+			Kind:       fundevents.KindFundClosed,
+			OccurredAt: base.Add(3 * time.Hour),
+		})
+
+		public, err := svc.GetPublicFundEvents(ctx, fundID, fundevents.DefaultLimit)
+		require.NoError(t, err)
+		require.Len(t, public, 2, "the payment and the enrollment name a member and must not appear")
+
+		assert.Equal(t, fundevents.KindFundClosed, public[0].Kind)
+		assert.Equal(t, fundevents.KindBatchApproved, public[1].Kind)
+
+		// The one name the public feed carries: whoever approved the money.
+		assert.NotEmpty(t, public[1].ActorName)
+		assert.False(t, public[1].ByProvider())
+		assert.Equal(t, "3 payees", public[1].Detail)
+
+		// Closing on expiry has no actor, and that must read as automatic rather
+		// than as a name withheld.
+		assert.True(t, public[0].ByProvider())
+
+		// The private events are still there for the admin feed. The public one is
+		// a projection, not a deletion.
+		all, err := svc.GetFundEvents(ctx, fundID, fundevents.DefaultLimit)
+		require.NoError(t, err)
+		assert.Len(t, all, 4)
+	})
+
+	// The limit bounds what comes back, not what is read. A fund whose feed is
+	// mostly payments would otherwise show two timeline entries because the
+	// donations filled the page.
+	t.Run("the public limit counts public events", func(t *testing.T) {
+		fundID := seedFund(t, ctx, pool)
+		donor := seedMember(t, ctx, pool, "donor")
+
+		for range 20 {
+			svc.Record(ctx, fundevents.Record{
+				FundID:          fundID,
+				Kind:            fundevents.KindPaymentReceived,
+				SubjectMemberID: &donor,
+			})
+		}
+		for range 4 {
+			svc.Record(ctx, fundevents.Record{FundID: fundID, Kind: fundevents.KindBatchSettled})
+		}
+
+		public, err := svc.GetPublicFundEvents(ctx, fundID, 3)
+		require.NoError(t, err)
+		assert.Len(t, public, 3)
+
+		public, err = svc.GetPublicFundEvents(ctx, fundID, fundevents.DefaultLimit)
+		require.NoError(t, err)
+		assert.Len(t, public, 4, "all four batches, past twenty payments")
+	})
+
 	// Recording must never be able to take down the operation it describes.
 	t.Run("an unusable record is dropped, not panicked on", func(t *testing.T) {
 		require.NotPanics(t, func() {

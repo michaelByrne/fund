@@ -256,7 +256,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 
 	// Handlers setup
 	donationHandlers := homeweb.NewFundHandlers(
-		donationService, sessionManager, authMiddleware, logger,
+		donationService, fundEvents, sessionManager, authMiddleware, logger,
 		runConfig.PayPal.ProductID, runConfig.PayPal.ClientID,
 	)
 	authHandlers := authweb.NewAuthHandlers(authService, memberService, sessionManager, runConfig.PayPal.ClientID, runConfig.IsLive)

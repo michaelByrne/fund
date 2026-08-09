@@ -1109,7 +1109,8 @@ func (h *AdminHandlers) badImage(ctx context.Context, w http.ResponseWriter, sta
 func (h *AdminHandlers) saveFundDetails(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if _, ok := h.sessionManager.Get(ctx, "member").(members.Member); !ok {
+	actor, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
 		common.Redirect(w, r, "/")
 
 		return
@@ -1165,7 +1166,7 @@ func (h *AdminHandlers) saveFundDetails(w http.ResponseWriter, r *http.Request) 
 		updated.Expires = nil
 	}
 
-	saved, err := h.donationService.UpdateFund(ctx, updated)
+	saved, err := h.donationService.UpdateFund(ctx, updated, &actor.ID)
 	if err != nil {
 		if errors.Is(err, donations.ErrFundClosed) {
 			h.badDetails(w, r, fundID, "this fund is closed. nothing about it can be changed.")

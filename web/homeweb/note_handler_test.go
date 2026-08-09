@@ -60,11 +60,14 @@ func noteRig(t *testing.T) (func(fundID, form string) *httptest.ResponseRecorder
 
 	sessions := scs.New()
 
+	events := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
+
 	handlers := NewFundHandlers(
 		donations.NewDonationService(
 			donationsstore.NewDonationStore(pool), stubDocumentStorage{}, stubBucket{}, nil,
-			fundevents.NewService(fundeventstore.NewEventStore(pool), logger), nil, logger,
+			events, nil, logger,
 		),
+		events,
 		sessions,
 		func(next http.HandlerFunc) http.HandlerFunc { return next },
 		logger, "product", "client",
