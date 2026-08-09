@@ -2,6 +2,8 @@ package auth
 
 import (
 	"boardfund/jwtauth"
+	"boardfund/service/adminevents"
+	"boardfund/service/members"
 	"context"
 	"errors"
 	"io"
@@ -70,10 +72,24 @@ func (f *fakeAuthorizer) ListGroups(_ context.Context, username string) ([]strin
 	return f.groups[username], nil
 }
 
+// recorder collects what the service writes to the audit trail.
+type recorder struct {
+	records []adminevents.Record
+}
+
+func (r *recorder) Record(_ context.Context, record adminevents.Record) {
+	r.records = append(r.records, record)
+}
+
 func newTestService(f *fakeAuthorizer) AuthService {
+	return newAuditedTestService(f, &recorder{})
+}
+
+func newAuditedTestService(f *fakeAuthorizer, log *recorder) AuthService {
 	return AuthService{
-		authorizer: f,
-		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		authorizer:  f,
+		adminEvents: log,
+		logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 }
 
@@ -82,8 +98,9 @@ func TestGrantAndRevokeAdminUseTheCognitoGroup(t *testing.T) {
 	svc := newTestService(fake)
 
 	ctx := context.Background()
+	actor, subject := testMember("gofreescout"), testMember("michael")
 
-	if err := svc.GrantAdmin(ctx, "michael"); err != nil {
+	if err := svc.GrantAdmin(ctx, actor, subject); err != nil {
 		t.Fatalf("grant: %v", err)
 	}
 
@@ -101,7 +118,7 @@ func TestGrantAndRevokeAdminUseTheCognitoGroup(t *testing.T) {
 		t.Error("member should be an admin after being granted")
 	}
 
-	if err := svc.RevokeAdmin(ctx, "michael"); err != nil {
+	if err := svc.RevokeAdmin(ctx, actor, subject); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
 
@@ -120,6 +137,98 @@ func TestGrantAndRevokeAdminUseTheCognitoGroup(t *testing.T) {
 	// Revoking admin must not disturb the member's other groups.
 	if got := fake.groups["michael"]; len(got) != 1 || got[0] != "some-other-group" {
 		t.Errorf("other groups = %v, want [some-other-group]", got)
+	}
+}
+
+func testMember(name string) members.Member {
+	return members.Member{ID: uuid.New(), BCOName: name}
+}
+
+func TestAdminChangesAreRecordedWithBothParties(t *testing.T) {
+	fake := &fakeAuthorizer{groups: map[string][]string{"michael": nil}}
+	log := &recorder{}
+	svc := newAuditedTestService(fake, log)
+
+	ctx := context.Background()
+	actor, subject := testMember("gofreescout"), testMember("michael")
+
+	if err := svc.GrantAdmin(ctx, actor, subject); err != nil {
+		t.Fatalf("grant: %v", err)
+	}
+	if err := svc.RevokeAdmin(ctx, actor, subject); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+
+	if len(log.records) != 2 {
+		t.Fatalf("recorded %d events, want 2", len(log.records))
+	}
+
+	granted, revoked := log.records[0], log.records[1]
+
+	if granted.Kind != adminevents.KindAdminGranted {
+		t.Errorf("first event is %q, want %q", granted.Kind, adminevents.KindAdminGranted)
+	}
+	if revoked.Kind != adminevents.KindAdminRevoked {
+		t.Errorf("second event is %q, want %q", revoked.Kind, adminevents.KindAdminRevoked)
+	}
+
+	// The point of the log is attribution. An event naming only the subject
+	// records that somebody's access changed without recording who changed it,
+	// which is the state this table was added to end.
+	for i, record := range log.records {
+		if record.SubjectMemberID != subject.ID {
+			t.Errorf("event %d: subject %v, want %v", i, record.SubjectMemberID, subject.ID)
+		}
+		if record.ActorMemberID == nil {
+			t.Fatalf("event %d: no actor recorded", i)
+		}
+		if *record.ActorMemberID != actor.ID {
+			t.Errorf("event %d: actor %v, want %v", i, *record.ActorMemberID, actor.ID)
+		}
+	}
+}
+
+func TestAFailedGroupWriteIsNotRecorded(t *testing.T) {
+	fake := &fakeAuthorizer{groups: map[string][]string{}, err: errors.New("cognito down")}
+	log := &recorder{}
+	svc := newAuditedTestService(fake, log)
+
+	ctx := context.Background()
+	actor, subject := testMember("gofreescout"), testMember("michael")
+
+	// Both must fail; recording either would be the audit trail asserting a
+	// privilege change that never reached Cognito. A log that invents grants is
+	// worse than no log, because it will be believed.
+	if err := svc.GrantAdmin(ctx, actor, subject); err == nil {
+		t.Fatal("a failed group write should return an error")
+	}
+	if err := svc.RevokeAdmin(ctx, actor, subject); err == nil {
+		t.Fatal("a failed group removal should return an error")
+	}
+
+	if len(log.records) != 0 {
+		t.Errorf("recorded %v, want nothing for a change that did not happen", log.records)
+	}
+}
+
+func TestAnUnattributedChangeRecordsNoActor(t *testing.T) {
+	fake := &fakeAuthorizer{groups: map[string][]string{"michael": nil}}
+	log := &recorder{}
+
+	// A zero-value actor is what a caller with no signed-in member holds. The
+	// nil uuid is a real value that would render as a member link to nothing, so
+	// it must become "not recorded" rather than travel into the log.
+	if err := newAuditedTestService(fake, log).GrantAdmin(
+		context.Background(), members.Member{}, testMember("michael"),
+	); err != nil {
+		t.Fatalf("grant: %v", err)
+	}
+
+	if len(log.records) != 1 {
+		t.Fatalf("recorded %d events, want 1", len(log.records))
+	}
+	if log.records[0].ActorMemberID != nil {
+		t.Errorf("actor %v, want none", *log.records[0].ActorMemberID)
 	}
 }
 

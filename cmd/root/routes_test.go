@@ -26,10 +26,10 @@ func TestAllRoutesRegisterWithoutConflict(t *testing.T) {
 	// are the exception -- they are called during registration, not per request.
 	passthrough := func(next http.HandlerFunc) http.HandlerFunc { return next }
 
-	authHandlers := authweb.NewAuthHandlers(nil, nil, nil, "")
+	authHandlers := authweb.NewAuthHandlers(nil, nil, nil, "", true)
 	donationHandlers := homeweb.NewFundHandlers(nil, nil, passthrough, nil, "", "")
 	adminHandlers := adminweb.NewAdminHandlers(
-		passthrough, nil, nil, nil, nil, nil, nil, nil, nil, nil, "",
+		passthrough, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, "",
 	)
 	webhooksHandlers := hooksweb.NewWebhooksHandlers(nil, nil, nil, nil, nil, "")
 

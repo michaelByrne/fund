@@ -13,6 +13,48 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AdminEventKind string
+
+const (
+	AdminEventKindAdminGranted AdminEventKind = "admin_granted"
+	AdminEventKindAdminRevoked AdminEventKind = "admin_revoked"
+)
+
+func (e *AdminEventKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AdminEventKind(s)
+	case string:
+		*e = AdminEventKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AdminEventKind: %T", src)
+	}
+	return nil
+}
+
+type NullAdminEventKind struct {
+	AdminEventKind AdminEventKind
+	Valid          bool // Valid is true if AdminEventKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAdminEventKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.AdminEventKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AdminEventKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAdminEventKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AdminEventKind), nil
+}
+
 type FundEventKind string
 
 const (
@@ -245,6 +287,16 @@ func (ns NullRole) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.Role), nil
+}
+
+type AdminEvent struct {
+	ID              uuid.UUID
+	Kind            AdminEventKind
+	OccurredAt      pgtype.Timestamptz
+	ActorMemberID   uuid.NullUUID
+	SubjectMemberID uuid.UUID
+	Detail          pgtype.Text
+	Created         pgtype.Timestamptz
 }
 
 type ApprovedEmail struct {

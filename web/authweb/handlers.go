@@ -18,15 +18,21 @@ type AuthHandlers struct {
 	sessionManager *scs.SessionManager
 
 	clientID string
+
+	// secureCookies marks the token cookie Secure, which a browser honours by
+	// refusing to send it over plain HTTP. Off in local development, where there
+	// is no certificate and marking it would send no cookie at all.
+	secureCookies bool
 }
 
-func NewAuthHandlers(authService *auth.AuthService, memberService *members.MemberService, sessionManager *scs.SessionManager, clientID string) *AuthHandlers {
+func NewAuthHandlers(authService *auth.AuthService, memberService *members.MemberService, sessionManager *scs.SessionManager, clientID string, secureCookies bool) *AuthHandlers {
 
 	return &AuthHandlers{
 		authService:    authService,
 		memberService:  memberService,
 		sessionManager: sessionManager,
 		clientID:       clientID,
+		secureCookies:  secureCookies,
 	}
 }
 
@@ -118,7 +124,7 @@ func (h AuthHandlers) resetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setTokenCookie("access-token", authResp.Token.IDTokenStr, authResp.Token.Expires, w)
+	h.setTokenCookie("access-token", authResp.Token.IDTokenStr, authResp.Token.Expires, w)
 	h.sessionManager.Put(ctx, "member", member)
 
 	http.Redirect(w, r, "/", http.StatusFound)
@@ -149,7 +155,7 @@ func (h AuthHandlers) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setTokenCookie("access-token", authResp.Token.IDTokenStr, authResp.Token.Expires, w)
+	h.setTokenCookie("access-token", authResp.Token.IDTokenStr, authResp.Token.Expires, w)
 	h.sessionManager.Put(ctx, "member", member)
 
 	http.Redirect(w, r, "/", http.StatusFound)
@@ -171,7 +177,7 @@ func (h AuthHandlers) passwordPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h AuthHandlers) logout(w http.ResponseWriter, r *http.Request) {
-	setTokenCookie("access-token", "", time.Now(), w)
+	h.setTokenCookie("access-token", "", time.Now(), w)
 
 	http.Redirect(w, r, "/login", http.StatusFound)
 }
@@ -189,13 +195,26 @@ func (h AuthHandlers) loginPage(w http.ResponseWriter, r *http.Request) {
 	Login().Render(ctx, w)
 }
 
-func setTokenCookie(name, token string, expiration time.Time, w http.ResponseWriter) {
+// setTokenCookie stores the credential that every subsequent request is
+// authorised by. middlewares.Verify reads this cookie, and the admin group claim
+// inside the token is the whole of what grants admin access, so the flags here
+// are the difference between a stolen session and none.
+//
+// HttpOnly keeps it away from scripts. Secure keeps it off plain HTTP -- an
+// HTTP-to-HTTPS redirect at the edge is too late, because the browser has
+// already sent the cookie by the time it arrives. SameSite=Lax is the browser
+// default when unset, but only by default: it is set explicitly because it is
+// the only thing standing in for a CSRF token, and a defence nobody wrote down
+// is one that disappears the first time someone needs a cross-site embed.
+func (h AuthHandlers) setTokenCookie(name, token string, expiration time.Time, w http.ResponseWriter) {
 	cookie := new(http.Cookie)
 	cookie.Name = name
 	cookie.Value = token
 	cookie.Expires = expiration
 	cookie.Path = "/"
 	cookie.HttpOnly = true
+	cookie.Secure = h.secureCookies
+	cookie.SameSite = http.SameSiteLaxMode
 
 	http.SetCookie(w, cookie)
 }

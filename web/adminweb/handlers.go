@@ -2,6 +2,7 @@ package adminweb
 
 import (
 	"boardfund/messaging"
+	"boardfund/service/adminevents"
 	"boardfund/service/auth"
 	"boardfund/service/donations"
 	"boardfund/service/enrollments"
@@ -35,6 +36,7 @@ type AdminHandlers struct {
 	financeService    *finance.FinanceService
 	payoutService     *payouts.PayoutService
 	fundEventsService *fundevents.Service
+	adminEvents       *adminevents.Service
 	sessionManager    *scs.SessionManager
 	webhookBus        webhookBus
 	clientID          string
@@ -49,6 +51,7 @@ func NewAdminHandlers(
 	enrollmentsService *enrollments.EnrollmentsService,
 	payoutService *payouts.PayoutService,
 	fundEventsService *fundevents.Service,
+	adminEvents *adminevents.Service,
 	sessionManager *scs.SessionManager,
 	webhookBus webhookBus,
 	clientID string,
@@ -62,6 +65,7 @@ func NewAdminHandlers(
 		enrollmentService: enrollmentsService,
 		payoutService:     payoutService,
 		fundEventsService: fundEventsService,
+		adminEvents:       adminEvents,
 		sessionManager:    sessionManager,
 		webhookBus:        webhookBus,
 		clientID:          clientID,
@@ -96,6 +100,7 @@ func (h *AdminHandlers) Register(r *mux.Router) {
 	r.HandleFunc("POST /admin/enrollment/cancel/{id}", h.withAdmin(h.deactivateEnrollment))
 	r.HandleFunc("GET /admin/payouts", h.withAdmin(h.payoutsPage))
 	r.HandleFunc("GET /admin/webhooks", h.withAdmin(h.webhooksPage))
+	r.HandleFunc("GET /admin/audit", h.withAdmin(h.auditPage))
 	r.HandleFunc("GET /admin/payout/{id}", h.withAdmin(h.payoutPage))
 	r.HandleFunc("POST /admin/payout/approve/{id}", h.withAdmin(h.approvePayout))
 	r.HandleFunc("POST /admin/payout/reject/{id}", h.withAdmin(h.rejectPayout))
@@ -607,9 +612,9 @@ func (h *AdminHandlers) setAdmin(w http.ResponseWriter, r *http.Request, grant b
 	}
 
 	if grant {
-		err = h.authService.GrantAdmin(ctx, viewed.BCOName)
+		err = h.authService.GrantAdmin(ctx, actor, *viewed)
 	} else {
-		err = h.authService.RevokeAdmin(ctx, viewed.BCOName)
+		err = h.authService.RevokeAdmin(ctx, actor, *viewed)
 	}
 
 	if err != nil {
@@ -650,6 +655,31 @@ func (h *AdminHandlers) webhooksPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	Webhooks(status, &member, r.URL.Path).Render(ctx, w)
+}
+
+// auditPage shows every recorded change to admin access.
+//
+// Guarded by withAdmin like the rest of the section. That is the right level:
+// the log names who holds the keys and who handed them over, which is a
+// governance question for the people who already have them, not a public one.
+func (h *AdminHandlers) auditPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	member, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		common.Redirect(w, r, "/")
+
+		return
+	}
+
+	events, err := h.adminEvents.GetAdminEvents(ctx, adminevents.DefaultLimit)
+	if err != nil {
+		h.internalError(w, r)
+
+		return
+	}
+
+	AdminAudit(events, &member, r.URL.Path).Render(ctx, w)
 }
 
 func (h *AdminHandlers) memberPage(w http.ResponseWriter, r *http.Request) {

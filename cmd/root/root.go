@@ -8,6 +8,8 @@ import (
 	"boardfund/paypal"
 	"boardfund/paypal/token"
 	"boardfund/pg"
+	"boardfund/service/adminevents"
+	admineventstore "boardfund/service/adminevents/store"
 	"boardfund/service/auth"
 	"boardfund/service/auth/store"
 	"boardfund/service/donations"
@@ -186,10 +188,18 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	enrollmentStore := enrollmentstore.NewEnrollmentStore(pool)
 	payoutStore := payoutstore.NewPayoutStore(pool)
 	eventStore := fundeventstore.NewEventStore(pool)
+	adminEventStore := admineventstore.NewEventStore(pool)
 	authStore := store.NewAuthStore(pool)
 	sessionManager := scs.New()
 	sessionManager.IdleTimeout = 1 * time.Hour
 	sessionManager.Lifetime = 2 * time.Hour
+
+	// scs defaults Secure to false, which is right for a library that cannot know
+	// whether it is behind TLS and wrong for every deployment of this one. Tied to
+	// IS_PROD because local development is served over plain HTTP, where a Secure
+	// cookie is simply never sent and nobody can log in.
+	sessionManager.Cookie.Secure = runConfig.IsLive
+	sessionManager.Cookie.SameSite = http.SameSiteLaxMode
 
 	sessionManager.Store = pgxstore.New(pool)
 	defaultConfig, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-west-2"))
@@ -218,10 +228,11 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	defer messageBroker.Close()
 
 	fundEvents := fundevents.NewService(eventStore, logger)
+	adminEvents := adminevents.NewService(adminEventStore, logger)
 
 	donationService := donations.NewDonationService(donationStore, documentStorage, fundImages, paypalService, fundEvents, runConfig.ReportTypes, logger)
 	memberService := members.NewMemberService(memberStore, donationStore, paypalService, fundEvents, logger)
-	authService := auth.NewAuthService(memberStore, authStore, authorizer, logger)
+	authService := auth.NewAuthService(memberStore, authStore, authorizer, adminEvents, logger)
 	financeService := finance.NewFinanceService(donationStore, paypalService, documentStorage, fundEvents, runConfig.ReportTypes, logger)
 	enrollmentService := enrollments.NewEnrollmentsService(enrollmentStore, donationStore, fundEvents, logger)
 
@@ -248,9 +259,9 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		donationService, sessionManager, authMiddleware, logger,
 		runConfig.PayPal.ProductID, runConfig.PayPal.ClientID,
 	)
-	authHandlers := authweb.NewAuthHandlers(authService, memberService, sessionManager, runConfig.PayPal.ClientID)
+	authHandlers := authweb.NewAuthHandlers(authService, memberService, sessionManager, runConfig.PayPal.ClientID, runConfig.IsLive)
 	adminHandlers := adminweb.NewAdminHandlers(
-		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, payoutService, fundEvents, sessionManager, messageBroker, runConfig.PayPal.ClientID,
+		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, payoutService, fundEvents, adminEvents, sessionManager, messageBroker, runConfig.PayPal.ClientID,
 	)
 	webhooksHandlers := hooksweb.NewWebhooksHandlers(
 		donationService, memberService, messageBroker, hooksstore.NewDeliveryStore(pool), logger, runConfig.PayPal.WebhookID,
