@@ -27,7 +27,7 @@ func TestAllRoutesRegisterWithoutConflict(t *testing.T) {
 	passthrough := func(next http.HandlerFunc) http.HandlerFunc { return next }
 
 	authHandlers := authweb.NewAuthHandlers(nil, nil, nil, "", true)
-	donationHandlers := homeweb.NewFundHandlers(nil, nil, passthrough, nil, "", "")
+	donationHandlers := homeweb.NewFundHandlers(nil, nil, nil, passthrough, nil, "", "")
 	adminHandlers := adminweb.NewAdminHandlers(
 		passthrough, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, "",
 	)

@@ -29,7 +29,52 @@ const (
 	KindBatchSubmitted      Kind = "payout_batch_submitted"
 	KindBatchSettled        Kind = "payout_batch_settled"
 	KindFundClosed          Kind = "fund_closed"
+	KindFundUpdated         Kind = "fund_updated"
 )
+
+// Public reports whether this kind belongs on a timeline that donors can read.
+//
+// The list is an allowlist, and that is the whole design: a kind added to the
+// enum and forgotten here stays out of the public feed. The reverse default --
+// public unless excluded -- would make every future event kind a privacy
+// decision that nobody remembers to make.
+//
+// What is in: the fund's own lifecycle and the movement of money in bulk. A
+// donor's question is "was the money collected actually paid out, and when",
+// and the batch events answer it.
+//
+// What is out: everything about one identifiable person. A donation starting, a
+// payment arriving, a member enrolling. Those are the fund's business and the
+// admin feed's, and the page already shows their totals -- a donor giving
+// quietly should not be listed, and a recipient of mutual aid should never be.
+func (k Kind) Public() bool {
+	switch k {
+	case KindBatchPlanned,
+		KindBatchApproved,
+		KindBatchRejected,
+		KindBatchExpired,
+		KindBatchSubmitted,
+		KindBatchSettled,
+		KindFundUpdated,
+		KindFundClosed:
+		return true
+	default:
+		return false
+	}
+}
+
+// detailPublic reports whether this kind's Detail was composed by the
+// application rather than typed by a person.
+//
+// A public kind does not make its detail public. RejectBatch stores whatever
+// reason the treasurer wrote, which is a sentence about why a payout was held
+// back and can perfectly reasonably name the person it concerns -- so it is the
+// one field on an otherwise public event that must not travel. Every other
+// detail on the list is generated: "4 payees", "approval window expired", the
+// provider's settlement status, the list of fields an edit changed.
+func (k Kind) detailPublic() bool {
+	return k != KindBatchRejected
+}
 
 // Record is one thing that happened.
 type Record struct {
@@ -82,6 +127,63 @@ type Event struct {
 	Detail          string
 	ReferenceID     *uuid.UUID
 	Created         time.Time
+}
+
+// PublicEvent is one line of the timeline a donor sees.
+//
+// A separate type rather than a filtered Event, because the difference that
+// matters is which fields exist. There is no subject here at all, so no template
+// on a public page can name the donor or the recipient an event was about -- not
+// by mistake, and not by a later edit that looks harmless.
+//
+// The actor's name does travel, for every kind on the public list. The split is
+// between acting and being acted upon, not between one blessed action and the
+// rest: a treasurer who approved a payout and an admin who moved a fund's end
+// date have both done something to other people's money, and being nameable for
+// it is what accountability means here. A donor who gave and an enrollee who was
+// paid have done nothing that owes anyone an explanation.
+type PublicEvent struct {
+	Kind       Kind
+	OccurredAt time.Time
+	ActorName  string
+
+	// Automatic is carried rather than inferred from an empty ActorName.
+	// member.bco_name is nullable, so a person can act and have no name to show,
+	// and rendering that as "automatic" would credit a sweep for a decision
+	// somebody made.
+	Automatic bool
+
+	AmountCents *int32
+	Detail      string
+}
+
+// ByProvider reports whether this happened without a person doing it -- a sweep,
+// a webhook, an expiry. Said explicitly for the same reason as on Event: a blank
+// where a name should be must not read as an omission.
+func (e PublicEvent) ByProvider() bool {
+	return e.Automatic
+}
+
+// Publish projects an event onto the public timeline, dropping everything that
+// identifies whoever it was about.
+//
+// The actor's name survives; the subject's does not, and neither do the member
+// ids or the reference id -- an id is an identifier whether or not it is
+// rendered, and a page that carries one invites the query that resolves it.
+func (e Event) Publish() PublicEvent {
+	public := PublicEvent{
+		Kind:        e.Kind,
+		OccurredAt:  e.OccurredAt,
+		ActorName:   e.ActorName,
+		Automatic:   e.ByProvider(),
+		AmountCents: e.AmountCents,
+	}
+
+	if e.Kind.detailPublic() {
+		public.Detail = e.Detail
+	}
+
+	return public
 }
 
 // ByProvider reports whether this happened without a person doing it -- a

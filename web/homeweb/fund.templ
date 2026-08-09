@@ -2,6 +2,7 @@ package homeweb
 
 import (
 	"boardfund/service/donations"
+	"boardfund/service/fundevents"
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"fmt"
@@ -112,7 +113,7 @@ templ Title(text string) {
 // and the same chart, with the donation form replaced by what the fund did.
 // A closed fund still has a story worth reading, and until this existed the only
 // way to see it was a page that offered to take money for a fund that had ended.
-templ ClosedFundSummary(fund donations.ClosedFund, fundStats donations.FundStats, notes []donations.FundNote, image *donations.FundImage, member *members.Member, path string) {
+templ ClosedFundSummary(fund donations.ClosedFund, fundStats donations.FundStats, notes []donations.FundNote, image *donations.FundImage, timeline []fundevents.PublicEvent, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div class="p-5 mt-2">
 			@FundImagePanel(fund.Fund, image)
@@ -139,6 +140,7 @@ templ ClosedFundSummary(fund donations.ClosedFund, fundStats donations.FundStats
 					</div>
 				}
 			</div>
+			@FundTimeline(timeline)
 			// Notes outlive the fund. They are part of what it was, and a closed fund
 			// is the one people read to decide whether this works. Read-only: nobody
 			// can give to it now, so nobody can earn a note on it now -- and a fund

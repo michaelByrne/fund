@@ -73,3 +73,43 @@ func (s Service) GetFundEvents(ctx context.Context, fundID uuid.UUID, limit int3
 
 	return events, nil
 }
+
+// GetPublicFundEvents is the same feed with the private half removed.
+//
+// The filtering happens here rather than in SQL so that Kind.Public is the only
+// place the decision lives -- a query with its own list of kinds would be a
+// second copy to keep in step, and the copy that drifts is the one that leaks.
+//
+// The limit applies to what is read, not to what survives, so a fund with many
+// donations shows a short timeline rather than a slow one. Read one page deeper
+// than asked for, because the private events are the numerous ones.
+func (s Service) GetPublicFundEvents(ctx context.Context, fundID uuid.UUID, limit int32) ([]PublicEvent, error) {
+	if limit <= 0 {
+		limit = DefaultLimit
+	}
+
+	events, err := s.GetFundEvents(ctx, fundID, limit*publicReadFactor)
+	if err != nil {
+		return nil, err
+	}
+
+	public := make([]PublicEvent, 0, len(events))
+	for _, event := range events {
+		if !event.Kind.Public() {
+			continue
+		}
+
+		public = append(public, event.Publish())
+
+		if int32(len(public)) == limit {
+			break
+		}
+	}
+
+	return public, nil
+}
+
+// publicReadFactor is how much wider to read than the caller asked for. A fund's
+// feed is mostly per-donor events, so reading exactly `limit` rows would often
+// yield a handful of public ones from a fund with a long history.
+const publicReadFactor = 10

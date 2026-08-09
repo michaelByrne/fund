@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"log/slog"
+	"strings"
+	"time"
 )
 
 // eventRecorder writes the fund activity feed. Record does not return an error
@@ -661,7 +663,7 @@ func (s DonationService) CreateFund(ctx context.Context, createFund Fund) (*Fund
 // a fund taking donations again with its payouts already settled -- and letting
 // an end date be edited on one that has passed is how that would happen by
 // accident.
-func (s DonationService) UpdateFund(ctx context.Context, updateFund Fund) (*Fund, error) {
+func (s DonationService) UpdateFund(ctx context.Context, updateFund Fund, actorID *uuid.UUID) (*Fund, error) {
 	current, err := s.donationStore.GetFundByID(ctx, updateFund.ID)
 	if err != nil {
 		s.logger.Error("failed to read the fund being updated", slog.String("error", err.Error()))
@@ -672,6 +674,10 @@ func (s DonationService) UpdateFund(ctx context.Context, updateFund Fund) (*Fund
 	if current.Closed() {
 		return nil, ErrFundClosed
 	}
+
+	// Computed against what is stored, before the write. Afterwards the previous
+	// values are gone: `updated` is overwritten and nothing keeps the old ones.
+	changes := describeFundChanges(*current, updateFund)
 
 	update := UpdateFund{
 		ID:              updateFund.ID,
@@ -690,7 +696,113 @@ func (s DonationService) UpdateFund(ctx context.Context, updateFund Fund) (*Fund
 		return nil, err
 	}
 
+	// Only when something moved. The details form posts every field on every
+	// save, so a visit that changed nothing would otherwise write a line saying
+	// the fund was updated -- and a feed of those teaches a reader that the kind
+	// means nothing.
+	if changes != "" {
+		s.events.Record(ctx, fundevents.Record{
+			FundID:        updateFund.ID,
+			Kind:          fundevents.KindFundUpdated,
+			ActorMemberID: actorID,
+			Detail:        changes,
+		})
+	}
+
 	return fund, nil
+}
+
+// describeFundChanges says what an edit actually changed, in the words a reader
+// would use.
+//
+// The old value is included because it is the part that cannot be recovered:
+// the new one is in the fund row, and "the goal changed" without saying from
+// what is a line that records only that somebody was here.
+//
+// Name and payout frequency are compared even though the form locks them. A
+// field that cannot currently be edited is not a field that will never be
+// edited, and this is the place that would silently stop covering it.
+func describeFundChanges(before, after Fund) string {
+	var changes []string
+
+	if before.Name != after.Name {
+		changes = append(changes, fmt.Sprintf("name %q to %q", before.Name, after.Name))
+	}
+
+	if before.Description != after.Description {
+		// The text itself is not repeated. A description can be paragraphs, and
+		// the feed is a list of one-line entries.
+		changes = append(changes, "description edited")
+	}
+
+	if before.GoalCents != after.GoalCents {
+		changes = append(changes, fmt.Sprintf("goal %s to %s",
+			goalDescription(before.GoalCents), goalDescription(after.GoalCents)))
+	}
+
+	if before.PayoutFrequency != after.PayoutFrequency {
+		changes = append(changes, fmt.Sprintf("payouts %s to %s",
+			before.PayoutFrequency, after.PayoutFrequency))
+	}
+
+	if !sameDay(before.Expires, after.Expires) {
+		changes = append(changes, fmt.Sprintf("end date %s to %s",
+			expiryDescription(before.Expires), expiryDescription(after.Expires)))
+	}
+
+	return strings.Join(changes, ", ")
+}
+
+// goalDescription renders cents as dollars, in integer arithmetic.
+//
+// Widened to int64 and signed separately. The obvious form, "$%d.%02d" of
+// cents/100 and cents%100, renders a negative goal as "$-5.-50" -- and a
+// negative is reachable, because the goal arrives as a parsed float from a form
+// and nothing rejects a minus sign. Negating in int32 would also turn the
+// minimum value into itself.
+func goalDescription(cents int32) string {
+	if cents == 0 {
+		return "none"
+	}
+
+	value, sign := int64(cents), ""
+	if value < 0 {
+		value, sign = -value, "-"
+	}
+
+	return fmt.Sprintf("%s$%d.%02d", sign, value/100, value%100)
+}
+
+// expiryDescription renders the day, in UTC.
+//
+// UTC because everything else that touches this date already is: sameDay below
+// compares UTC days, and the form's date input renders expires.UTC(). Formatting
+// in the value's own location would let the recorded line name a different day
+// from the one the comparison decided had changed, and from the one the admin
+// saw in the field they edited.
+func expiryDescription(expires *time.Time) string {
+	if expires == nil {
+		return "none"
+	}
+
+	return expires.UTC().Format("2006-01-02")
+}
+
+// sameDay compares the two expiry values as dates.
+//
+// The form submits a day, which parses to midnight UTC, while the stored value
+// came back from Postgres as a timestamptz in whatever location the driver
+// chose. Comparing those with == reports a change on every save of an unchanged
+// date, which is exactly the empty event this guards against.
+func sameDay(before, after *time.Time) bool {
+	if before == nil || after == nil {
+		return before == after
+	}
+
+	beforeYear, beforeMonth, beforeDay := before.UTC().Date()
+	afterYear, afterMonth, afterDay := after.UTC().Date()
+
+	return beforeYear == afterYear && beforeMonth == afterMonth && beforeDay == afterDay
 }
 
 func (s DonationService) createFundBuckets(ctx context.Context, fundID uuid.UUID) error {
