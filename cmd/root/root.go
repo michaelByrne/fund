@@ -260,7 +260,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	)
 	authHandlers := authweb.NewAuthHandlers(authService, memberService, sessionManager, runConfig.PayPal.ClientID, runConfig.IsLive)
 	adminHandlers := adminweb.NewAdminHandlers(
-		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, payoutService, fundEvents, adminEvents, sessionManager, messageBroker, runConfig.PayPal.ClientID,
+		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, payoutService, fundEvents, adminEvents, sessionManager, logger, messageBroker, runConfig.PayPal.ClientID,
 	)
 	webhooksHandlers := hooksweb.NewWebhooksHandlers(
 		donationService, memberService, messageBroker, hooksstore.NewDeliveryStore(pool), logger, runConfig.PayPal.WebhookID,

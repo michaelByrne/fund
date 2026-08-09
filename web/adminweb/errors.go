@@ -1,7 +1,12 @@
 package adminweb
 
 import (
+	"fmt"
+	"log/slog"
 	"net/http"
+	"path/filepath"
+	"runtime"
+	"strings"
 
 	"boardfund/service/members"
 )
@@ -16,6 +21,13 @@ const (
 	msgUnavailable = "could not load this page."
 )
 
+// maxFormBytes bounds a urlencoded admin form.
+//
+// Generous for a handful of text fields and nowhere near the eight megabytes
+// these were reading when they were mistaken for uploads. The forms that really
+// do carry a picture bound themselves against donations.MaxImageBytes.
+const maxFormBytes = 64 << 10
+
 func isHx(r *http.Request) bool {
 	return r.Header.Get("HX-Request") == "true"
 }
@@ -29,6 +41,8 @@ func isHx(r *http.Request) bool {
 func (h *AdminHandlers) renderError(w http.ResponseWriter, r *http.Request, status int, message string) {
 	ctx := r.Context()
 
+	h.logRefusal(r, status, message)
+
 	if isHx(r) {
 		w.WriteHeader(status)
 		AdminError(message).Render(ctx, w)
@@ -41,6 +55,80 @@ func (h *AdminHandlers) renderError(w http.ResponseWriter, r *http.Request, stat
 
 	w.WriteHeader(status)
 	AdminErrorPage(message, &member, r.URL.Path).Render(ctx, w)
+}
+
+// logRefusal says why a request was turned down, and where.
+//
+// The request line records that a POST to /admin/enrollment answered 400. It
+// cannot say which of that handler's seven checks fired, and the operator
+// message is the same generic sentence for all of them -- so a refusal in
+// production was a dead end. Enrollment creation had been broken for every
+// attempt and the logs showed a tidy, unremarkable 400.
+//
+// The source position is what makes this worth having. It names the line that
+// decided, for all twenty-eight refusal sites at once, without a reason having
+// to be threaded through each of them and kept accurate.
+func (h *AdminHandlers) logRefusal(r *http.Request, status int, message string) {
+	if h.logger == nil {
+		return
+	}
+
+	attrs := []any{
+		slog.Int("status", status),
+		slog.String("reason", message),
+	}
+
+	if at := refusedAt(); at != "" {
+		attrs = append(attrs, slog.String("refused_at", at))
+	}
+
+	// A 4xx is a decision, not a fault: the handler looked at the request and
+	// said no, which is the system working. A 5xx is the other thing.
+	if status >= http.StatusInternalServerError {
+		h.logger.ErrorContext(r.Context(), "request could not be served", attrs...)
+
+		return
+	}
+
+	h.logger.InfoContext(r.Context(), "request refused", attrs...)
+}
+
+// refusedAt is the handler line that decided, skipping the error helpers
+// themselves.
+//
+// Walked rather than counted. A fixed skip depth is right for badRequest and
+// wrong for a handler that calls renderError directly, and payouts.go does
+// exactly that -- so the frame to report is the first one that is not part of
+// this file's plumbing.
+func refusedAt() string {
+	var pcs [8]uintptr
+
+	// 2 skips runtime.Callers and refusedAt itself.
+	frames := runtime.CallersFrames(pcs[:runtime.Callers(2, pcs[:])])
+
+	for {
+		frame, more := frames.Next()
+
+		if !isErrorPlumbing(frame.Function) {
+			return fmt.Sprintf("%s:%d", filepath.Base(frame.File), frame.Line)
+		}
+
+		if !more {
+			return ""
+		}
+	}
+}
+
+func isErrorPlumbing(function string) bool {
+	for _, helper := range []string{
+		".logRefusal", ".renderError", ".badRequest", ".internalError", ".notFound",
+	} {
+		if strings.HasSuffix(function, helper) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (h *AdminHandlers) internalError(w http.ResponseWriter, r *http.Request) {
