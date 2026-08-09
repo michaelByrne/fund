@@ -4,6 +4,7 @@ import (
 	"boardfund/aws"
 	"boardfund/jwtauth"
 	"boardfund/jwtauth/keyset"
+	"boardfund/logging"
 	"boardfund/messaging"
 	"boardfund/paypal"
 	"boardfund/paypal/token"
@@ -46,7 +47,6 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/spf13/cobra"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -128,8 +128,7 @@ func RootCmd(ctx context.Context, runConfig RunConfig) *cobra.Command {
 }
 
 func run(ctx context.Context, runConfig RunConfig) error {
-	jsonHandler := slog.NewJSONHandler(os.Stdout, nil)
-	logger := slog.New(jsonHandler)
+	logger := logging.New("web")
 
 	storeDir, err := resolveStoreDir(runConfig.NATSStoreDir, runConfig.IsLive, logger)
 	if err != nil {
@@ -281,6 +280,10 @@ func run(ctx context.Context, runConfig RunConfig) error {
 
 	router := mux.NewRouter(http.NewServeMux())
 	router.Use(sessionManager.LoadAndSave)
+	// Inside LoadAndSave, so the line can say which member the request belonged
+	// to, and outside everything else, so it covers requests that never reach a
+	// handler.
+	router.Use(middlewares.RequestLog(logger, sessionManager))
 
 	// Assets are linked by a URL containing a hash of their contents, so a changed
 	// file is a new URL. Asking politely for revalidation was not enough: the
@@ -327,7 +330,12 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	signal.Notify(sig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	go func() {
-		<-sig
+		received := <-sig
+
+		// The other half of "listening". Railway restarts and deploys both end a
+		// process, and without this the log simply stops -- which is also what a
+		// crash looks like.
+		logger.Info("shutting down", slog.String("signal", received.String()))
 
 		shutdownCtx, cancel := context.WithTimeout(serverCtx, 30*time.Second)
 		defer cancel()
@@ -349,7 +357,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		serverStopCtx()
 	}()
 
-	log.Println("** starting bco mutual aid on port 8080 **")
+	logger.Info("listening", slog.String("addr", server.Addr))
 	err = server.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("server failed with error: %w", err)

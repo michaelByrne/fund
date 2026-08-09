@@ -3,9 +3,9 @@ package payout
 import (
 	"fmt"
 	"log/slog"
-	"os"
 
 	"boardfund/cmd/root"
+	"boardfund/logging"
 	"boardfund/paypal"
 	"boardfund/paypal/token"
 	"boardfund/pg"
@@ -53,8 +53,7 @@ type deps struct {
 // shared: these run as one-shot CLI invocations, and a connection pool held open
 // across an interactive approval session buys nothing.
 func build(runConfig *root.RunConfig) (*deps, error) {
-	logHandler := slog.NewJSONHandler(os.Stdout, nil)
-	logger := slog.New(logHandler)
+	logger := logging.New("payout")
 
 	dbURI := fmt.Sprintf(
 		"postgresql://%s:%s@%s:%s/%s",

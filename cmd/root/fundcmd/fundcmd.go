@@ -5,11 +5,10 @@ package fundcmd
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"os"
 
 	"boardfund/aws"
 	"boardfund/cmd/root"
+	"boardfund/logging"
 	"boardfund/paypal"
 	"boardfund/paypal/token"
 	"boardfund/pg"
@@ -95,7 +94,7 @@ func closeExpiredCmd(runConfig *root.RunConfig) *cobra.Command {
 // build wires the donation service for a one-shot CLI run, matching how the
 // payout commands construct theirs.
 func build(runConfig *root.RunConfig) (*donations.DonationService, error) {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger := logging.New("funds")
 
 	dbURI := fmt.Sprintf(
 		"postgresql://%s:%s@%s:%s/%s",

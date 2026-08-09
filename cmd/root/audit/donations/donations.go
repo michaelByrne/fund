@@ -3,6 +3,7 @@ package donations
 import (
 	"boardfund/aws"
 	"boardfund/cmd/root"
+	"boardfund/logging"
 	"boardfund/paypal"
 	"boardfund/paypal/token"
 	"boardfund/pg"
@@ -14,8 +15,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/spf13/cobra"
-	"log/slog"
-	"os"
 )
 
 func DonationsAuditCmd(runConfig *root.RunConfig) *cobra.Command {
@@ -27,8 +26,7 @@ func DonationsAuditCmd(runConfig *root.RunConfig) *cobra.Command {
 				runConfig.PGUser, runConfig.PGPass, runConfig.PGHost, runConfig.PGPort, runConfig.PGDB,
 			)
 
-			logHandler := slog.NewJSONHandler(os.Stdout, nil)
-			logger := slog.New(logHandler)
+			logger := logging.New("reconcile-donations")
 
 			tokenClient := token.NewClient(
 				runConfig.PayPal.ClientID,
