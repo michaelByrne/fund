@@ -279,7 +279,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	}
 
 	router := mux.NewRouter(http.NewServeMux())
-	router.Use(sessionManager.LoadAndSave)
+	router.UseHandler(sessionManager.LoadAndSave)
 	// Inside LoadAndSave, so the line can say which member the request belonged
 	// to, and outside everything else, so it covers requests that never reach a
 	// handler.
