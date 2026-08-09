@@ -46,7 +46,7 @@ func FundTimeline(events []fundevents.PublicEvent) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if len(events) > 0 {
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"my-6\"><div class=\"text-md font-semibold p-2 inline-block bg-high\">what happened</div><ol class=\"bg-odd\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("  <div class=\"mt-6\"><div class=\"text-md font-semibold p-2 inline-block bg-high shadow-blue-boxy-thin\">what happened</div><ol class=\"mt-2 bg-odd shadow-blue-boxy md:w-[70%]\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -56,7 +56,7 @@ func FundTimeline(events []fundevents.PublicEvent) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</ol><p class=\"text-xs text-gray-600 p-2\">recorded as it happened and never edited afterwards. donors and recipients are not named.</p></div>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</ol><p class=\"mt-2 text-xs text-gray-600 md:w-[70%]\">recorded as it happened and never edited afterwards. donors and recipients are not named.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -93,7 +93,7 @@ func FundTimelineRow(event fundevents.PublicEvent) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(timelineLabel(event.Kind))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 43, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 48, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -111,7 +111,7 @@ func FundTimelineRow(event fundevents.PublicEvent) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs("$" + centsToDecimalString(*event.AmountCents))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 45, Col: 96}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 50, Col: 96}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -129,7 +129,7 @@ func FundTimelineRow(event fundevents.PublicEvent) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(event.OccurredAt.Format("January 2, 2006"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 49, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 54, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -147,7 +147,7 @@ func FundTimelineRow(event fundevents.PublicEvent) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(event.Detail)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 51, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 56, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -171,7 +171,7 @@ func FundTimelineRow(event fundevents.PublicEvent) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(event.ActorName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 59, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 64, Col: 37}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
