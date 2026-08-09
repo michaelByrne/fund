@@ -16,6 +16,7 @@ import (
 	"errors"
 	"github.com/alexedwards/scs/v2"
 	"github.com/google/uuid"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -38,6 +39,7 @@ type AdminHandlers struct {
 	fundEventsService *fundevents.Service
 	adminEvents       *adminevents.Service
 	sessionManager    *scs.SessionManager
+	logger            *slog.Logger
 	webhookBus        webhookBus
 	clientID          string
 }
@@ -53,6 +55,7 @@ func NewAdminHandlers(
 	fundEventsService *fundevents.Service,
 	adminEvents *adminevents.Service,
 	sessionManager *scs.SessionManager,
+	logger *slog.Logger,
 	webhookBus webhookBus,
 	clientID string,
 ) *AdminHandlers {
@@ -67,6 +70,7 @@ func NewAdminHandlers(
 		fundEventsService: fundEventsService,
 		adminEvents:       adminEvents,
 		sessionManager:    sessionManager,
+		logger:            logger,
 		webhookBus:        webhookBus,
 		clientID:          clientID,
 	}
@@ -153,26 +157,26 @@ func (h *AdminHandlers) addApprovedEmail(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Multipart now, because the form carries a picture. The body is bounded
-	// before it is read: a create form is not a reason to accept an unbounded
-	// upload.
-	r.Body = http.MaxBytesReader(w, r.Body, donations.MaxImageBytes+8192)
+	// Not multipart. This form carries text, and htmx posts it urlencoded --
+	// ParseMultipartForm answers ErrNotMultipart for exactly that, so every
+	// submission was refused before a single field was read. The comment this
+	// replaces claimed the form carried a picture; it never has.
+	r.Body = http.MaxBytesReader(w, r.Body, maxFormBytes)
 
-	err := r.ParseMultipartForm(donations.MaxImageBytes + 8192)
-	if err != nil {
-		h.badRequest(w, r, "")
+	if err := r.ParseForm(); err != nil {
+		h.badRequest(w, r, "we could not read that form.")
 
 		return
 	}
 
 	email := r.FormValue("email")
 	if email == "" {
-		h.badRequest(w, r, "")
+		h.badRequest(w, r, "that form carried no email address.")
 
 		return
 	}
 
-	_, err = h.authService.InsertApprovedEmail(ctx, email, &actor.ID)
+	_, err := h.authService.InsertApprovedEmail(ctx, email, &actor.ID)
 	if err != nil {
 		if errors.Is(err, auth.ErrEmailAlreadyApproved) {
 			h.badRequest(w, r, "that email is already approved.")
@@ -307,56 +311,56 @@ func (h *AdminHandlers) createEnrollment(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Multipart now, because the form carries a picture. The body is bounded
-	// before it is read: a create form is not a reason to accept an unbounded
-	// upload.
-	r.Body = http.MaxBytesReader(w, r.Body, donations.MaxImageBytes+8192)
+	// Not multipart. This form carries text, and htmx posts it urlencoded --
+	// ParseMultipartForm answers ErrNotMultipart for exactly that, so every
+	// submission was refused before a single field was read. The comment this
+	// replaces claimed the form carried a picture; it never has.
+	r.Body = http.MaxBytesReader(w, r.Body, maxFormBytes)
 
-	err := r.ParseMultipartForm(donations.MaxImageBytes + 8192)
-	if err != nil {
-		h.badRequest(w, r, "")
+	if err := r.ParseForm(); err != nil {
+		h.badRequest(w, r, "we could not read that form.")
 
 		return
 	}
 
 	fundIDStr := r.FormValue("fund")
 	if fundIDStr == "" {
-		h.badRequest(w, r, "")
+		h.badRequest(w, r, "that form did not say which fund.")
 
 		return
 	}
 
 	fundID, err := uuid.Parse(fundIDStr)
 	if err != nil {
-		h.badRequest(w, r, "")
+		h.badRequest(w, r, "that is not a fund id.")
 
 		return
 	}
 
 	memberIDStr := r.FormValue("member")
 	if memberIDStr == "" {
-		h.badRequest(w, r, "")
+		h.badRequest(w, r, "that form did not say which member.")
 
 		return
 	}
 
 	memberID, err := uuid.Parse(memberIDStr)
 	if err != nil {
-		h.badRequest(w, r, "")
+		h.badRequest(w, r, "that is not a member id.")
 
 		return
 	}
 
 	paypalEmail := r.FormValue("paypal")
 	if paypalEmail == "" {
-		h.badRequest(w, r, "")
+		h.badRequest(w, r, "a paypal email address is required, or the payout has nowhere to go.")
 
 		return
 	}
 
 	username := r.FormValue("username")
 	if username == "" {
-		h.badRequest(w, r, "")
+		h.badRequest(w, r, "that form did not carry the member's name.")
 
 		return
 	}
