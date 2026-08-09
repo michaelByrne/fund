@@ -22,14 +22,19 @@ templ FundTimeline(events []fundevents.PublicEvent) {
 	// recorded" sitting directly beneath a ledger reporting four completed
 	// payouts reads as a contradiction rather than as a gap.
 	if len(events) > 0 {
-		<div class="my-6">
-			<div class="text-md font-semibold p-2 inline-block bg-high">what happened</div>
-			<ol class="bg-odd">
+		// Shadowed like the notes card directly below it, which is the closest
+		// neighbour on this page: thin on the heading pill, full on the panel.
+		<div class="mt-6">
+			<div class="text-md font-semibold p-2 inline-block bg-high shadow-blue-boxy-thin">what happened</div>
+			<ol class="mt-2 bg-odd shadow-blue-boxy md:w-[70%]">
 				for _, event := range chronological(events) {
 					@FundTimelineRow(event)
 				}
 			</ol>
-			<p class="text-xs text-gray-600 p-2">
+			// Outside the shadowed panel, and matched to its width. A caption is
+			// about the list rather than part of it, and putting it inside would
+			// make the last row of the timeline read as another entry.
+			<p class="mt-2 text-xs text-gray-600 md:w-[70%]">
 				recorded as it happened and never edited afterwards. donors and
 				recipients are not named.
 			</p>

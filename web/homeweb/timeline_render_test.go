@@ -117,6 +117,46 @@ func TestAnUnnamedActorIsNotShownAsAutomatic(t *testing.T) {
 	}
 }
 
+// The timeline sits directly above the notes card on a page where everything
+// else is a card, and without the shadow it reads as loose text rather than as
+// part of the same page.
+//
+// shadow-blue-boxy, not blue-boxy-filter. The filter version is a drop shadow on
+// everything inside the element, which puts a second copy of every word in the
+// list behind itself.
+func TestTheTimelineIsShadowedLikeTheOtherCards(t *testing.T) {
+	page := renderTimeline(t, []fundevents.PublicEvent{{
+		Kind: fundevents.KindFundClosed, OccurredAt: on("2026-06-01"), Automatic: true,
+	}})
+
+	heading := page[:strings.Index(page, "what happened")]
+	if !strings.Contains(heading, "shadow-blue-boxy-thin") {
+		t.Error("the heading pill should carry the thin shadow, like every other heading here")
+	}
+
+	list := page[strings.Index(page, "<ol"):]
+	if !strings.Contains(list[:strings.Index(list, ">")], "shadow-blue-boxy") {
+		t.Errorf("the timeline panel should carry the box shadow:\n%s", page)
+	}
+
+	if strings.Contains(page, "blue-boxy-filter") {
+		t.Error("the filter shadow applies to the text inside it too, which doubles every line")
+	}
+}
+
+// A caption is about the list rather than part of it. Inside the shadowed panel
+// it reads as one more entry on the timeline, which is the one thing on this page
+// that must not have entries nobody recorded.
+func TestTheCaptionSitsOutsideTheShadowedPanel(t *testing.T) {
+	page := renderTimeline(t, []fundevents.PublicEvent{{
+		Kind: fundevents.KindFundClosed, OccurredAt: on("2026-06-01"), Automatic: true,
+	}})
+
+	if strings.Index(page, "never edited") < strings.Index(page, "</ol>") {
+		t.Error("the caption should follow the list, not sit inside it")
+	}
+}
+
 // The page exists to be trusted, so it should say what it is: recorded as it
 // happened, never edited, and not a list of who gave or who received.
 func TestThePageSaysWhatItIsAndWhatItLeavesOut(t *testing.T) {
