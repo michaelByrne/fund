@@ -134,7 +134,7 @@ func (s PayoutService) PlanBatch(ctx context.Context, req PlanBatch) (*Batch, er
 	// that query would otherwise produce, and reads like a different problem.
 	active, err := s.payoutStore.IsFundActive(ctx, req.FundID)
 	if err != nil {
-		logger.Error("failed to check whether the fund is active", slog.String("error", err.Error()))
+		logger.ErrorContext(ctx, "failed to check whether the fund is active", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (s PayoutService) PlanBatch(ctx context.Context, req PlanBatch) (*Batch, er
 
 	enrollments, err := s.payoutStore.GetEnrollmentsForPayout(ctx, req.FundID)
 	if err != nil {
-		logger.Error("failed to get enrollments for payout", slog.String("error", err.Error()))
+		logger.ErrorContext(ctx, "failed to get enrollments for payout", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func (s PayoutService) PlanBatch(ctx context.Context, req PlanBatch) (*Batch, er
 		if enrollment.PaypalEmail == "" {
 			// Nowhere to send it. Skipped rather than failed so one unconfigured
 			// member cannot block everyone else's payout.
-			logger.Warn("enrollment has no paypal email, skipping",
+			logger.WarnContext(ctx, "enrollment has no paypal email, skipping",
 				slog.String("enrollment_id", enrollment.ID.String()),
 				slog.String("member_id", enrollment.MemberID.String()),
 			)
@@ -215,7 +215,7 @@ func (s PayoutService) PlanBatch(ctx context.Context, req PlanBatch) (*Batch, er
 
 	batch, _, err := s.payoutStore.CreateBatchWithPayouts(ctx, insert, items)
 	if err != nil {
-		logger.Error("failed to create batch with payouts", slog.String("error", err.Error()))
+		logger.ErrorContext(ctx, "failed to create batch with payouts", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -228,7 +228,7 @@ func (s PayoutService) PlanBatch(ctx context.Context, req PlanBatch) (*Batch, er
 		ReferenceID: &batch.ID,
 	})
 
-	logger.Info("planned payout batch",
+	logger.InfoContext(ctx, "planned payout batch",
 		slog.String("batch_id", batch.ID.String()),
 		slog.Int("num_enrollments", int(batch.NumEnrollments)),
 		slog.Int("amount_cents", int(batch.AmountCents)),
@@ -239,7 +239,7 @@ func (s PayoutService) PlanBatch(ctx context.Context, req PlanBatch) (*Batch, er
 		if errNotify := s.notifier.NotifyApprovalRequired(ctx, *batch); errNotify != nil {
 			// The batch exists and the deadline is running; a failed notification is
 			// worth surfacing but must not undo the batch.
-			logger.Error("failed to send approval notification", slog.String("error", errNotify.Error()))
+			logger.ErrorContext(ctx, "failed to send approval notification", slog.String("error", errNotify.Error()))
 		}
 	}
 
@@ -255,7 +255,7 @@ func (s PayoutService) ApproveBatch(ctx context.Context, batchID, approvedBy uui
 		ApprovedBy: approvedBy,
 	})
 	if err != nil {
-		s.logger.Error("failed to approve batch",
+		s.logger.ErrorContext(ctx, "failed to approve batch",
 			slog.String("error", err.Error()),
 			slog.String("batch_id", batchID.String()),
 		)
@@ -273,7 +273,7 @@ func (s PayoutService) ApproveBatch(ctx context.Context, batchID, approvedBy uui
 		ReferenceID:   &batch.ID,
 	})
 
-	s.logger.Info("batch approved",
+	s.logger.InfoContext(ctx, "batch approved",
 		slog.String("batch_id", batch.ID.String()),
 		slog.String("approved_by", approvedBy.String()),
 	)
@@ -291,7 +291,7 @@ func (s PayoutService) RejectBatch(ctx context.Context, batchID uuid.UUID, reaso
 		Reason:  reason,
 	})
 	if err != nil {
-		s.logger.Error("failed to reject batch",
+		s.logger.ErrorContext(ctx, "failed to reject batch",
 			slog.String("error", err.Error()),
 			slog.String("batch_id", batchID.String()),
 		)
@@ -307,7 +307,7 @@ func (s PayoutService) RejectBatch(ctx context.Context, batchID uuid.UUID, reaso
 		ReferenceID: &batch.ID,
 	})
 
-	s.logger.Info("batch rejected", slog.String("batch_id", batch.ID.String()), slog.String("reason", reason))
+	s.logger.InfoContext(ctx, "batch rejected", slog.String("batch_id", batch.ID.String()), slog.String("reason", reason))
 
 	return batch, nil
 }
@@ -320,7 +320,7 @@ func (s PayoutService) SubmitBatch(ctx context.Context, batchID uuid.UUID) (*Bat
 
 	batch, err := s.payoutStore.GetBatchByID(ctx, batchID)
 	if err != nil {
-		logger.Error("failed to get batch", slog.String("error", err.Error()))
+		logger.ErrorContext(ctx, "failed to get batch", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -331,7 +331,7 @@ func (s PayoutService) SubmitBatch(ctx context.Context, batchID uuid.UUID) (*Bat
 
 	items, err := s.payoutStore.GetPayoutsForBatch(ctx, batch.ID)
 	if err != nil {
-		logger.Error("failed to get payouts for batch", slog.String("error", err.Error()))
+		logger.ErrorContext(ctx, "failed to get payouts for batch", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -348,7 +348,7 @@ func (s PayoutService) SubmitBatch(ctx context.Context, batchID uuid.UUID) (*Bat
 
 	result, err := s.provider.SubmitBatch(ctx, batch.SenderBatchID, batch.Description, providerItems)
 	if err != nil {
-		logger.Error("failed to submit batch to provider", slog.String("error", err.Error()))
+		logger.ErrorContext(ctx, "failed to submit batch to provider", slog.String("error", err.Error()))
 
 		// Deliberately not marked failed. The request may have reached the provider,
 		// and a batch marked failed here would be re-planned and paid twice. Leave it
@@ -361,7 +361,7 @@ func (s PayoutService) SubmitBatch(ctx context.Context, batchID uuid.UUID) (*Bat
 		ProviderBatchID: result.ProviderBatchID,
 	})
 	if err != nil {
-		logger.Error("failed to record batch submission",
+		logger.ErrorContext(ctx, "failed to record batch submission",
 			slog.String("error", err.Error()),
 			slog.String("provider_batch_id", result.ProviderBatchID),
 		)
@@ -380,7 +380,7 @@ func (s PayoutService) SubmitBatch(ctx context.Context, batchID uuid.UUID) (*Bat
 		ReferenceID: &batch.ID,
 	})
 
-	logger.Info("batch submitted",
+	logger.InfoContext(ctx, "batch submitted",
 		slog.String("provider_batch_id", result.ProviderBatchID),
 		slog.Int("num_items", len(providerItems)),
 	)
@@ -394,7 +394,7 @@ func (s PayoutService) SubmitBatch(ctx context.Context, batchID uuid.UUID) (*Bat
 func (s PayoutService) RunApprovalSweep(ctx context.Context) error {
 	expired, err := s.payoutStore.CancelExpiredBatches(ctx)
 	if err != nil {
-		s.logger.Error("failed to cancel expired batches", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to cancel expired batches", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -411,7 +411,7 @@ func (s PayoutService) RunApprovalSweep(ctx context.Context) error {
 			ReferenceID: &batch.ID,
 		})
 
-		s.logger.Warn("batch cancelled: approval window expired",
+		s.logger.WarnContext(ctx, "batch cancelled: approval window expired",
 			slog.String("batch_id", batch.ID.String()),
 			slog.String("fund_id", batch.FundID.String()),
 			slog.Int("amount_cents", int(batch.AmountCents)),
@@ -420,7 +420,7 @@ func (s PayoutService) RunApprovalSweep(ctx context.Context) error {
 
 	needReminder, err := s.payoutStore.GetBatchesNeedingReminder(ctx, s.reminderWindow)
 	if err != nil {
-		s.logger.Error("failed to get batches needing reminder", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get batches needing reminder", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -428,7 +428,7 @@ func (s PayoutService) RunApprovalSweep(ctx context.Context) error {
 	for _, batch := range needReminder {
 		if s.notifier != nil {
 			if errNotify := s.notifier.NotifyApprovalExpiring(ctx, batch); errNotify != nil {
-				s.logger.Error("failed to send expiry reminder",
+				s.logger.ErrorContext(ctx, "failed to send expiry reminder",
 					slog.String("error", errNotify.Error()),
 					slog.String("batch_id", batch.ID.String()),
 				)
@@ -440,14 +440,14 @@ func (s PayoutService) RunApprovalSweep(ctx context.Context) error {
 
 		_, errMark := s.payoutStore.MarkReminderSent(ctx, batch.ID)
 		if errMark != nil {
-			s.logger.Error("failed to mark reminder sent",
+			s.logger.ErrorContext(ctx, "failed to mark reminder sent",
 				slog.String("error", errMark.Error()),
 				slog.String("batch_id", batch.ID.String()),
 			)
 		}
 	}
 
-	s.logger.Info("approval sweep complete",
+	s.logger.InfoContext(ctx, "approval sweep complete",
 		slog.Int("cancelled", len(expired)),
 		slog.Int("reminded", len(needReminder)),
 	)
@@ -463,20 +463,20 @@ func (s PayoutService) ReconcileBatch(ctx context.Context, batchID uuid.UUID) er
 
 	batch, err := s.payoutStore.GetBatchByID(ctx, batchID)
 	if err != nil {
-		logger.Error("failed to get batch", slog.String("error", err.Error()))
+		logger.ErrorContext(ctx, "failed to get batch", slog.String("error", err.Error()))
 
 		return err
 	}
 
 	if batch.ProviderBatchID == "" {
-		logger.Info("batch has not been submitted, nothing to reconcile")
+		logger.InfoContext(ctx, "batch has not been submitted, nothing to reconcile")
 
 		return nil
 	}
 
 	result, err := s.provider.GetBatchStatus(ctx, batch.ProviderBatchID)
 	if err != nil {
-		logger.Error("failed to get batch status from provider", slog.String("error", err.Error()))
+		logger.ErrorContext(ctx, "failed to get batch status from provider", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -485,7 +485,7 @@ func (s PayoutService) ReconcileBatch(ctx context.Context, batchID uuid.UUID) er
 		if item.PayoutID == uuid.Nil {
 			// sender_item_id did not round-trip as one of our payout IDs. Refusing to
 			// guess: a mis-attributed status here would mark the wrong person paid.
-			logger.Error("provider item could not be matched to a payout",
+			logger.ErrorContext(ctx, "provider item could not be matched to a payout",
 				slog.String("provider_item_id", item.ProviderPayoutItemID),
 			)
 
@@ -499,7 +499,7 @@ func (s PayoutService) ReconcileBatch(ctx context.Context, batchID uuid.UUID) er
 			ProviderFeeCents:     item.FeeCents,
 		})
 		if errItem != nil {
-			logger.Error("failed to update payout result",
+			logger.ErrorContext(ctx, "failed to update payout result",
 				slog.String("error", errItem.Error()),
 				slog.String("payout_id", item.PayoutID.String()),
 			)
@@ -508,7 +508,7 @@ func (s PayoutService) ReconcileBatch(ctx context.Context, batchID uuid.UUID) er
 
 	items, err := s.payoutStore.GetPayoutsForBatch(ctx, batch.ID)
 	if err != nil {
-		logger.Error("failed to read back payouts for batch", slog.String("error", err.Error()))
+		logger.ErrorContext(ctx, "failed to read back payouts for batch", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -520,7 +520,7 @@ func (s PayoutService) ReconcileBatch(ctx context.Context, batchID uuid.UUID) er
 		Status:  settled,
 	})
 	if err != nil {
-		logger.Error("failed to update batch status", slog.String("error", err.Error()))
+		logger.ErrorContext(ctx, "failed to update batch status", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -631,7 +631,7 @@ func (s PayoutService) PlanDueBatches(ctx context.Context) (PlanResult, error) {
 
 	due, err := s.payoutStore.GetFundsDueForPayout(ctx)
 	if err != nil {
-		s.logger.Error("failed to get funds due for payout", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get funds due for payout", slog.String("error", err.Error()))
 
 		return result, err
 	}
@@ -660,7 +660,7 @@ func (s PayoutService) PlanDueBatches(ctx context.Context) (PlanResult, error) {
 		result.Planned++
 	}
 
-	s.logger.Info("payout planning complete",
+	s.logger.InfoContext(ctx, "payout planning complete",
 		slog.Int("funds_due", len(due)),
 		slog.Int("planned", result.Planned),
 		slog.Int("skipped", result.Skipped),
@@ -674,7 +674,7 @@ func (s PayoutService) PlanDueBatches(ctx context.Context) (PlanResult, error) {
 func (s PayoutService) planOneDueFund(ctx context.Context, fund DueFund, logger *slog.Logger) (bool, error) {
 	enrollments, err := s.payoutStore.GetEnrollmentsForPayout(ctx, fund.ID)
 	if err != nil {
-		logger.Error("failed to get enrollments for payout", slog.String("error", err.Error()))
+		logger.ErrorContext(ctx, "failed to get enrollments for payout", slog.String("error", err.Error()))
 
 		return false, err
 	}
@@ -690,10 +690,10 @@ func (s PayoutService) planOneDueFund(ctx context.Context, fund DueFund, logger 
 		// Nobody to pay, and no amount of waiting changes that for this period.
 		// Advanced so a fund with no enrollees does not report itself due every
 		// day forever.
-		logger.Warn("fund is due but has no payable enrollees, skipping period")
+		logger.WarnContext(ctx, "fund is due but has no payable enrollees, skipping period")
 
 		if errAdvance := s.payoutStore.AdvanceFundNextPayment(ctx, fund.ID); errAdvance != nil {
-			logger.Error("failed to advance next payment", slog.String("error", errAdvance.Error()))
+			logger.ErrorContext(ctx, "failed to advance next payment", slog.String("error", errAdvance.Error()))
 
 			return false, errAdvance
 		}
@@ -703,7 +703,7 @@ func (s PayoutService) planOneDueFund(ctx context.Context, fund DueFund, logger 
 
 	available, err := s.payoutStore.GetFundBalanceCents(ctx, fund.ID)
 	if err != nil {
-		logger.Error("failed to get fund balance", slog.String("error", err.Error()))
+		logger.ErrorContext(ctx, "failed to get fund balance", slog.String("error", err.Error()))
 
 		return false, err
 	}
@@ -722,7 +722,7 @@ func (s PayoutService) planOneDueFund(ctx context.Context, fund DueFund, logger 
 		// Deliberately not advanced: the payout is still owed, and donations may
 		// arrive tomorrow. Retrying is the right behaviour even though it means
 		// this warning repeats until the fund is funded or deactivated.
-		logger.Warn("fund is due but has nothing to pay out, will retry",
+		logger.WarnContext(ctx, "fund is due but has nothing to pay out, will retry",
 			slog.Int64("available_cents", available),
 			slog.Int64("reserved_for_fees_cents", reserved),
 			slog.Int("payable", payable),
@@ -746,7 +746,7 @@ func (s PayoutService) planOneDueFund(ctx context.Context, fund DueFund, logger 
 		RequireApproval: true,
 	})
 	if err != nil {
-		logger.Error("failed to plan batch", slog.String("error", err.Error()))
+		logger.ErrorContext(ctx, "failed to plan batch", slog.String("error", err.Error()))
 
 		return false, err
 	}
@@ -757,13 +757,13 @@ func (s PayoutService) planOneDueFund(ctx context.Context, fund DueFund, logger 
 		// The batch is real and awaiting approval, so this is not fatal -- but the
 		// fund still reads as due, and tomorrow's run will hit the unique index on
 		// (fund_id, payout_date) rather than double-pay.
-		logger.Error("batch planned but failed to advance next payment",
+		logger.ErrorContext(ctx, "batch planned but failed to advance next payment",
 			slog.String("error", err.Error()),
 			slog.String("batch_id", batch.ID.String()),
 		)
 	}
 
-	logger.Info("planned batch for due fund",
+	logger.InfoContext(ctx, "planned batch for due fund",
 		slog.String("batch_id", batch.ID.String()),
 		slog.Int64("per_head_cents", perHead),
 		slog.Int("payees", payable),
@@ -794,7 +794,7 @@ func (s PayoutService) SubmitApprovedBatches(ctx context.Context) (int, error) {
 			// Left in 'ready' for the next run. SubmitBatch reuses the batch's
 			// sender_batch_id, which the provider treats as an idempotency key, so
 			// a retry after an ambiguous failure cannot pay twice.
-			s.logger.Error("failed to submit approved batch",
+			s.logger.ErrorContext(ctx, "failed to submit approved batch",
 				slog.String("error", errSubmit.Error()),
 				slog.String("batch_id", batch.ID.String()),
 			)
@@ -805,7 +805,7 @@ func (s PayoutService) SubmitApprovedBatches(ctx context.Context) (int, error) {
 		submitted++
 	}
 
-	s.logger.Info("submitted approved batches",
+	s.logger.InfoContext(ctx, "submitted approved batches",
 		slog.Int("due", len(due)),
 		slog.Int("submitted", submitted),
 	)
@@ -821,7 +821,7 @@ func (s PayoutService) SubmitApprovedBatches(ctx context.Context) (int, error) {
 func (s PayoutService) ReconcilePendingBatches(ctx context.Context) (int, error) {
 	pending, err := s.payoutStore.GetBatchesByStatus(ctx, StatusPending)
 	if err != nil {
-		s.logger.Error("failed to get pending batches", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get pending batches", slog.String("error", err.Error()))
 
 		return 0, err
 	}
@@ -829,7 +829,7 @@ func (s PayoutService) ReconcilePendingBatches(ctx context.Context) (int, error)
 	reconciled := 0
 	for _, batch := range pending {
 		if errReconcile := s.ReconcileBatch(ctx, batch.ID); errReconcile != nil {
-			s.logger.Error("failed to reconcile batch",
+			s.logger.ErrorContext(ctx, "failed to reconcile batch",
 				slog.String("error", errReconcile.Error()),
 				slog.String("batch_id", batch.ID.String()),
 			)
@@ -840,7 +840,7 @@ func (s PayoutService) ReconcilePendingBatches(ctx context.Context) (int, error)
 		reconciled++
 	}
 
-	s.logger.Info("reconciled pending batches",
+	s.logger.InfoContext(ctx, "reconciled pending batches",
 		slog.Int("pending", len(pending)),
 		slog.Int("reconciled", reconciled),
 	)
@@ -852,7 +852,7 @@ func (s PayoutService) ReconcilePendingBatches(ctx context.Context) (int, error)
 func (s PayoutService) GetBatchesReadyToSubmit(ctx context.Context) ([]Batch, error) {
 	ready, err := s.payoutStore.GetBatchesByStatus(ctx, StatusReady)
 	if err != nil {
-		s.logger.Error("failed to get approved batches", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get approved batches", slog.String("error", err.Error()))
 
 		return nil, err
 	}

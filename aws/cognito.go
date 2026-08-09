@@ -48,7 +48,7 @@ func (c CognitoAuth) Authorize(ctx context.Context, user, pass string) (*auth.Au
 		AuthParameters: map[string]string{"USERNAME": user, "PASSWORD": pass},
 	})
 	if err != nil {
-		c.logger.Error("failed to auth", slog.String("error", err.Error()))
+		c.logger.ErrorContext(ctx, "failed to auth", slog.String("error", err.Error()))
 
 		return nil, handleCognitoError(err, auth.ErrAuthenticateOther)
 	}
@@ -81,7 +81,7 @@ func (c CognitoAuth) SetPassword(ctx context.Context, user, old, new string) err
 		AuthParameters: map[string]string{"USERNAME": user, "PASSWORD": old},
 	})
 	if err != nil {
-		c.logger.Error("failed to auth", slog.String("error", err.Error()))
+		c.logger.ErrorContext(ctx, "failed to auth", slog.String("error", err.Error()))
 
 		return handleCognitoError(err, auth.ErrAuthenticateOther)
 	}
@@ -152,7 +152,7 @@ func (c CognitoAuth) AddToGroup(ctx context.Context, username, group string) err
 		GroupName:  &group,
 	})
 	if err != nil {
-		c.logger.Error("failed to add user to group",
+		c.logger.ErrorContext(ctx, "failed to add user to group",
 			slog.String("group", group),
 			slog.String("error", err.Error()),
 		)
@@ -172,7 +172,7 @@ func (c CognitoAuth) RemoveFromGroup(ctx context.Context, username, group string
 		GroupName:  &group,
 	})
 	if err != nil {
-		c.logger.Error("failed to remove user from group",
+		c.logger.ErrorContext(ctx, "failed to remove user from group",
 			slog.String("group", group),
 			slog.String("error", err.Error()),
 		)
@@ -197,7 +197,7 @@ func (c CognitoAuth) ListGroups(ctx context.Context, username string) ([]string,
 			NextToken:  next,
 		})
 		if err != nil {
-			c.logger.Error("failed to list groups for user", slog.String("error", err.Error()))
+			c.logger.ErrorContext(ctx, "failed to list groups for user", slog.String("error", err.Error()))
 
 			return nil, handleCognitoError(err, auth.ErrGroupOther)
 		}

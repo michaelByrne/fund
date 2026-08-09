@@ -1,6 +1,8 @@
 package adminweb
 
 import (
+	"strings"
+
 	"boardfund/service/adminevents"
 	"boardfund/service/members"
 	"boardfund/web/common"
@@ -14,13 +16,13 @@ import (
 templ AdminAudit(events []adminevents.Event, member *members.Member, path string) {
 	@Admin(member, path) {
 		<div class="w-[95%] mx-auto mt-4 mb-8">
-			@common.Section("admin access changes") {
+			@common.Section("access changes") {
 				if len(events) == 0 {
 					// An empty log is the ordinary state of a new deployment, and it is
 					// worth saying which one this is: nothing has happened, rather than
 					// nothing is being recorded.
 					<p class="text-sm p-2">
-						no admin access has been granted or revoked since this log was added.
+						no access has been granted or revoked since this log was added.
 						changes made directly in cognito do not appear here.
 					</p>
 				} else {
@@ -39,16 +41,19 @@ templ AdminAudit(events []adminevents.Event, member *members.Member, path string
 									<tr class="odd:bg-odd even:bg-even">
 										<td class="p-2 whitespace-nowrap">{ event.OccurredAt.Format("01-02-2006 15:04") }</td>
 										<td class="p-2">
-											if event.Granted() {
-												<span class="font-semibold">granted admin</span>
-											} else {
-												<span class="font-semibold">revoked admin</span>
-											}
+											<span class="font-semibold">{ adminEventLabel(event.Kind) }</span>
 										</td>
 										<td class="p-2">
-											<a href={ templ.SafeURL("/admin/member/" + event.SubjectMemberID.String()) } class="text-links hover:underline">
-												{ event.SubjectName }
-											</a>
+											if event.AboutAMember() {
+												<a href={ templ.SafeURL("/admin/member/" + event.SubjectMemberID.String()) } class="text-links hover:underline">
+													{ event.Subject() }
+												</a>
+											} else {
+												// An approved email address has no member page to link
+												// to, which is the whole reason it was approved: nobody
+												// can register until somebody does this.
+												{ event.Subject() }
+											}
 										</td>
 										<td class="p-2">
 											if event.ByProvider() {
@@ -76,5 +81,27 @@ templ AdminAudit(events []adminevents.Event, member *members.Member, path string
 				</p>
 			}
 		</div>
+	}
+}
+
+// adminEventLabel is what a row says happened.
+//
+// Not derived from Granted(), which only says which direction the change went:
+// two kinds grant and two revoke, and "granted admin" on an approved email
+// address would be wrong in the one place that exists to be trusted.
+func adminEventLabel(kind adminevents.Kind) string {
+	switch kind {
+	case adminevents.KindAdminGranted:
+		return "granted admin"
+	case adminevents.KindAdminRevoked:
+		return "revoked admin"
+	case adminevents.KindEmailApproved:
+		return "approved to register"
+	case adminevents.KindEmailApprovalRemoved:
+		return "registration approval removed"
+	default:
+		// A kind added to the enum and not to this switch still reads as
+		// something rather than as a blank cell.
+		return strings.ReplaceAll(string(kind), "_", " ")
 	}
 }

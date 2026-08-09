@@ -56,7 +56,7 @@ func TestAdminEvents(t *testing.T) {
 				Kind:            kind,
 				OccurredAt:      base.Add(time.Duration(i) * time.Hour),
 				ActorMemberID:   &actor,
-				SubjectMemberID: subject,
+				SubjectMemberID: &subject,
 			})
 		}
 
@@ -81,7 +81,7 @@ func TestAdminEvents(t *testing.T) {
 
 		svc.Record(ctx, adminevents.Record{
 			Kind:            adminevents.KindAdminGranted,
-			SubjectMemberID: subject,
+			SubjectMemberID: &subject,
 			Detail:          "granted in the cognito console",
 		})
 
@@ -93,7 +93,7 @@ func TestAdminEvents(t *testing.T) {
 
 		assert.True(t, event.ByProvider())
 		assert.Empty(t, event.ActorName)
-		assert.Equal(t, subject, event.SubjectMemberID)
+		assert.Equal(t, subject, *event.SubjectMemberID)
 		assert.Equal(t, "granted in the cognito console", event.Detail)
 	})
 
@@ -103,7 +103,7 @@ func TestAdminEvents(t *testing.T) {
 		svc.Record(ctx, adminevents.Record{
 			Kind:            adminevents.KindAdminGranted,
 			ActorMemberID:   &self,
-			SubjectMemberID: self,
+			SubjectMemberID: &self,
 		})
 
 		events, err := svc.GetAdminEvents(ctx, adminevents.DefaultLimit)
@@ -137,7 +137,7 @@ func TestAdminEvents(t *testing.T) {
 
 		svc.Record(ctx, adminevents.Record{
 			Kind:            adminevents.KindAdminGranted,
-			SubjectMemberID: subject,
+			SubjectMemberID: &subject,
 		})
 
 		var created, occurred time.Time

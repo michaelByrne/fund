@@ -62,7 +62,7 @@ func NewMemberService(memberStore memberStore, donationStore donationStore, paym
 func (s MemberService) GetMemberWithDonations(ctx context.Context, id uuid.UUID) (*Member, error) {
 	member, err := s.memberStore.GetMemberWithDonations(ctx, id)
 	if err != nil {
-		s.logger.Error("failed to get member with donations", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get member with donations", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -88,7 +88,7 @@ var ErrSubscriptionsNotCancelled = errors.New("could not cancel all subscription
 func (s MemberService) DeactivateMember(ctx context.Context, id uuid.UUID) (*Member, error) {
 	existing, err := s.donationStore.GetDonationsByDonorID(ctx, id)
 	if err != nil {
-		s.logger.Error("failed to read donations before deactivating member",
+		s.logger.ErrorContext(ctx, "failed to read donations before deactivating member",
 			slog.String("error", err.Error()))
 
 		return nil, err
@@ -106,7 +106,7 @@ func (s MemberService) DeactivateMember(ctx context.Context, id uuid.UUID) (*Mem
 	if len(toCancel) > 0 {
 		cancelled, errCancel := s.paymentsProvider.CancelSubscriptions(ctx, toCancel)
 		if errCancel != nil {
-			s.logger.Error("failed to cancel subscriptions, member left active",
+			s.logger.ErrorContext(ctx, "failed to cancel subscriptions, member left active",
 				slog.String("error", errCancel.Error()),
 				slog.String("member_id", id.String()),
 			)
@@ -119,7 +119,7 @@ func (s MemberService) DeactivateMember(ctx context.Context, id uuid.UUID) (*Mem
 		// the question here is whether anything we asked for is still running.
 		uncancelled := uncancelledSubscriptions(cancelled, toCancel)
 		if len(uncancelled) > 0 {
-			s.logger.Error("could not cancel every subscription, member left active",
+			s.logger.ErrorContext(ctx, "could not cancel every subscription, member left active",
 				slog.String("member_id", id.String()),
 				slog.String("uncancelled", fmt.Sprintf("%v", uncancelled)),
 			)
@@ -131,20 +131,20 @@ func (s MemberService) DeactivateMember(ctx context.Context, id uuid.UUID) (*Mem
 
 	member, err := s.memberStore.SetMemberToInactive(ctx, id)
 	if err != nil {
-		s.logger.Error("failed to deactivate member", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to deactivate member", slog.String("error", err.Error()))
 
 		return nil, err
 	}
 
 	deactivated, err := s.donationStore.SetDonationsToInactiveByDonorID(ctx, id)
 	if err != nil {
-		s.logger.Error("failed to deactivate donations", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to deactivate donations", slog.String("error", err.Error()))
 
 		// The subscriptions are already cancelled, so leaving the member closed
 		// would strand donations that look active but can never be charged. Put
 		// the member back and report the failure.
 		if _, errRestore := s.memberStore.SetMemberToActive(ctx, id); errRestore != nil {
-			s.logger.Error("failed to reactivate member after donations failed",
+			s.logger.ErrorContext(ctx, "failed to reactivate member after donations failed",
 				slog.String("error", errRestore.Error()))
 		}
 
@@ -169,7 +169,7 @@ func (s MemberService) DeactivateMember(ctx context.Context, id uuid.UUID) (*Mem
 func (s MemberService) ListActiveMembers(ctx context.Context) ([]Member, error) {
 	members, err := s.memberStore.GetActiveMembers(ctx)
 	if err != nil {
-		s.logger.Error("failed to get active members", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get active members", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -180,7 +180,7 @@ func (s MemberService) ListActiveMembers(ctx context.Context) ([]Member, error) 
 func (s MemberService) ListMembers(ctx context.Context) ([]Member, error) {
 	members, err := s.memberStore.GetMembers(ctx)
 	if err != nil {
-		s.logger.Error("failed to get members", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get members", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -199,7 +199,7 @@ func (s MemberService) CreateMember(ctx context.Context, member CreateMember) (*
 
 	newMember, err := s.memberStore.UpsertMember(ctx, upsertMember)
 	if err != nil {
-		s.logger.Error("failed to create member", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to create member", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -210,7 +210,7 @@ func (s MemberService) CreateMember(ctx context.Context, member CreateMember) (*
 func (s MemberService) GetMemberByID(ctx context.Context, id uuid.UUID) (*Member, error) {
 	member, err := s.memberStore.GetMemberByID(ctx, id)
 	if err != nil {
-		s.logger.Error("failed to get member", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get member", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -221,7 +221,7 @@ func (s MemberService) GetMemberByID(ctx context.Context, id uuid.UUID) (*Member
 func (s MemberService) SearchMembersByUsername(ctx context.Context, arg string) ([]MemberSearchResult, error) {
 	members, err := s.memberStore.SearchMembersByUsername(ctx, arg)
 	if err != nil {
-		s.logger.Error("failed to search members", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to search members", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -232,7 +232,7 @@ func (s MemberService) SearchMembersByUsername(ctx context.Context, arg string) 
 func (s MemberService) GetMemberByUsername(ctx context.Context, username string) (*Member, error) {
 	member, err := s.memberStore.GetMemberByUsername(ctx, username)
 	if err != nil {
-		s.logger.Error("failed to get member", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get member", slog.String("error", err.Error()))
 
 		return nil, err
 	}

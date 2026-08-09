@@ -146,7 +146,7 @@ func (h *AdminHandlers) deactivateEnrollment(w http.ResponseWriter, r *http.Requ
 func (h *AdminHandlers) addApprovedEmail(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	actor, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		http.Redirect(w, r, "/", http.StatusFound)
 
@@ -172,7 +172,7 @@ func (h *AdminHandlers) addApprovedEmail(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	_, err = h.authService.InsertApprovedEmail(ctx, email)
+	_, err = h.authService.InsertApprovedEmail(ctx, email, &actor.ID)
 	if err != nil {
 		if errors.Is(err, auth.ErrEmailAlreadyApproved) {
 			h.badRequest(w, r, "that email is already approved.")
@@ -198,7 +198,7 @@ func (h *AdminHandlers) addApprovedEmail(w http.ResponseWriter, r *http.Request)
 func (h *AdminHandlers) deleteApprovedEmail(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	actor, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		http.Redirect(w, r, "/", http.StatusFound)
 
@@ -212,7 +212,7 @@ func (h *AdminHandlers) deleteApprovedEmail(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	_, err := h.authService.DeleteApprovedEmail(ctx, email)
+	_, err := h.authService.DeleteApprovedEmail(ctx, email, &actor.ID)
 	if err != nil {
 		h.internalError(w, r)
 
@@ -759,7 +759,7 @@ func (h *AdminHandlers) deactivateFund(w http.ResponseWriter, r *http.Request) {
 func (h *AdminHandlers) createFund(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	actor, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		http.Redirect(w, r, "/", http.StatusFound)
 
@@ -815,7 +815,7 @@ func (h *AdminHandlers) createFund(w http.ResponseWriter, r *http.Request) {
 		Expires:         endDate,
 	}
 
-	newFund, err := h.donationService.CreateFund(ctx, createFund)
+	newFund, err := h.donationService.CreateFund(ctx, createFund, &actor.ID)
 	if err != nil {
 		h.internalError(w, r)
 
@@ -828,7 +828,7 @@ func (h *AdminHandlers) createFund(w http.ResponseWriter, r *http.Request) {
 	//
 	// So the row goes back either way, and a failed picture is reported beside the
 	// form rather than in place of the fund.
-	if failure := h.attachFundPicture(ctx, r, newFund.ID); failure != "" {
+	if failure := h.attachFundPicture(ctx, r, newFund.ID, &actor.ID); failure != "" {
 		FundCreatedWithoutPicture(*newFund, failure).Render(ctx, w)
 
 		return
@@ -842,7 +842,7 @@ func (h *AdminHandlers) createFund(w http.ResponseWriter, r *http.Request) {
 //
 // An empty string means there is nothing to say: either it worked, or no file was
 // chosen, which is the ordinary case and not a failure.
-func (h *AdminHandlers) attachFundPicture(ctx context.Context, r *http.Request, fundID uuid.UUID) string {
+func (h *AdminHandlers) attachFundPicture(ctx context.Context, r *http.Request, fundID uuid.UUID, actorID *uuid.UUID) string {
 	upload, _, err := r.FormFile("image")
 	if err != nil {
 		return ""
@@ -850,7 +850,7 @@ func (h *AdminHandlers) attachFundPicture(ctx context.Context, r *http.Request, 
 
 	defer upload.Close()
 
-	if _, err = h.donationService.SaveFundImage(ctx, fundID, upload); err != nil {
+	if _, err = h.donationService.SaveFundImage(ctx, fundID, upload, actorID); err != nil {
 		_, message := imageFailure(err)
 		if message == "" {
 			message = "we could not save that picture."
@@ -971,7 +971,8 @@ type ShowMessage struct {
 func (h *AdminHandlers) setFundImage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if _, ok := h.sessionManager.Get(ctx, "member").(members.Member); !ok {
+	actor, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
 		common.Redirect(w, r, "/")
 
 		return
@@ -1020,7 +1021,7 @@ func (h *AdminHandlers) setFundImage(w http.ResponseWriter, r *http.Request) {
 
 	// The filename and the browser's content type are not consulted anywhere. What
 	// the file is, is whatever decoding it says it is.
-	image, err := h.donationService.SaveFundImage(ctx, fundID, upload)
+	image, err := h.donationService.SaveFundImage(ctx, fundID, upload, &actor.ID)
 	if err != nil {
 		// The service has already logged anything unexpected; what is left here is
 		// deciding what the admin is told.
@@ -1045,7 +1046,8 @@ func (h *AdminHandlers) setFundImage(w http.ResponseWriter, r *http.Request) {
 func (h *AdminHandlers) removeFundImage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if _, ok := h.sessionManager.Get(ctx, "member").(members.Member); !ok {
+	actor, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
 		common.Redirect(w, r, "/")
 
 		return
@@ -1058,7 +1060,7 @@ func (h *AdminHandlers) removeFundImage(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err = h.donationService.RemoveFundImage(ctx, fundID); err != nil {
+	if err = h.donationService.RemoveFundImage(ctx, fundID, &actor.ID); err != nil {
 		status, message := imageFailure(err)
 		if message == "" {
 			status = http.StatusInternalServerError

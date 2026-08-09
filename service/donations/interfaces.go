@@ -32,8 +32,8 @@ type donationStore interface {
 	UpsertFundNote(ctx context.Context, arg UpsertFundNote) (*FundNote, error)
 	GetFundNotes(ctx context.Context, fundID uuid.UUID) ([]FundNote, error)
 	GetFundNoteForMember(ctx context.Context, fundID, memberID uuid.UUID) (*FundNote, error)
-	RemoveFundNote(ctx context.Context, noteID, actorID uuid.UUID) error
-	RemoveOwnFundNote(ctx context.Context, fundID, memberID uuid.UUID) error
+	RemoveFundNote(ctx context.Context, noteID, actorID uuid.UUID) (*FundNote, error)
+	RemoveOwnFundNote(ctx context.Context, fundID, memberID uuid.UUID) (*FundNote, error)
 	GetFundNotesForMember(ctx context.Context, memberID uuid.UUID) (map[uuid.UUID]FundNote, error)
 	UpsertFundImage(ctx context.Context, arg UpsertFundImage) (*FundImage, error)
 	GetFundImageMeta(ctx context.Context, fundID uuid.UUID) (*FundImage, error)

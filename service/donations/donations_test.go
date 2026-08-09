@@ -69,7 +69,7 @@ func TestDonationService_DeactivateFund(t *testing.T) {
 			GoalCents:       10000,
 		}
 
-		fund, err := donationTestService.CreateFund(ctx, createFund)
+		fund, err := donationTestService.CreateFund(ctx, createFund, nil)
 		require.NoError(t, err)
 
 		createMember := members.CreateMember{
@@ -190,7 +190,7 @@ func TestDeactivateFundLeavesTheFundOpenIfCancellationFails(t *testing.T) {
 	fund, err := svc.CreateFund(ctx, donations.Fund{
 		Name: "Test Fund", Description: "d",
 		PayoutFrequency: donations.PayoutFrequencyMonthly, Active: true,
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	member, err := memberSvc.CreateMember(ctx, members.CreateMember{
@@ -272,7 +272,7 @@ func TestDeactivateMemberLeavesTheMemberActiveIfCancellationFails(t *testing.T) 
 	fund, err := svc.CreateFund(ctx, donations.Fund{
 		Name: "Test Fund", Description: "d",
 		PayoutFrequency: donations.PayoutFrequencyMonthly, Active: true,
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	member, err := memberSvc.CreateMember(ctx, members.CreateMember{
@@ -349,7 +349,7 @@ func TestDeactivateFundRejectsMismatchedCancellations(t *testing.T) {
 	fund, err := svc.CreateFund(ctx, donations.Fund{
 		Name: "Test Fund", Description: "d",
 		PayoutFrequency: donations.PayoutFrequencyMonthly, Active: true,
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	member, err := memberSvc.CreateMember(ctx, members.CreateMember{

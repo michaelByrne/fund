@@ -56,7 +56,7 @@ func TestEditingAFundIsRecorded(t *testing.T) {
 			Name: name, Description: "help with rent", Active: true,
 			PayoutFrequency: donations.PayoutFrequencyMonthly,
 			GoalCents:       50000, Expires: &expires,
-		})
+		}, nil)
 		require.NoError(t, errCreate)
 
 		return *fund
@@ -167,14 +167,20 @@ func TestEditingAFundIsRecorded(t *testing.T) {
 
 		public, err := events.GetPublicFundEvents(ctx, fund.ID, fundevents.DefaultLimit)
 		require.NoError(t, err)
-		require.Len(t, public, 1)
 
-		assert.Equal(t, fundevents.KindFundUpdated, public[0].Kind)
-		assert.NotEmpty(t, public[0].ActorName, "an admin editing a fund is named")
+		// Newest first, and the fund's own creation is the other public event on a
+		// fund this young.
+		require.Len(t, public, 2)
+		assert.Equal(t, fundevents.KindFundCreated, public[1].Kind)
+
+		edit := public[0]
+
+		assert.Equal(t, fundevents.KindFundUpdated, edit.Kind)
+		assert.NotEmpty(t, edit.ActorName, "an admin editing a fund is named")
 
 		// The description itself is not repeated -- it can be paragraphs, and the
 		// timeline is a list of one-line entries.
-		assert.Equal(t, "description edited", public[0].Detail)
-		assert.False(t, strings.Contains(public[0].Detail, "utilities"))
+		assert.Equal(t, "description edited", edit.Detail)
+		assert.False(t, strings.Contains(edit.Detail, "utilities"))
 	})
 }

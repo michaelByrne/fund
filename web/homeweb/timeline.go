@@ -28,6 +28,8 @@ func timelineLabel(kind fundevents.Kind) string {
 		return "payouts completed"
 	case fundevents.KindFundUpdated:
 		return "fund details changed"
+	case fundevents.KindFundCreated:
+		return "fund opened"
 	case fundevents.KindFundClosed:
 		return "fund closed"
 	default:

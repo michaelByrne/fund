@@ -160,7 +160,7 @@ func TestFundImages(t *testing.T) {
 	t.Run("stores a jpeg and serves it back", func(t *testing.T) {
 		fundID := seedOnceFund(t, ctx, pool)
 
-		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 300, 200)))
+		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 300, 200)), nil)
 		require.NoError(t, errSave)
 		require.Equal(t, "image/jpeg", saved.ContentType)
 		require.Equal(t, 300, saved.Width)
@@ -183,7 +183,7 @@ func TestFundImages(t *testing.T) {
 	t.Run("keeps transparency as png", func(t *testing.T) {
 		fundID := seedOnceFund(t, ctx, pool)
 
-		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(pngWithAlpha(t, 120, 120)))
+		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(pngWithAlpha(t, 120, 120)), nil)
 		require.NoError(t, errSave)
 		require.Equal(t, "image/png", saved.ContentType)
 	})
@@ -199,7 +199,7 @@ func TestFundImages(t *testing.T) {
 		withMarker := append([]byte{}, original...)
 		withMarker = append(withMarker, []byte("SECRETLOCATIONDATA")...)
 
-		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(withMarker))
+		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(withMarker), nil)
 		require.NoError(t, errSave)
 
 		body, _, errGet := svc.OpenFundImage(ctx, fundID, saved.SHA256)
@@ -212,7 +212,7 @@ func TestFundImages(t *testing.T) {
 	t.Run("scales a large image down", func(t *testing.T) {
 		fundID := seedOnceFund(t, ctx, pool)
 
-		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 3200, 1600)))
+		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 3200, 1600)), nil)
 		require.NoError(t, errSave)
 
 		require.Equal(t, donations.MaxImageDimension, saved.Width)
@@ -228,7 +228,7 @@ func TestFundImages(t *testing.T) {
 	t.Run("refuses something that is not an image", func(t *testing.T) {
 		fundID := seedOnceFund(t, ctx, pool)
 
-		_, errSave := svc.SaveFundImage(ctx, fundID, strings.NewReader("this is just some text"))
+		_, errSave := svc.SaveFundImage(ctx, fundID, strings.NewReader("this is just some text"), nil)
 		require.ErrorIs(t, errSave, donations.ErrImageUnreadable)
 	})
 
@@ -240,7 +240,7 @@ func TestFundImages(t *testing.T) {
 		svg := `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">` +
 			`<script>alert(1)</script></svg>`
 
-		_, errSave := svc.SaveFundImage(ctx, fundID, strings.NewReader(svg))
+		_, errSave := svc.SaveFundImage(ctx, fundID, strings.NewReader(svg), nil)
 		require.ErrorIs(t, errSave, donations.ErrImageUnreadable)
 	})
 
@@ -260,7 +260,7 @@ func TestFundImages(t *testing.T) {
 		require.NoError(t, errDecode)
 		require.Equal(t, "gif", format)
 
-		_, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(out.Bytes()))
+		_, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(out.Bytes()), nil)
 		require.ErrorIs(t, errSave, donations.ErrImageUnreadable)
 	})
 
@@ -272,7 +272,7 @@ func TestFundImages(t *testing.T) {
 		oversized := bytes.Repeat([]byte{0xff}, donations.MaxImageBytes+1)
 		copy(oversized, jpegOf(t, 10, 10))
 
-		_, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(oversized))
+		_, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(oversized), nil)
 		require.ErrorIs(t, errSave, donations.ErrImageTooLarge)
 	})
 
@@ -294,17 +294,17 @@ func TestFundImages(t *testing.T) {
 		// is exactly the trick being defended against.
 		forged := forgePNGSize(t, out.Bytes(), 30000, 30000)
 
-		_, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(forged))
+		_, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(forged), nil)
 		require.ErrorIs(t, errSave, donations.ErrImageTooManyPixels)
 	})
 
 	t.Run("replacing an image changes its url", func(t *testing.T) {
 		fundID := seedOnceFund(t, ctx, pool)
 
-		first, errFirst := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)))
+		first, errFirst := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)), nil)
 		require.NoError(t, errFirst)
 
-		second, errSecond := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 140, 90)))
+		second, errSecond := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 140, 90)), nil)
 		require.NoError(t, errSecond)
 
 		require.NotEqual(t, first.URL(), second.URL(),
@@ -319,9 +319,9 @@ func TestFundImages(t *testing.T) {
 	t.Run("one image per fund", func(t *testing.T) {
 		fundID := seedOnceFund(t, ctx, pool)
 
-		_, errFirst := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)))
+		_, errFirst := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)), nil)
 		require.NoError(t, errFirst)
-		_, errSecond := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)))
+		_, errSecond := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)), nil)
 		require.NoError(t, errSecond)
 
 		var count int
@@ -333,10 +333,10 @@ func TestFundImages(t *testing.T) {
 	t.Run("removing takes it down", func(t *testing.T) {
 		fundID := seedOnceFund(t, ctx, pool)
 
-		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)))
+		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)), nil)
 		require.NoError(t, errSave)
 
-		require.NoError(t, svc.RemoveFundImage(ctx, fundID))
+		require.NoError(t, svc.RemoveFundImage(ctx, fundID, nil))
 
 		meta, errMeta := svc.GetFundImage(ctx, fundID)
 		require.NoError(t, errMeta)
@@ -355,7 +355,7 @@ func TestFundImages(t *testing.T) {
 		bucket.putErr = errors.New("s3 is having a day")
 		t.Cleanup(func() { bucket.putErr = nil })
 
-		_, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)))
+		_, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)), nil)
 		require.Error(t, errSave)
 
 		// No row, so no page points at an object that was never written.
@@ -369,10 +369,10 @@ func TestFundImages(t *testing.T) {
 
 		before := bucket.count()
 
-		first, errFirst := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)))
+		first, errFirst := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)), nil)
 		require.NoError(t, errFirst)
 
-		_, errSecond := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 140, 90)))
+		_, errSecond := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 140, 90)), nil)
 		require.NoError(t, errSecond)
 
 		require.Equal(t, before+1, bucket.count(),
@@ -389,10 +389,10 @@ func TestFundImages(t *testing.T) {
 
 		same := jpegOf(t, 100, 100)
 
-		first, errFirst := svc.SaveFundImage(ctx, fundID, bytes.NewReader(same))
+		first, errFirst := svc.SaveFundImage(ctx, fundID, bytes.NewReader(same), nil)
 		require.NoError(t, errFirst)
 
-		second, errSecond := svc.SaveFundImage(ctx, fundID, bytes.NewReader(same))
+		second, errSecond := svc.SaveFundImage(ctx, fundID, bytes.NewReader(same), nil)
 		require.NoError(t, errSecond)
 		require.Equal(t, first.SHA256, second.SHA256)
 
@@ -405,11 +405,11 @@ func TestFundImages(t *testing.T) {
 	t.Run("removing takes the object with it", func(t *testing.T) {
 		fundID := seedOnceFund(t, ctx, pool)
 
-		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 111, 111)))
+		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 111, 111)), nil)
 		require.NoError(t, errSave)
 
 		key := fundImageKeyFor(fundID, saved)
-		require.NoError(t, svc.RemoveFundImage(ctx, fundID))
+		require.NoError(t, svc.RemoveFundImage(ctx, fundID, nil))
 
 		require.Contains(t, bucket.deletes, key, "the row went and the bytes stayed")
 	})
@@ -419,7 +419,7 @@ func TestFundImages(t *testing.T) {
 	t.Run("a row pointing at nothing is a miss", func(t *testing.T) {
 		fundID := seedOnceFund(t, ctx, pool)
 
-		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)))
+		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)), nil)
 		require.NoError(t, errSave)
 
 		require.NoError(t, bucket.DeleteFundImage(ctx, fundImageKeyFor(fundID, saved)))
@@ -440,7 +440,7 @@ func TestFundImages(t *testing.T) {
 		withImage := seedOnceFund(t, ctx, pool)
 		without := seedOnceFund(t, ctx, pool)
 
-		_, errSave := svc.SaveFundImage(ctx, withImage, bytes.NewReader(jpegOf(t, 100, 100)))
+		_, errSave := svc.SaveFundImage(ctx, withImage, bytes.NewReader(jpegOf(t, 100, 100)), nil)
 		require.NoError(t, errSave)
 
 		images, errImages := svc.GetFundImages(ctx, []uuid.UUID{withImage, without})
@@ -535,7 +535,7 @@ func TestAClosedFundsPictureIsFixed(t *testing.T) {
 		fundID := seedOnceFund(t, ctx, pool)
 		closeFund(t, fundID)
 
-		_, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)))
+		_, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)), nil)
 		require.ErrorIs(t, errSave, donations.ErrFundClosed)
 	})
 
@@ -551,7 +551,7 @@ func TestAClosedFundsPictureIsFixed(t *testing.T) {
 
 		upload := &watchedReader{Reader: bytes.NewReader(jpegOf(t, 100, 100))}
 
-		_, errSave := svc.SaveFundImage(ctx, fundID, upload)
+		_, errSave := svc.SaveFundImage(ctx, fundID, upload, nil)
 		require.ErrorIs(t, errSave, donations.ErrFundClosed)
 
 		require.False(t, upload.read, "the upload was read before the fund was checked")
@@ -560,12 +560,12 @@ func TestAClosedFundsPictureIsFixed(t *testing.T) {
 	t.Run("the existing one stays", func(t *testing.T) {
 		fundID := seedOnceFund(t, ctx, pool)
 
-		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)))
+		saved, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)), nil)
 		require.NoError(t, errSave)
 
 		closeFund(t, fundID)
 
-		require.ErrorIs(t, svc.RemoveFundImage(ctx, fundID), donations.ErrFundClosed)
+		require.ErrorIs(t, svc.RemoveFundImage(ctx, fundID, nil), donations.ErrFundClosed)
 
 		// And it is still being served, because the archive still shows it.
 		body, _, errOpen := svc.OpenFundImage(ctx, fundID, saved.SHA256)
@@ -581,7 +581,7 @@ func TestAClosedFundsPictureIsFixed(t *testing.T) {
 			`UPDATE fund SET expires = now() - INTERVAL '1 day' WHERE id = $1`, fundID)
 		require.NoError(t, errExpire)
 
-		_, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)))
+		_, errSave := svc.SaveFundImage(ctx, fundID, bytes.NewReader(jpegOf(t, 100, 100)), nil)
 		require.ErrorIs(t, errSave, donations.ErrFundClosed)
 	})
 }

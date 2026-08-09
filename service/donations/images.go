@@ -14,6 +14,8 @@ import (
 	"log/slog"
 	"time"
 
+	"boardfund/service/fundevents"
+
 	"golang.org/x/image/draw"
 	// Registered for their decoders only. An upload's format is whatever decoding
 	// it says it is, never what the filename or the browser claimed.
@@ -112,7 +114,7 @@ type FundImageObject struct {
 // once, because what comes out is written by us from decoded pixels. And it means
 // the bytes served to every visitor are bytes this application produced, so the
 // content type is a fact rather than a claim.
-func (s DonationService) SaveFundImage(ctx context.Context, fundID uuid.UUID, upload io.Reader) (*FundImage, error) {
+func (s DonationService) SaveFundImage(ctx context.Context, fundID uuid.UUID, upload io.Reader, actorID *uuid.UUID) (*FundImage, error) {
 	if err := s.fundIsOpen(ctx, fundID); err != nil {
 		return nil, err
 	}
@@ -155,7 +157,7 @@ func (s DonationService) SaveFundImage(ctx context.Context, fundID uuid.UUID, up
 
 	encoded, contentType, err := reencode(scaled)
 	if err != nil {
-		s.logger.Error("failed to re-encode a fund image", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to re-encode a fund image", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -169,7 +171,7 @@ func (s DonationService) SaveFundImage(ctx context.Context, fundID uuid.UUID, up
 	// points at can be collected afterwards.
 	previous, err := s.donationStore.GetFundImageKey(ctx, fundID)
 	if err != nil {
-		s.logger.Error("failed to read the current fund image key", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to read the current fund image key", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -191,7 +193,7 @@ func (s DonationService) SaveFundImage(ctx context.Context, fundID uuid.UUID, up
 		SHA256:      digest,
 	})
 	if err != nil {
-		s.logger.Error("failed to store a fund image", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to store a fund image", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -204,14 +206,33 @@ func (s DonationService) SaveFundImage(ctx context.Context, fundID uuid.UUID, up
 	// uploaded twice -- the key is the hash, so that write replaced itself.
 	if previous != "" && previous != key {
 		if errDelete := s.fundImages.DeleteFundImage(ctx, previous); errDelete != nil {
-			s.logger.Error("failed to remove the replaced fund image",
+			s.logger.ErrorContext(ctx, "failed to remove the replaced fund image",
 				slog.String("key", previous),
 				slog.String("error", errDelete.Error()),
 			)
 		}
 	}
 
+	// A picture is a fund detail like the description or the goal, so it is
+	// recorded as one rather than given a kind of its own. The detail says which
+	// change it was, because "fund details changed" on its own does not.
+	s.recordPictureChange(ctx, fundID, actorID, "picture set")
+
 	return image, nil
+}
+
+// recordPictureChange writes the event behind a picture being set or removed.
+//
+// Shared by both so the two cannot drift into describing the same kind of change
+// differently, which is the sort of thing that makes a feed hard to read long
+// before it makes it wrong.
+func (s DonationService) recordPictureChange(ctx context.Context, fundID uuid.UUID, actorID *uuid.UUID, what string) {
+	s.events.Record(ctx, fundevents.Record{
+		FundID:        fundID,
+		Kind:          fundevents.KindFundUpdated,
+		ActorMemberID: actorID,
+		Detail:        what,
+	})
 }
 
 // fundImageKey is where an image lives in the bucket.
@@ -321,7 +342,7 @@ func hasAlpha(img image.Image) bool {
 func (s DonationService) GetFundImage(ctx context.Context, fundID uuid.UUID) (*FundImage, error) {
 	image, err := s.donationStore.GetFundImageMeta(ctx, fundID)
 	if err != nil {
-		s.logger.Error("failed to read a fund image", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to read a fund image", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -340,7 +361,7 @@ func (s DonationService) GetFundImages(ctx context.Context, fundIDs []uuid.UUID)
 
 	images, err := s.donationStore.GetFundImageMetaForFunds(ctx, fundIDs)
 	if err != nil {
-		s.logger.Error("failed to read fund images", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to read fund images", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -390,30 +411,32 @@ func (s DonationService) OpenFundImage(ctx context.Context, fundID uuid.UUID, sh
 // what was asked for; the object is then tidied up, and a failure to do that
 // leaves bytes in a bucket that nothing points at rather than a picture still
 // showing on the site.
-func (s DonationService) RemoveFundImage(ctx context.Context, fundID uuid.UUID) error {
+func (s DonationService) RemoveFundImage(ctx context.Context, fundID uuid.UUID, actorID *uuid.UUID) error {
 	if err := s.fundIsOpen(ctx, fundID); err != nil {
 		return err
 	}
 
 	key, err := s.donationStore.GetFundImageKey(ctx, fundID)
 	if err != nil {
-		s.logger.Error("failed to read the fund image key", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to read the fund image key", slog.String("error", err.Error()))
 
 		return err
 	}
 
 	if err = s.donationStore.DeleteFundImage(ctx, fundID); err != nil {
-		s.logger.Error("failed to remove a fund image", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to remove a fund image", slog.String("error", err.Error()))
 
 		return err
 	}
+
+	s.recordPictureChange(ctx, fundID, actorID, "picture removed")
 
 	if key == "" {
 		return nil
 	}
 
 	if err = s.fundImages.DeleteFundImage(ctx, key); err != nil {
-		s.logger.Error("failed to remove the fund image object",
+		s.logger.ErrorContext(ctx, "failed to remove the fund image object",
 			slog.String("key", key),
 			slog.String("error", err.Error()),
 		)
@@ -429,7 +452,7 @@ func (s DonationService) RemoveFundImage(ctx context.Context, fundID uuid.UUID) 
 func (s DonationService) fundIsOpen(ctx context.Context, fundID uuid.UUID) error {
 	fund, err := s.donationStore.GetFundByID(ctx, fundID)
 	if err != nil {
-		s.logger.Error("failed to read the fund being changed", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to read the fund being changed", slog.String("error", err.Error()))
 
 		return err
 	}

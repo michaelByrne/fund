@@ -13,12 +13,15 @@ import (
 )
 
 const getAdminEvents = `-- name: GetAdminEvents :many
-SELECT admin_event.id, admin_event.kind, admin_event.occurred_at, admin_event.actor_member_id, admin_event.subject_member_id, admin_event.detail, admin_event.created,
+SELECT admin_event.id, admin_event.kind, admin_event.occurred_at, admin_event.actor_member_id, admin_event.subject_member_id, admin_event.detail, admin_event.created, admin_event.subject_label,
        actor.bco_name   AS actor_name,
        subject.bco_name AS subject_name
 FROM admin_event
          LEFT JOIN member actor ON actor.id = admin_event.actor_member_id
-         JOIN member subject ON subject.id = admin_event.subject_member_id
+         -- LEFT, because a subject is not always a member: approving an email
+         -- address is done for somebody who cannot have an account yet. An inner
+         -- join here would silently drop exactly those rows from the audit page.
+         LEFT JOIN member subject ON subject.id = admin_event.subject_member_id
 ORDER BY admin_event.occurred_at DESC, admin_event.created DESC
 LIMIT $1
 `
@@ -48,6 +51,7 @@ func (q *Queries) GetAdminEvents(ctx context.Context, limit int32) ([]GetAdminEv
 			&i.AdminEvent.SubjectMemberID,
 			&i.AdminEvent.Detail,
 			&i.AdminEvent.Created,
+			&i.AdminEvent.SubjectLabel,
 			&i.ActorName,
 			&i.SubjectName,
 		); err != nil {
@@ -62,16 +66,18 @@ func (q *Queries) GetAdminEvents(ctx context.Context, limit int32) ([]GetAdminEv
 }
 
 const insertAdminEvent = `-- name: InsertAdminEvent :one
-INSERT INTO admin_event (id, kind, occurred_at, actor_member_id, subject_member_id, detail)
-VALUES ($1, $2, COALESCE($6::timestamptz, now()), $3, $4, $5)
-RETURNING id, kind, occurred_at, actor_member_id, subject_member_id, detail, created
+INSERT INTO admin_event (id, kind, occurred_at, actor_member_id, subject_member_id, subject_label,
+                         detail)
+VALUES ($1, $2, COALESCE($7::timestamptz, now()), $3, $4, $5, $6)
+RETURNING id, kind, occurred_at, actor_member_id, subject_member_id, detail, created, subject_label
 `
 
 type InsertAdminEventParams struct {
 	ID              uuid.UUID
 	Kind            AdminEventKind
 	ActorMemberID   uuid.NullUUID
-	SubjectMemberID uuid.UUID
+	SubjectMemberID uuid.NullUUID
+	SubjectLabel    pgtype.Text
 	Detail          pgtype.Text
 	OccurredAt      pgtype.Timestamptz
 }
@@ -82,6 +88,7 @@ func (q *Queries) InsertAdminEvent(ctx context.Context, arg InsertAdminEventPara
 		arg.Kind,
 		arg.ActorMemberID,
 		arg.SubjectMemberID,
+		arg.SubjectLabel,
 		arg.Detail,
 		arg.OccurredAt,
 	)
@@ -94,6 +101,7 @@ func (q *Queries) InsertAdminEvent(ctx context.Context, arg InsertAdminEventPara
 		&i.SubjectMemberID,
 		&i.Detail,
 		&i.Created,
+		&i.SubjectLabel,
 	)
 	return i, err
 }

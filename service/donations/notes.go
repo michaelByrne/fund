@@ -9,6 +9,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"boardfund/service/fundevents"
+
 	"github.com/google/uuid"
 )
 
@@ -75,7 +77,7 @@ func (s DonationService) SaveFundNote(ctx context.Context, fundID, memberID uuid
 
 	given, err := s.donationStore.MemberHasGivenToFund(ctx, fundID, memberID)
 	if err != nil {
-		s.logger.Error("failed to check whether member has given to fund",
+		s.logger.ErrorContext(ctx, "failed to check whether member has given to fund",
 			slog.String("error", err.Error()))
 
 		return nil, err
@@ -92,7 +94,7 @@ func (s DonationService) SaveFundNote(ctx context.Context, fundID, memberID uuid
 		Anonymous: anonymous,
 	})
 	if err != nil {
-		s.logger.Error("failed to save fund note", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to save fund note", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -107,7 +109,7 @@ func (s DonationService) SaveFundNote(ctx context.Context, fundID, memberID uuid
 func (s DonationService) MemberHasGivenToFund(ctx context.Context, fundID, memberID uuid.UUID) (bool, error) {
 	given, err := s.donationStore.MemberHasGivenToFund(ctx, fundID, memberID)
 	if err != nil {
-		s.logger.Error("failed to check whether member has given to fund",
+		s.logger.ErrorContext(ctx, "failed to check whether member has given to fund",
 			slog.String("error", err.Error()))
 
 		return false, err
@@ -120,7 +122,7 @@ func (s DonationService) MemberHasGivenToFund(ctx context.Context, fundID, membe
 func (s DonationService) ListFundNotes(ctx context.Context, fundID uuid.UUID) ([]FundNote, error) {
 	notes, err := s.donationStore.GetFundNotes(ctx, fundID)
 	if err != nil {
-		s.logger.Error("failed to list fund notes", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to list fund notes", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -133,7 +135,7 @@ func (s DonationService) ListFundNotes(ctx context.Context, fundID uuid.UUID) ([
 func (s DonationService) GetFundNoteForMember(ctx context.Context, fundID, memberID uuid.UUID) (*FundNote, error) {
 	note, err := s.donationStore.GetFundNoteForMember(ctx, fundID, memberID)
 	if err != nil {
-		s.logger.Error("failed to get fund note for member", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get fund note for member", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -146,8 +148,9 @@ func (s DonationService) GetFundNoteForMember(ctx context.Context, fundID, membe
 // Soft: the row stays, with who removed it and when. After taking something down
 // that is exactly what you want to still have.
 func (s DonationService) RemoveFundNote(ctx context.Context, noteID, actorID uuid.UUID) error {
-	if err := s.donationStore.RemoveFundNote(ctx, noteID, actorID); err != nil {
-		s.logger.Error("failed to remove fund note",
+	note, err := s.donationStore.RemoveFundNote(ctx, noteID, actorID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to remove fund note",
 			slog.String("note_id", noteID.String()),
 			slog.String("error", err.Error()),
 		)
@@ -155,12 +158,37 @@ func (s DonationService) RemoveFundNote(ctx context.Context, noteID, actorID uui
 		return err
 	}
 
-	s.logger.Info("removed a fund note",
-		slog.String("note_id", noteID.String()),
-		slog.String("actor_id", actorID.String()),
-	)
+	// An admin taking down a member's words is worth a line in the fund's
+	// history. fund_note.removed_by already says who, but only until the next
+	// removal of that note overwrites it.
+	//
+	// The note's text is not carried. The event says a note was removed and by
+	// whom; what it said is still in the row, which is the point of the removal
+	// being soft.
+	s.recordNoteRemoval(ctx, note, &actorID)
 
 	return nil
+}
+
+// recordNoteRemoval writes the event, or nothing when there was no note to take
+// down.
+//
+// A second click on a note already removed changes no row, and recording it
+// would put a removal in the feed for something that was already gone.
+func (s DonationService) recordNoteRemoval(ctx context.Context, note *FundNote, actorID *uuid.UUID) {
+	if note == nil {
+		return
+	}
+
+	subject := note.MemberID
+
+	s.events.Record(ctx, fundevents.Record{
+		FundID:          note.FundID,
+		Kind:            fundevents.KindFundNoteRemoved,
+		ActorMemberID:   actorID,
+		SubjectMemberID: &subject,
+		ReferenceID:     &note.ID,
+	})
 }
 
 // RemoveOwnFundNote is a donor taking their own words down.
@@ -169,14 +197,19 @@ func (s DonationService) RemoveFundNote(ctx context.Context, noteID, actorID uui
 // this one cannot name a note at all, only a fund, so there is no id to get wrong
 // and none to guess.
 func (s DonationService) RemoveOwnFundNote(ctx context.Context, fundID, memberID uuid.UUID) error {
-	if err := s.donationStore.RemoveOwnFundNote(ctx, fundID, memberID); err != nil {
-		s.logger.Error("failed to remove own fund note",
+	note, err := s.donationStore.RemoveOwnFundNote(ctx, fundID, memberID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to remove own fund note",
 			slog.String("fund_id", fundID.String()),
 			slog.String("error", err.Error()),
 		)
 
 		return err
 	}
+
+	// The actor and the subject are the same person here, which the feed already
+	// knows how to say without repeating the name twice.
+	s.recordNoteRemoval(ctx, note, &memberID)
 
 	return nil
 }
@@ -190,7 +223,7 @@ func (s DonationService) RemoveOwnFundNote(ctx context.Context, fundID, memberID
 func (s DonationService) ListFundNotesForMember(ctx context.Context, memberID uuid.UUID) (map[uuid.UUID]FundNote, error) {
 	notes, err := s.donationStore.GetFundNotesForMember(ctx, memberID)
 	if err != nil {
-		s.logger.Error("failed to list a member's fund notes", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to list a member's fund notes", slog.String("error", err.Error()))
 
 		return nil, err
 	}

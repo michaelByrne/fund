@@ -249,7 +249,7 @@ func verifySignature(r *http.Request, webhookID string, logger *slog.Logger) ([]
 	// intermediate that would let it chain, so a failure here is the ordinary
 	// case rather than a signal -- but it is worth seeing if it ever stops being.
 	if cert.chainErr != nil {
-		logger.Warn("webhook signing certificate did not chain to a trusted root",
+		logger.WarnContext(r.Context(), "webhook signing certificate did not chain to a trusted root",
 			slog.String("cert_url", certURL),
 			slog.String("error", cert.chainErr.Error()),
 		)

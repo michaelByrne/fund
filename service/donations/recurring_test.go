@@ -53,7 +53,7 @@ func TestRecurringDonationsAreVerifiedWithTheProvider(t *testing.T) {
 		fund, errFund := svc.CreateFund(ctx, donations.Fund{
 			Name: uuid.NewString(), Description: "d",
 			PayoutFrequency: donations.PayoutFrequencyMonthly,
-		})
+		}, nil)
 		require.NoError(t, errFund)
 
 		plan, errPlan := svc.CreateDonationPlan(ctx, donations.CreatePlan{
@@ -129,7 +129,7 @@ func TestRecurringDonationsAreVerifiedWithTheProvider(t *testing.T) {
 		other, errOther := svc.CreateFund(ctx, donations.Fund{
 			Name: uuid.NewString(), Description: "d",
 			PayoutFrequency: donations.PayoutFrequencyMonthly,
-		})
+		}, nil)
 		require.NoError(t, errOther)
 
 		provider.GetSubscriptionFunc = func(context.Context, string) (*donations.ProviderSubscription, error) {

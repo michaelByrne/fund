@@ -1,0 +1,3 @@
+-- Postgres cannot drop a value from an enum. Rows using it would have to be
+-- rewritten and the type recreated, which is not worth doing to undo an additive
+-- change; the values simply go unused.
