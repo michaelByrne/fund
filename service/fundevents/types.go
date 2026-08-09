@@ -134,10 +134,14 @@ type Event struct {
 // A separate type rather than a filtered Event, because the difference that
 // matters is which fields exist. There is no subject here at all, so no template
 // on a public page can name the donor or the recipient an event was about -- not
-// by mistake, and not by a later edit that looks harmless. The one name it can
-// carry is the actor's, and only for events where a person acted in an official
-// capacity: a treasurer who approved a payout should be nameable, because that
-// is what accountability for the money means.
+// by mistake, and not by a later edit that looks harmless.
+//
+// The actor's name does travel, for every kind on the public list. The split is
+// between acting and being acted upon, not between one blessed action and the
+// rest: a treasurer who approved a payout and an admin who moved a fund's end
+// date have both done something to other people's money, and being nameable for
+// it is what accountability means here. A donor who gave and an enrollee who was
+// paid have done nothing that owes anyone an explanation.
 type PublicEvent struct {
 	Kind       Kind
 	OccurredAt time.Time

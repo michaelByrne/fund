@@ -17,10 +17,13 @@ import "boardfund/service/fundevents"
 // was run the way it said it would be: when payouts were planned, who approved
 // them, when the money actually went out, and when the fund closed.
 //
-// Nobody is named except the person who approved or rejected a payout. That is
-// deliberate and enforced a layer down, in fundevents.PublicEvent, which has no
-// field for the member an event was about -- a donor giving quietly is not
-// listed, and a recipient of mutual aid is never listed.
+// The only person a line can name is the one who acted: the treasurer who
+// approved a payout, the admin who moved the end date. Both are accountable for
+// what they did to other people's money, and naming them is the point.
+//
+// Nobody an event happened to is ever named. That is enforced a layer down, in
+// fundevents.PublicEvent, which has no field for a subject at all -- a donor
+// giving quietly is not listed, and a recipient of mutual aid is never listed.
 func FundTimeline(events []fundevents.PublicEvent) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -90,7 +93,7 @@ func FundTimelineRow(event fundevents.PublicEvent) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(timelineLabel(event.Kind))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 40, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 43, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -108,7 +111,7 @@ func FundTimelineRow(event fundevents.PublicEvent) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs("$" + centsToDecimalString(*event.AmountCents))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 42, Col: 96}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 45, Col: 96}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -126,7 +129,7 @@ func FundTimelineRow(event fundevents.PublicEvent) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(event.OccurredAt.Format("January 2, 2006"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 46, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 49, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -144,7 +147,7 @@ func FundTimelineRow(event fundevents.PublicEvent) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(event.Detail)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 48, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 51, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -168,7 +171,7 @@ func FundTimelineRow(event fundevents.PublicEvent) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(event.ActorName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 56, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/timeline.templ`, Line: 59, Col: 37}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {

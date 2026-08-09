@@ -1033,7 +1033,10 @@ func (h *FundHandlers) closedFundSummary(w http.ResponseWriter, r *http.Request)
 	// than not shown at all.
 	timeline, err := h.fundEvents.GetPublicFundEvents(ctx, fundID, fundevents.DefaultLimit)
 	if err != nil {
-		h.logger.Error("failed to read the public fund timeline", slog.String("error", err.Error()))
+		h.logger.Error("failed to read the public fund timeline",
+			slog.String("error", err.Error()),
+			slog.String("fund_id", fundID.String()),
+		)
 	}
 
 	ClosedFundSummary(*fund, fund.Stats, notes, image, timeline, &member, r.URL.Path).Render(ctx, w)

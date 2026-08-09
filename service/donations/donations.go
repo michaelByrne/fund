@@ -753,20 +753,39 @@ func describeFundChanges(before, after Fund) string {
 	return strings.Join(changes, ", ")
 }
 
+// goalDescription renders cents as dollars, in integer arithmetic.
+//
+// Widened to int64 and signed separately. The obvious form, "$%d.%02d" of
+// cents/100 and cents%100, renders a negative goal as "$-5.-50" -- and a
+// negative is reachable, because the goal arrives as a parsed float from a form
+// and nothing rejects a minus sign. Negating in int32 would also turn the
+// minimum value into itself.
 func goalDescription(cents int32) string {
 	if cents == 0 {
 		return "none"
 	}
 
-	return fmt.Sprintf("$%.2f", float64(cents)/100)
+	value, sign := int64(cents), ""
+	if value < 0 {
+		value, sign = -value, "-"
+	}
+
+	return fmt.Sprintf("%s$%d.%02d", sign, value/100, value%100)
 }
 
+// expiryDescription renders the day, in UTC.
+//
+// UTC because everything else that touches this date already is: sameDay below
+// compares UTC days, and the form's date input renders expires.UTC(). Formatting
+// in the value's own location would let the recorded line name a different day
+// from the one the comparison decided had changed, and from the one the admin
+// saw in the field they edited.
 func expiryDescription(expires *time.Time) string {
 	if expires == nil {
 		return "none"
 	}
 
-	return expires.Format("2006-01-02")
+	return expires.UTC().Format("2006-01-02")
 }
 
 // sameDay compares the two expiry values as dates.

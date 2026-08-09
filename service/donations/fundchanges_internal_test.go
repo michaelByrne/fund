@@ -108,6 +108,57 @@ func TestAnAdjacentDayIsAChange(t *testing.T) {
 	}
 }
 
+// The recorded line has to name the same day the comparison used and the same
+// day the admin saw in the field they edited. sameDay compares UTC days and the
+// form's date input renders expires.UTC(), so formatting here in the value's own
+// location would let all three disagree.
+//
+// Reachable with an ordinary date: 18:00 in Los Angeles is the next day in UTC.
+func TestTheRecordedDateIsTheOneTheFormShowed(t *testing.T) {
+	pacific := time.FixedZone("America/Los_Angeles", -7*3600)
+
+	// 2026-09-01 18:00 -0700 is 2026-09-02 01:00 UTC. Formatted locally this says
+	// September 1st; every other part of the round-trip says the 2nd.
+	stored := time.Date(2026, time.September, 1, 18, 0, 0, 0, pacific)
+
+	before := openFund()
+	before.Expires = &stored
+
+	after := before
+	after.Expires = day("2026-09-10")
+
+	got := describeFundChanges(before, after)
+
+	if !strings.Contains(got, "2026-09-02") {
+		t.Errorf("describeFundChanges = %q, want the utc day the form and the comparison both use", got)
+	}
+	if strings.Contains(got, "2026-09-01") {
+		t.Errorf("describeFundChanges = %q, want no local-zone day, which nothing else agrees with", got)
+	}
+}
+
+// Cent-exact by construction rather than by the rounding happening to land
+// right. A negative is reachable -- the goal arrives as a parsed float from a
+// form and nothing rejects a minus sign -- and must not render as "$-5.-50".
+func TestGoalAmountsAreRenderedExactly(t *testing.T) {
+	for _, tc := range []struct {
+		cents int32
+		want  string
+	}{
+		{0, "none"},
+		{5, "$0.05"},
+		{50, "$0.50"},
+		{100, "$1.00"},
+		{50000, "$500.00"},
+		{123456789, "$1234567.89"},
+		{-550, "-$5.50"},
+	} {
+		if got := goalDescription(tc.cents); got != tc.want {
+			t.Errorf("goalDescription(%d) = %q, want %q", tc.cents, got, tc.want)
+		}
+	}
+}
+
 func TestSettingAndClearingOptionalFieldsReadsAsSuch(t *testing.T) {
 	before := openFund()
 

@@ -9,10 +9,13 @@ import "boardfund/service/fundevents"
 // was run the way it said it would be: when payouts were planned, who approved
 // them, when the money actually went out, and when the fund closed.
 //
-// Nobody is named except the person who approved or rejected a payout. That is
-// deliberate and enforced a layer down, in fundevents.PublicEvent, which has no
-// field for the member an event was about -- a donor giving quietly is not
-// listed, and a recipient of mutual aid is never listed.
+// The only person a line can name is the one who acted: the treasurer who
+// approved a payout, the admin who moved the end date. Both are accountable for
+// what they did to other people's money, and naming them is the point.
+//
+// Nobody an event happened to is ever named. That is enforced a layer down, in
+// fundevents.PublicEvent, which has no field for a subject at all -- a donor
+// giving quietly is not listed, and a recipient of mutual aid is never listed.
 templ FundTimeline(events []fundevents.PublicEvent) {
 	// Omitted entirely when empty rather than shown as an empty box. Funds that
 	// closed before any of this was recorded have no timeline, and "nothing
