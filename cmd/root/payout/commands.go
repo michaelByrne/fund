@@ -1,13 +1,16 @@
 package payout
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"text/tabwriter"
 	"time"
 
 	"boardfund/cmd/root"
+	"boardfund/logging"
 	"boardfund/service/payouts"
 
 	"github.com/google/uuid"
@@ -331,12 +334,17 @@ func sweepCmd(runConfig *root.RunConfig) *cobra.Command {
 		Use:   "sweep",
 		Short: "cancel batches whose approval window expired and send reminders",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			d, err := build(runConfig)
-			if err != nil {
-				return err
-			}
+			return logging.Job(cmd.Context(), logging.New("payout"), "sweep",
+				func(ctx context.Context) ([]slog.Attr, error) {
+					d, err := build(runConfig)
+					if err != nil {
+						return nil, err
+					}
 
-			return d.service.RunApprovalSweep(cmd.Context())
+					// The sweep reports its own counts at info already, so there is
+					// nothing to add here beyond the fact that it ran.
+					return nil, d.service.RunApprovalSweep(ctx)
+				})
 		},
 	}
 }
@@ -442,19 +450,25 @@ func planDueCmd(runConfig *root.RunConfig) *cobra.Command {
 			"enrollees and leaves the batch awaiting a treasurer. The remainder from " +
 			"an uneven split stays in the fund. Intended to run daily.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			d, err := build(runConfig)
-			if err != nil {
-				return err
-			}
+			return logging.Job(cmd.Context(), logging.New("payout"), "plan-due",
+				func(ctx context.Context) ([]slog.Attr, error) {
+					d, err := build(runConfig)
+					if err != nil {
+						return nil, err
+					}
 
-			result, err := d.service.PlanDueBatches(cmd.Context())
-			if err != nil {
-				return err
-			}
+					result, err := d.service.PlanDueBatches(ctx)
+					if err != nil {
+						return nil, err
+					}
 
-			fmt.Printf("planned %d batch(es), skipped %d fund(s)\n", result.Planned, result.Skipped)
+					fmt.Printf("planned %d batch(es), skipped %d fund(s)\n", result.Planned, result.Skipped)
 
-			return nil
+					return []slog.Attr{
+						slog.Int("planned", result.Planned),
+						slog.Int("skipped", result.Skipped),
+					}, nil
+				})
 		},
 	}
 }
@@ -468,43 +482,53 @@ func submitApprovedCmd(runConfig *root.RunConfig) *cobra.Command {
 		Long: "Approval is the gate; this is the mechanical step after it. Without " +
 			"--confirm the command only reports what it would send.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			d, err := build(runConfig)
-			if err != nil {
-				return err
-			}
+			return logging.Job(cmd.Context(), logging.New("payout"), "submit-approved",
+				func(ctx context.Context) ([]slog.Attr, error) {
+					d, err := build(runConfig)
+					if err != nil {
+						return nil, err
+					}
 
-			// Same shape as `submit`: this one moves real money with no batch id in
-			// the command line to check against, so the dry run is the default.
-			if !confirm {
-				batches, errList := d.service.GetBatchesReadyToSubmit(cmd.Context())
-				if errList != nil {
-					return errList
-				}
+					// Same shape as `submit`: this one moves real money with no batch
+					// id in the command line to check against, so the dry run is the
+					// default.
+					if !confirm {
+						batches, errList := d.service.GetBatchesReadyToSubmit(ctx)
+						if errList != nil {
+							return nil, errList
+						}
 
-				if len(batches) == 0 {
-					fmt.Println("no approved batches are due for submission")
+						if len(batches) == 0 {
+							fmt.Println("no approved batches are due for submission")
 
-					return nil
-				}
+							return []slog.Attr{slog.Bool("dry_run", true), slog.Int("would_submit", 0)}, nil
+						}
 
-				fmt.Printf("would submit %d batch(es):\n", len(batches))
-				for _, batch := range batches {
-					printBatch(batch)
-				}
+						fmt.Printf("would submit %d batch(es):\n", len(batches))
+						for _, batch := range batches {
+							printBatch(batch)
+						}
 
-				fmt.Println("\nre-run with --confirm to send them")
+						fmt.Println("\nre-run with --confirm to send them")
 
-				return nil
-			}
+						// A cron that lost its --confirm looks entirely healthy: it runs
+						// on schedule, it finds batches, and it sends none of them. This
+						// is the field that tells them apart.
+						return []slog.Attr{
+							slog.Bool("dry_run", true),
+							slog.Int("would_submit", len(batches)),
+						}, nil
+					}
 
-			submitted, err := d.service.SubmitApprovedBatches(cmd.Context())
-			if err != nil {
-				return err
-			}
+					submitted, err := d.service.SubmitApprovedBatches(ctx)
+					if err != nil {
+						return nil, err
+					}
 
-			fmt.Printf("submitted %d batch(es)\n", submitted)
+					fmt.Printf("submitted %d batch(es)\n", submitted)
 
-			return nil
+					return []slog.Attr{slog.Int("submitted", submitted)}, nil
+				})
 		},
 	}
 
@@ -520,19 +544,22 @@ func reconcilePendingCmd(runConfig *root.RunConfig) *cobra.Command {
 		Long: "A safety net for dropped webhooks. On a healthy system this finds " +
 			"nothing to change. Intended to run hourly.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			d, err := build(runConfig)
-			if err != nil {
-				return err
-			}
+			return logging.Job(cmd.Context(), logging.New("payout"), "reconcile-pending",
+				func(ctx context.Context) ([]slog.Attr, error) {
+					d, err := build(runConfig)
+					if err != nil {
+						return nil, err
+					}
 
-			reconciled, err := d.service.ReconcilePendingBatches(cmd.Context())
-			if err != nil {
-				return err
-			}
+					reconciled, err := d.service.ReconcilePendingBatches(ctx)
+					if err != nil {
+						return nil, err
+					}
 
-			fmt.Printf("reconciled %d batch(es)\n", reconciled)
+					fmt.Printf("reconciled %d batch(es)\n", reconciled)
 
-			return nil
+					return []slog.Attr{slog.Int("reconciled", reconciled)}, nil
+				})
 		},
 	}
 }

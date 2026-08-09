@@ -110,7 +110,6 @@ func (s AuthService) GrantAdmin(ctx context.Context, actor, subject members.Memb
 		return err
 	}
 
-	s.logger.InfoContext(ctx, "granted admin", slog.String("username", subject.BCOName))
 	s.recordAdminChange(ctx, adminevents.KindAdminGranted, actor, subject)
 
 	return nil
@@ -129,7 +128,6 @@ func (s AuthService) RevokeAdmin(ctx context.Context, actor, subject members.Mem
 		return err
 	}
 
-	s.logger.InfoContext(ctx, "revoked admin", slog.String("username", subject.BCOName))
 	s.recordAdminChange(ctx, adminevents.KindAdminRevoked, actor, subject)
 
 	return nil
@@ -138,6 +136,13 @@ func (s AuthService) RevokeAdmin(ctx context.Context, actor, subject members.Mem
 // recordAdminChange writes the audit line, after the group write has succeeded
 // and never before it: an event recorded ahead of the change it describes is a
 // claim that something happened when it may not have.
+//
+// This is also the log line. There was a separate one here saying "granted
+// admin" with the member's bco_name on it; adminevents.Record now writes the
+// same fact with member ids instead, so the duplicate went rather than being
+// copied. The error paths above still name the username, because that is the key
+// the failing Cognito call was made with and is what a person would need to
+// retry it by hand.
 func (s AuthService) recordAdminChange(ctx context.Context, kind adminevents.Kind, actor, subject members.Member) {
 	if s.adminEvents == nil {
 		return

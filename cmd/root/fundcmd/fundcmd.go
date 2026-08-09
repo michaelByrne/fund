@@ -5,6 +5,7 @@ package fundcmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"boardfund/aws"
 	"boardfund/cmd/root"
@@ -46,43 +47,52 @@ func closeExpiredCmd(runConfig *root.RunConfig) *cobra.Command {
 			"at the provider. Without --confirm the command only reports what it " +
 			"would close.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			service, err := build(runConfig)
-			if err != nil {
-				return err
-			}
+			return logging.Job(cmd.Context(), logging.New("funds"), "close-expired",
+				func(ctx context.Context) ([]slog.Attr, error) {
+					service, err := build(runConfig)
+					if err != nil {
+						return nil, err
+					}
 
-			// Cancelling subscriptions at the provider is not reversible from here,
-			// so the dry run is the default -- the same shape as submit.
-			if !confirm {
-				expired, errList := service.ListExpiredOpenFunds(cmd.Context())
-				if errList != nil {
-					return errList
-				}
+					// Cancelling subscriptions at the provider is not reversible from
+					// here, so the dry run is the default -- the same shape as submit.
+					if !confirm {
+						expired, errList := service.ListExpiredOpenFunds(ctx)
+						if errList != nil {
+							return nil, errList
+						}
 
-				if len(expired) == 0 {
-					fmt.Println("no expired funds are still open")
+						if len(expired) == 0 {
+							fmt.Println("no expired funds are still open")
 
-					return nil
-				}
+							return []slog.Attr{slog.Bool("dry_run", true), slog.Int("would_close", 0)}, nil
+						}
 
-				fmt.Printf("would close %d fund(s):\n", len(expired))
-				for _, fund := range expired {
-					fmt.Printf("  %s  %s\n", fund.ID, fund.Name)
-				}
+						fmt.Printf("would close %d fund(s):\n", len(expired))
+						for _, fund := range expired {
+							fmt.Printf("  %s  %s\n", fund.ID, fund.Name)
+						}
 
-				fmt.Println("\nre-run with --confirm to close them")
+						fmt.Println("\nre-run with --confirm to close them")
 
-				return nil
-			}
+						// Said on the line, because a cron whose --confirm was dropped
+						// looks healthy: it runs daily, it finds funds, and it closes
+						// none of them.
+						return []slog.Attr{
+							slog.Bool("dry_run", true),
+							slog.Int("would_close", len(expired)),
+						}, nil
+					}
 
-			closed, err := service.CloseExpiredFunds(cmd.Context())
-			if err != nil {
-				return err
-			}
+					closed, err := service.CloseExpiredFunds(ctx)
+					if err != nil {
+						return nil, err
+					}
 
-			fmt.Printf("closed %d fund(s)\n", closed)
+					fmt.Printf("closed %d fund(s)\n", closed)
 
-			return nil
+					return []slog.Attr{slog.Int("closed", closed)}, nil
+				})
 		},
 	}
 
