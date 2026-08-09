@@ -22,16 +22,33 @@ func NewRouter(mux Mux, middlewares ...Middleware) *Router {
 	}
 }
 
-func (r *Router) Use(middlewares ...interface{}) {
-	for _, mw := range middlewares {
-		switch m := mw.(type) {
-		case Middleware:
-			r.middlewares = append(r.middlewares, m)
-		case func(http.Handler) http.Handler: // Adapt http.Handler middleware
-			r.middlewares = append(r.middlewares, adaptHandlerMiddleware(m))
-		default:
-			panic("unsupported middleware type")
-		}
+// Use adds middleware, applied to every route registered after it, outermost
+// first.
+//
+// It took ...interface{} and decided at runtime, with a panic for anything it
+// did not recognise. That panic reached production, and the reason is a rule
+// that is easy to forget: a type switch matches the *defined* type, so
+// `case Middleware` did not match a plain func(http.HandlerFunc)
+// http.HandlerFunc. The two are assignable and not identical, so the value went
+// straight past the case that was written for it and into the default.
+//
+// A parameter of type Middleware accepts that same function without complaint,
+// because assignability is what governs arguments. Nothing else changes, except
+// that the mistake is now a compile error in a place someone is looking at
+// rather than a panic on the first boot after deploy.
+func (r *Router) Use(middlewares ...Middleware) {
+	r.middlewares = append(r.middlewares, middlewares...)
+}
+
+// UseHandler adds middleware written against http.Handler, which is what most
+// third-party middleware is -- scs's LoadAndSave among them.
+//
+// A separate method rather than another case in a switch. There is no way to
+// overload on parameter type in Go, and the alternative was the interface{}
+// above.
+func (r *Router) UseHandler(middlewares ...func(http.Handler) http.Handler) {
+	for _, middleware := range middlewares {
+		r.middlewares = append(r.middlewares, adaptHandlerMiddleware(middleware))
 	}
 }
 
