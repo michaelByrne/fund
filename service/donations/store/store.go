@@ -608,31 +608,65 @@ func (s DonationStore) GetFundNoteForMember(ctx context.Context, fundID, memberI
 // Scoped by member in the statement itself rather than by checking ownership
 // first and then deleting: there is no window between the two, and no way for a
 // caller to name a note that is not theirs.
-func (s DonationStore) RemoveOwnFundNote(ctx context.Context, fundID, memberID uuid.UUID) error {
-	_, err := s.queries.RemoveOwnFundNote(ctx, db.RemoveOwnFundNoteParams{
+// RemoveOwnFundNote returns the note it took down, or nil when there was none.
+//
+// The query has always returned the row; it used to be discarded. The caller
+// needs it to record the event, and "nothing was removed" has to stay
+// distinguishable from "a note was removed" so that a second click does not
+// write a second event about a note that was already down.
+func (s DonationStore) RemoveOwnFundNote(ctx context.Context, fundID, memberID uuid.UUID) (*donations.FundNote, error) {
+	row, err := s.queries.RemoveOwnFundNote(ctx, db.RemoveOwnFundNoteParams{
 		FundID:   fundID,
 		MemberID: memberID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		// No note, or already down. Either way the donor asked for it gone and it
 		// is gone.
-		return nil
+		return nil, nil
 	}
 
-	return err
+	if err != nil {
+		return nil, err
+	}
+
+	// No author name: the callers of this only need the fund and the member, to
+	// say what the event was about.
+	return &donations.FundNote{
+		ID:        row.ID,
+		FundID:    row.FundID,
+		MemberID:  row.MemberID,
+		Body:      row.Body,
+		Anonymous: row.Anonymous,
+		Created:   row.Created.Time,
+		Updated:   row.Updated.Time,
+	}, nil
 }
 
-func (s DonationStore) RemoveFundNote(ctx context.Context, noteID, actorID uuid.UUID) error {
-	_, err := s.queries.RemoveFundNote(ctx, db.RemoveFundNoteParams{
+func (s DonationStore) RemoveFundNote(ctx context.Context, noteID, actorID uuid.UUID) (*donations.FundNote, error) {
+	row, err := s.queries.RemoveFundNote(ctx, db.RemoveFundNoteParams{
 		ID:        noteID,
 		RemovedBy: uuid.NullUUID{UUID: actorID, Valid: true},
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Already removed. The moderator asked for it gone and it is gone.
-		return nil
+		return nil, nil
 	}
 
-	return err
+	if err != nil {
+		return nil, err
+	}
+
+	// No author name: the callers of this only need the fund and the member, to
+	// say what the event was about.
+	return &donations.FundNote{
+		ID:        row.ID,
+		FundID:    row.FundID,
+		MemberID:  row.MemberID,
+		Body:      row.Body,
+		Anonymous: row.Anonymous,
+		Created:   row.Created.Time,
+		Updated:   row.Updated.Time,
+	}, nil
 }
 
 func (s DonationStore) UpsertFundImage(ctx context.Context, arg donations.UpsertFundImage) (*donations.FundImage, error) {

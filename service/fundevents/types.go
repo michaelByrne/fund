@@ -30,6 +30,8 @@ const (
 	KindBatchSettled        Kind = "payout_batch_settled"
 	KindFundClosed          Kind = "fund_closed"
 	KindFundUpdated         Kind = "fund_updated"
+	KindFundCreated         Kind = "fund_created"
+	KindFundNoteRemoved     Kind = "fund_note_removed"
 )
 
 // Public reports whether this kind belongs on a timeline that donors can read.
@@ -44,9 +46,11 @@ const (
 // and the batch events answer it.
 //
 // What is out: everything about one identifiable person. A donation starting, a
-// payment arriving, a member enrolling. Those are the fund's business and the
-// admin feed's, and the page already shows their totals -- a donor giving
-// quietly should not be listed, and a recipient of mutual aid should never be.
+// payment arriving, a member enrolling, a note being taken down. Those are the
+// fund's business and the admin feed's, and the page already shows their totals
+// -- a donor giving quietly should not be listed, a recipient of mutual aid
+// should never be, and a member whose note was removed should not have that
+// announced next to the note that is no longer there.
 func (k Kind) Public() bool {
 	switch k {
 	case KindBatchPlanned,
@@ -56,6 +60,7 @@ func (k Kind) Public() bool {
 		KindBatchSubmitted,
 		KindBatchSettled,
 		KindFundUpdated,
+		KindFundCreated,
 		KindFundClosed:
 		return true
 	default:

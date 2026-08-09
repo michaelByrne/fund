@@ -3,8 +3,6 @@ package adminevents
 import (
 	"context"
 	"log/slog"
-
-	"github.com/google/uuid"
 )
 
 // DefaultLimit is how many events the audit page shows.
@@ -33,8 +31,11 @@ func NewService(store eventStore, logger *slog.Logger) *Service {
 // that the grant did not happen when it did, which is worse than a missing audit
 // line -- and the missing line is logged at error level.
 func (s Service) Record(ctx context.Context, record Record) {
-	if record.SubjectMemberID == uuid.Nil {
-		s.logger.ErrorContext(ctx, "refusing to record an admin event with no subject",
+	// Exactly one subject, matching the check constraint on the table. Neither
+	// describes nothing; both would leave a reader to guess which one the event
+	// was about.
+	if (record.SubjectMemberID == nil) == (record.SubjectLabel == "") {
+		s.logger.ErrorContext(ctx, "refusing to record an admin event without exactly one subject",
 			slog.String("kind", string(record.Kind)),
 		)
 
@@ -46,7 +47,6 @@ func (s Service) Record(ctx context.Context, record Record) {
 		s.logger.ErrorContext(ctx, "failed to record admin event",
 			slog.String("error", err.Error()),
 			slog.String("kind", string(record.Kind)),
-			slog.String("subject_member_id", record.SubjectMemberID.String()),
 		)
 
 		return
@@ -55,9 +55,18 @@ func (s Service) Record(ctx context.Context, record Record) {
 	// Same invariant as fundevents: recorded means logged. A privilege change is
 	// the line most worth finding in a hurry, and the table it goes in is only
 	// readable by the people whose access it describes.
-	attrs := []any{
-		slog.String("kind", string(record.Kind)),
-		slog.String("subject_member_id", record.SubjectMemberID.String()),
+	attrs := []any{slog.String("kind", string(record.Kind))}
+
+	if record.SubjectMemberID != nil {
+		attrs = append(attrs, slog.String("subject_member_id", record.SubjectMemberID.String()))
+	}
+
+	// SubjectLabel is deliberately not logged, only its presence. It holds an
+	// email address, and the rule for this stream is ids only: the address lives
+	// in the audit table, where the people who can already read it in the admin
+	// section can find it, rather than in a log with different retention.
+	if record.SubjectLabel != "" {
+		attrs = append(attrs, slog.Bool("subject_not_a_member", true))
 	}
 
 	if record.ActorMemberID != nil {

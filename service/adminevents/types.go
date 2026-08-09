@@ -17,6 +17,9 @@ type Kind string
 const (
 	KindAdminGranted Kind = "admin_granted"
 	KindAdminRevoked Kind = "admin_revoked"
+
+	KindEmailApproved        Kind = "email_approved"
+	KindEmailApprovalRemoved Kind = "email_approval_removed"
 )
 
 // Record is one privilege change.
@@ -32,10 +35,24 @@ type Record struct {
 	// filled with a stand-in so that "we do not know" stays distinguishable.
 	ActorMemberID *uuid.UUID
 
-	// SubjectMemberID is whose privileges changed. Always set: the store rejects
-	// a record without one, because a privilege change with no subject describes
-	// nothing.
-	SubjectMemberID uuid.UUID
+	// SubjectMemberID is whose access changed, when that is somebody with an
+	// account.
+	//
+	// Nil for an approved email address, whose subject cannot be a member yet --
+	// approving them is what lets them become one. Exactly one of this and
+	// SubjectLabel is set; Record refuses a record with neither, because an
+	// access change with no subject describes nothing.
+	SubjectMemberID *uuid.UUID
+
+	// SubjectLabel names a subject that is not a member: the email address an
+	// approval was granted for.
+	//
+	// Held in the audit table because an approval that does not say which address
+	// answers nothing, and it is the same address already in approved_email in
+	// the same database, read by the same admins. Deliberately kept out of the
+	// log line -- see Service.Record -- because that goes somewhere else with
+	// different retention.
+	SubjectLabel string
 
 	// Detail is free text for the reader, such as how the change was made.
 	Detail string
@@ -48,15 +65,33 @@ type Event struct {
 	OccurredAt      time.Time
 	ActorMemberID   *uuid.UUID
 	ActorName       string
-	SubjectMemberID uuid.UUID
+	SubjectMemberID *uuid.UUID
 	SubjectName     string
+	SubjectLabel    string
 	Detail          string
 	Created         time.Time
 }
 
-// Granted reports whether this event added admin access rather than removing it.
+// Subject is what to show for who this was about: a member's name, or the label
+// for a subject who has no account.
+func (e Event) Subject() string {
+	if e.SubjectName != "" {
+		return e.SubjectName
+	}
+
+	return e.SubjectLabel
+}
+
+// AboutAMember reports whether the subject is somebody with an account, and so
+// whether there is a member page to link to.
+func (e Event) AboutAMember() bool {
+	return e.SubjectMemberID != nil
+}
+
+// Granted reports whether this event handed access out rather than taking it
+// away.
 func (e Event) Granted() bool {
-	return e.Kind == KindAdminGranted
+	return e.Kind == KindAdminGranted || e.Kind == KindEmailApproved
 }
 
 // ByProvider reports whether this happened without a person the app knows about
@@ -70,5 +105,7 @@ func (e Event) ByProvider() bool {
 // SelfInflicted reports whether the actor changed their own access. Worth
 // showing: it is the shape of both a bootstrap and a privilege escalation.
 func (e Event) SelfInflicted() bool {
-	return e.ActorMemberID != nil && *e.ActorMemberID == e.SubjectMemberID
+	return e.ActorMemberID != nil &&
+		e.SubjectMemberID != nil &&
+		*e.ActorMemberID == *e.SubjectMemberID
 }

@@ -153,7 +153,7 @@ func (s AuthService) recordAdminChange(ctx context.Context, kind adminevents.Kin
 	// learns to skip. It is left for the cases that differ.
 	record := adminevents.Record{
 		Kind:            kind,
-		SubjectMemberID: subject.ID,
+		SubjectMemberID: &subject.ID,
 	}
 
 	// A zero id means the caller had no signed-in member to attribute this to,
@@ -244,7 +244,13 @@ func (s AuthService) MarkEmailAsUsed(ctx context.Context, email string) (*Approv
 	return approvedEmail, nil
 }
 
-func (s AuthService) InsertApprovedEmail(ctx context.Context, email string) (*ApprovedEmail, error) {
+// InsertApprovedEmail lets an address register.
+//
+// Recorded, because this is the gate: nothing else decides who can create an
+// account, and until now nothing anywhere said who had opened it for whom.
+// approved_email holds the address and whether it has been used; it has never
+// held who added it.
+func (s AuthService) InsertApprovedEmail(ctx context.Context, email string, actorID *uuid.UUID) (*ApprovedEmail, error) {
 	approvedEmail, err := s.authStore.InsertApprovedEmail(ctx, email)
 	if err != nil {
 		// approved_email.email is the primary key, so re-adding an address is a
@@ -259,10 +265,12 @@ func (s AuthService) InsertApprovedEmail(ctx context.Context, email string) (*Ap
 		return nil, err
 	}
 
+	s.recordEmailApproval(ctx, adminevents.KindEmailApproved, email, actorID)
+
 	return approvedEmail, nil
 }
 
-func (s AuthService) DeleteApprovedEmail(ctx context.Context, email string) (*ApprovedEmail, error) {
+func (s AuthService) DeleteApprovedEmail(ctx context.Context, email string, actorID *uuid.UUID) (*ApprovedEmail, error) {
 	approvedEmail, err := s.authStore.DeleteApprovedEmail(ctx, email)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to delete approved email", slog.String("error", err.Error()))
@@ -270,7 +278,27 @@ func (s AuthService) DeleteApprovedEmail(ctx context.Context, email string) (*Ap
 		return nil, err
 	}
 
+	s.recordEmailApproval(ctx, adminevents.KindEmailApprovalRemoved, email, actorID)
+
 	return approvedEmail, nil
+}
+
+// recordEmailApproval writes the audit line for an address being let in or shut
+// out.
+//
+// The subject is the address itself, because there is no member to point at:
+// approving somebody is what allows them to become one. That is the reason
+// admin_event.subject_member_id is nullable.
+func (s AuthService) recordEmailApproval(ctx context.Context, kind adminevents.Kind, email string, actorID *uuid.UUID) {
+	if s.adminEvents == nil {
+		return
+	}
+
+	s.adminEvents.Record(ctx, adminevents.Record{
+		Kind:          kind,
+		ActorMemberID: actorID,
+		SubjectLabel:  email,
+	})
 }
 
 func (s AuthService) Authenticate(ctx context.Context, username, password string) (*members.Member, *AuthResponse, error) {

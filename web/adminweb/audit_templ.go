@@ -9,6 +9,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"strings"
+
 	"boardfund/service/adminevents"
 	"boardfund/service/members"
 	"boardfund/web/common"
@@ -69,7 +71,7 @@ func AdminAudit(events []adminevents.Event, member *members.Member, path string)
 				}
 				ctx = templ.InitializeContext(ctx)
 				if len(events) == 0 {
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("   <p class=\"text-sm p-2\">no admin access has been granted or revoked since this log was added. changes made directly in cognito do not appear here.</p>")
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("   <p class=\"text-sm p-2\">no access has been granted or revoked since this log was added. changes made directly in cognito do not appear here.</p>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -86,50 +88,72 @@ func AdminAudit(events []adminevents.Event, member *members.Member, path string)
 						var templ_7745c5c3_Var4 string
 						templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(event.OccurredAt.Format("01-02-2006 15:04"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/audit.templ`, Line: 40, Col: 89}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/audit.templ`, Line: 42, Col: 89}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</td><td class=\"p-2\">")
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</td><td class=\"p-2\"><span class=\"font-semibold\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						if event.Granted() {
-							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<span class=\"font-semibold\">granted admin</span>")
+						var templ_7745c5c3_Var5 string
+						templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(adminEventLabel(event.Kind))
+						if templ_7745c5c3_Err != nil {
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/audit.templ`, Line: 44, Col: 68}
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></td><td class=\"p-2\">")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						if event.AboutAMember() {
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<a href=\"")
+							if templ_7745c5c3_Err != nil {
+								return templ_7745c5c3_Err
+							}
+							var templ_7745c5c3_Var6 templ.SafeURL = templ.SafeURL("/admin/member/" + event.SubjectMemberID.String())
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var6)))
+							if templ_7745c5c3_Err != nil {
+								return templ_7745c5c3_Err
+							}
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" class=\"text-links hover:underline\">")
+							if templ_7745c5c3_Err != nil {
+								return templ_7745c5c3_Err
+							}
+							var templ_7745c5c3_Var7 string
+							templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(event.Subject())
+							if templ_7745c5c3_Err != nil {
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/audit.templ`, Line: 49, Col: 30}
+							}
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+							if templ_7745c5c3_Err != nil {
+								return templ_7745c5c3_Err
+							}
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</a>")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
 						} else {
-							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<span class=\"font-semibold\">revoked admin</span>")
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("   ")
+							if templ_7745c5c3_Err != nil {
+								return templ_7745c5c3_Err
+							}
+							var templ_7745c5c3_Var8 string
+							templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(event.Subject())
+							if templ_7745c5c3_Err != nil {
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/audit.templ`, Line: 55, Col: 29}
+							}
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
 						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</td><td class=\"p-2\"><a href=\"")
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						var templ_7745c5c3_Var5 templ.SafeURL = templ.SafeURL("/admin/member/" + event.SubjectMemberID.String())
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var5)))
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" class=\"text-links hover:underline\">")
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						var templ_7745c5c3_Var6 string
-						templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(event.SubjectName)
-						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/audit.templ`, Line: 50, Col: 31}
-						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</a></td><td class=\"p-2\">")
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</td><td class=\"p-2\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -143,12 +167,12 @@ func AdminAudit(events []adminevents.Event, member *members.Member, path string)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							var templ_7745c5c3_Var7 string
-							templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(event.ActorName)
+							var templ_7745c5c3_Var9 string
+							templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(event.ActorName)
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/audit.templ`, Line: 61, Col: 57}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/audit.templ`, Line: 66, Col: 57}
 							}
-							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -161,8 +185,8 @@ func AdminAudit(events []adminevents.Event, member *members.Member, path string)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							var templ_7745c5c3_Var8 templ.SafeURL = templ.SafeURL("/admin/member/" + event.ActorMemberID.String())
-							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var8)))
+							var templ_7745c5c3_Var10 templ.SafeURL = templ.SafeURL("/admin/member/" + event.ActorMemberID.String())
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var10)))
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -170,12 +194,12 @@ func AdminAudit(events []adminevents.Event, member *members.Member, path string)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							var templ_7745c5c3_Var9 string
-							templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(event.ActorName)
+							var templ_7745c5c3_Var11 string
+							templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(event.ActorName)
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/audit.templ`, Line: 64, Col: 30}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/audit.templ`, Line: 69, Col: 30}
 							}
-							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -200,7 +224,7 @@ func AdminAudit(events []adminevents.Event, member *members.Member, path string)
 				}
 				return templ_7745c5c3_Err
 			})
-			templ_7745c5c3_Err = common.Section("admin access changes").Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = common.Section("access changes").Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -216,6 +240,28 @@ func AdminAudit(events []adminevents.Event, member *members.Member, path string)
 		}
 		return templ_7745c5c3_Err
 	})
+}
+
+// adminEventLabel is what a row says happened.
+//
+// Not derived from Granted(), which only says which direction the change went:
+// two kinds grant and two revoke, and "granted admin" on an approved email
+// address would be wrong in the one place that exists to be trusted.
+func adminEventLabel(kind adminevents.Kind) string {
+	switch kind {
+	case adminevents.KindAdminGranted:
+		return "granted admin"
+	case adminevents.KindAdminRevoked:
+		return "revoked admin"
+	case adminevents.KindEmailApproved:
+		return "approved to register"
+	case adminevents.KindEmailApprovalRemoved:
+		return "registration approval removed"
+	default:
+		// A kind added to the enum and not to this switch still reads as
+		// something rather than as a blank cell.
+		return strings.ReplaceAll(string(kind), "_", " ")
+	}
 }
 
 var _ = templruntime.GeneratedTemplate

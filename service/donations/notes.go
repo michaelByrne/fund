@@ -9,6 +9,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"boardfund/service/fundevents"
+
 	"github.com/google/uuid"
 )
 
@@ -146,7 +148,8 @@ func (s DonationService) GetFundNoteForMember(ctx context.Context, fundID, membe
 // Soft: the row stays, with who removed it and when. After taking something down
 // that is exactly what you want to still have.
 func (s DonationService) RemoveFundNote(ctx context.Context, noteID, actorID uuid.UUID) error {
-	if err := s.donationStore.RemoveFundNote(ctx, noteID, actorID); err != nil {
+	note, err := s.donationStore.RemoveFundNote(ctx, noteID, actorID)
+	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to remove fund note",
 			slog.String("note_id", noteID.String()),
 			slog.String("error", err.Error()),
@@ -155,12 +158,37 @@ func (s DonationService) RemoveFundNote(ctx context.Context, noteID, actorID uui
 		return err
 	}
 
-	s.logger.InfoContext(ctx, "removed a fund note",
-		slog.String("note_id", noteID.String()),
-		slog.String("actor_id", actorID.String()),
-	)
+	// An admin taking down a member's words is worth a line in the fund's
+	// history. fund_note.removed_by already says who, but only until the next
+	// removal of that note overwrites it.
+	//
+	// The note's text is not carried. The event says a note was removed and by
+	// whom; what it said is still in the row, which is the point of the removal
+	// being soft.
+	s.recordNoteRemoval(ctx, note, &actorID)
 
 	return nil
+}
+
+// recordNoteRemoval writes the event, or nothing when there was no note to take
+// down.
+//
+// A second click on a note already removed changes no row, and recording it
+// would put a removal in the feed for something that was already gone.
+func (s DonationService) recordNoteRemoval(ctx context.Context, note *FundNote, actorID *uuid.UUID) {
+	if note == nil {
+		return
+	}
+
+	subject := note.MemberID
+
+	s.events.Record(ctx, fundevents.Record{
+		FundID:          note.FundID,
+		Kind:            fundevents.KindFundNoteRemoved,
+		ActorMemberID:   actorID,
+		SubjectMemberID: &subject,
+		ReferenceID:     &note.ID,
+	})
 }
 
 // RemoveOwnFundNote is a donor taking their own words down.
@@ -169,7 +197,8 @@ func (s DonationService) RemoveFundNote(ctx context.Context, noteID, actorID uui
 // this one cannot name a note at all, only a fund, so there is no id to get wrong
 // and none to guess.
 func (s DonationService) RemoveOwnFundNote(ctx context.Context, fundID, memberID uuid.UUID) error {
-	if err := s.donationStore.RemoveOwnFundNote(ctx, fundID, memberID); err != nil {
+	note, err := s.donationStore.RemoveOwnFundNote(ctx, fundID, memberID)
+	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to remove own fund note",
 			slog.String("fund_id", fundID.String()),
 			slog.String("error", err.Error()),
@@ -177,6 +206,10 @@ func (s DonationService) RemoveOwnFundNote(ctx context.Context, fundID, memberID
 
 		return err
 	}
+
+	// The actor and the subject are the same person here, which the feed already
+	// knows how to say without repeating the name twice.
+	s.recordNoteRemoval(ctx, note, &memberID)
 
 	return nil
 }

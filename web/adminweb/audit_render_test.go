@@ -26,13 +26,15 @@ func renderAudit(t *testing.T, events []adminevents.Event) string {
 }
 
 func grantedBy(actor *uuid.UUID, actorName string, subject uuid.UUID) adminevents.Event {
+	subjectID := subject
+
 	return adminevents.Event{
 		ID:              uuid.New(),
 		Kind:            adminevents.KindAdminGranted,
 		OccurredAt:      time.Now(),
 		ActorMemberID:   actor,
 		ActorName:       actorName,
-		SubjectMemberID: subject,
+		SubjectMemberID: &subjectID,
 		SubjectName:     "promoted",
 	}
 }
@@ -95,7 +97,7 @@ func TestChangingYourOwnAccessIsCalledOut(t *testing.T) {
 func TestAnEmptyLogExplainsItself(t *testing.T) {
 	page := renderAudit(t, nil)
 
-	if !strings.Contains(page, "no admin access has been granted or revoked") {
+	if !strings.Contains(page, "no access has been granted or revoked") {
 		t.Error("an empty log should say it is empty")
 	}
 	if !strings.Contains(page, "cognito") {

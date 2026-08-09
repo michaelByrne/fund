@@ -61,7 +61,7 @@ func TestNewFundsAreAnchoredToMidnight(t *testing.T) {
 		t.Run(string(frequency), func(t *testing.T) {
 			fund, errFund := svc.CreateFund(ctx, donations.Fund{
 				Name: uuid.NewString(), Description: "d", PayoutFrequency: frequency,
-			})
+			}, nil)
 			require.NoError(t, errFund)
 
 			next := nextPayment(t, fund.ID)
@@ -83,7 +83,7 @@ func TestNewFundsAreAnchoredToMidnight(t *testing.T) {
 		fund, errFund := svc.CreateFund(ctx, donations.Fund{
 			Name: uuid.NewString(), Description: "d",
 			PayoutFrequency: donations.PayoutFrequencyDaily,
-		})
+		}, nil)
 		require.NoError(t, errFund)
 
 		// The cron runs at 09:00 UTC. Tomorrow's run has to find it due, which is

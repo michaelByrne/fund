@@ -16,8 +16,10 @@ import (
 type AdminEventKind string
 
 const (
-	AdminEventKindAdminGranted AdminEventKind = "admin_granted"
-	AdminEventKindAdminRevoked AdminEventKind = "admin_revoked"
+	AdminEventKindAdminGranted         AdminEventKind = "admin_granted"
+	AdminEventKindAdminRevoked         AdminEventKind = "admin_revoked"
+	AdminEventKindEmailApproved        AdminEventKind = "email_approved"
+	AdminEventKindEmailApprovalRemoved AdminEventKind = "email_approval_removed"
 )
 
 func (e *AdminEventKind) Scan(src interface{}) error {
@@ -74,6 +76,8 @@ const (
 	FundEventKindDonationResumed      FundEventKind = "donation_resumed"
 	FundEventKindPaymentRefunded      FundEventKind = "payment_refunded"
 	FundEventKindFundUpdated          FundEventKind = "fund_updated"
+	FundEventKindFundCreated          FundEventKind = "fund_created"
+	FundEventKindFundNoteRemoved      FundEventKind = "fund_note_removed"
 )
 
 func (e *FundEventKind) Scan(src interface{}) error {
@@ -295,9 +299,10 @@ type AdminEvent struct {
 	Kind            AdminEventKind
 	OccurredAt      pgtype.Timestamptz
 	ActorMemberID   uuid.NullUUID
-	SubjectMemberID uuid.UUID
+	SubjectMemberID uuid.NullUUID
 	Detail          pgtype.Text
 	Created         pgtype.Timestamptz
+	SubjectLabel    pgtype.Text
 }
 
 type ApprovedEmail struct {

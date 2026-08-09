@@ -620,7 +620,12 @@ func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUI
 	return nil
 }
 
-func (s DonationService) CreateFund(ctx context.Context, createFund Fund) (*Fund, error) {
+// CreateFund opens a fund.
+//
+// actorID is a pointer for the same reason DeactivateFund's is: a fund created
+// from a future script or a seed has nobody to attribute it to, and a zero uuid
+// would fail fund_event's foreign key to member.
+func (s DonationService) CreateFund(ctx context.Context, createFund Fund, actorID *uuid.UUID) (*Fund, error) {
 	providerID, err := s.paymentsProvider.CreateFund(ctx, createFund.Name, createFund.Description)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to create fund with provider", slog.String("error", err.Error()))
@@ -653,6 +658,16 @@ func (s DonationService) CreateFund(ctx context.Context, createFund Fund) (*Fund
 
 		return nil, err
 	}
+
+	// The first entry in the fund's history, which until now began at its first
+	// donation -- so a fund opened weeks before anyone gave to it read as though
+	// it had come into existence with that donation.
+	s.events.Record(ctx, fundevents.Record{
+		FundID:        fund.ID,
+		Kind:          fundevents.KindFundCreated,
+		ActorMemberID: actorID,
+		Detail:        string(fund.PayoutFrequency),
+	})
 
 	return fund, nil
 }

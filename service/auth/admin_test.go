@@ -176,7 +176,7 @@ func TestAdminChangesAreRecordedWithBothParties(t *testing.T) {
 	// records that somebody's access changed without recording who changed it,
 	// which is the state this table was added to end.
 	for i, record := range log.records {
-		if record.SubjectMemberID != subject.ID {
+		if record.SubjectMemberID == nil || *record.SubjectMemberID != subject.ID {
 			t.Errorf("event %d: subject %v, want %v", i, record.SubjectMemberID, subject.ID)
 		}
 		if record.ActorMemberID == nil {

@@ -48,7 +48,7 @@ func TestOneTimeDonationsAreVerifiedWithTheProvider(t *testing.T) {
 			Name:            uuid.NewString(),
 			Description:     "d",
 			PayoutFrequency: donations.PayoutFrequencyOnce,
-		})
+		}, nil)
 		require.NoError(t, errFund)
 
 		return svc, fund.ID, seedMemberRow(t, ctx, pool)

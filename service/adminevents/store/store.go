@@ -62,7 +62,8 @@ func (s EventStore) InsertAdminEvent(ctx context.Context, arg adminevents.Record
 		Kind:            db.AdminEventKind(arg.Kind),
 		OccurredAt:      occurredAt(arg.OccurredAt),
 		ActorMemberID:   nullUUID(arg.ActorMemberID),
-		SubjectMemberID: arg.SubjectMemberID,
+		SubjectMemberID: nullUUID(arg.SubjectMemberID),
+		SubjectLabel:    text(arg.SubjectLabel),
 		Detail:          text(arg.Detail),
 	})
 	if err != nil {
@@ -95,8 +96,9 @@ func fromDB(e db.AdminEvent, actorName, subjectName string) adminevents.Event {
 		OccurredAt:      e.OccurredAt.Time,
 		ActorMemberID:   uuidPtr(e.ActorMemberID),
 		ActorName:       actorName,
-		SubjectMemberID: e.SubjectMemberID,
+		SubjectMemberID: uuidPtr(e.SubjectMemberID),
 		SubjectName:     subjectName,
+		SubjectLabel:    e.SubjectLabel.String,
 		Detail:          e.Detail.String,
 		Created:         e.Created.Time,
 	}
