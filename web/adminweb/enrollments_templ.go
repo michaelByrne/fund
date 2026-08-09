@@ -79,7 +79,7 @@ func Enrollments(fund donations.Fund, enrollments []enrollments.Enrollment, even
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = FundHistory(events).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = CurrentEnrollments(enrollments).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -87,7 +87,7 @@ func Enrollments(fund donations.Fund, enrollments []enrollments.Enrollment, even
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = CurrentEnrollments(enrollments).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = FundHistory(events).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -202,7 +202,7 @@ func FundHistoryRow(event fundevents.Event) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(eventLabel(event.Kind))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 65, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 67, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -220,7 +220,7 @@ func FundHistoryRow(event fundevents.Event) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(payoutAmount(*event.AmountCents))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 67, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 69, Col: 82}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -238,7 +238,7 @@ func FundHistoryRow(event fundevents.Event) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(event.OccurredAt.Format("01-02-2006 15:04"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 71, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 73, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -256,7 +256,7 @@ func FundHistoryRow(event fundevents.Event) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(event.SubjectName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 73, Col: 36}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 75, Col: 36}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -275,7 +275,7 @@ func FundHistoryRow(event fundevents.Event) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(event.Detail)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 76, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 78, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -343,7 +343,7 @@ func EventActor(event fundevents.Event) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(event.ActorName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 95, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 97, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -454,7 +454,7 @@ func UnpayableNotice(coverage payoutCoverage) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(coverage.Summary())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 119, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 121, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -533,7 +533,7 @@ func EnrollmentRow(enrollment enrollments.Enrollment) templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(enrollment.MemberBCOName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 141, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 143, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -562,7 +562,7 @@ func EnrollmentRow(enrollment enrollments.Enrollment) templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(enrollment.Created.Format("01-02-2006"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 146, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 148, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
@@ -575,7 +575,7 @@ func EnrollmentRow(enrollment enrollments.Enrollment) templ.Component {
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/admin/enrollment/cancel/%s", enrollment.ID.String()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 150, Col: 79}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 152, Col: 79}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
@@ -588,7 +588,7 @@ func EnrollmentRow(enrollment enrollments.Enrollment) templ.Component {
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("deactivate enrollment for %s?", enrollment.MemberBCOName))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 151, Col: 86}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 153, Col: 86}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
@@ -639,7 +639,7 @@ func EnrollmentStatus(enrollment enrollments.Enrollment) templ.Component {
 			var templ_7745c5c3_Var24 string
 			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(enrollment.FirstPayoutDate.Format("01-02-2006"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 173, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 175, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
@@ -688,7 +688,7 @@ func EnrollmentPayee(enrollment enrollments.Enrollment) templ.Component {
 			var templ_7745c5c3_Var26 string
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(enrollment.PaypalEmail)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 182, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 184, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 			if templ_7745c5c3_Err != nil {
@@ -731,7 +731,7 @@ func MemberSearch(fund donations.Fund) templ.Component {
 		var templ_7745c5c3_Var28 string
 		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(fund.ID.String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 233, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 235, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 		if templ_7745c5c3_Err != nil {
@@ -775,7 +775,7 @@ func MemberSearchResults(members []members.MemberSearchResult) templ.Component {
 				var templ_7745c5c3_Var30 string
 				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(i))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 250, Col: 30}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 252, Col: 30}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 				if templ_7745c5c3_Err != nil {
@@ -788,7 +788,7 @@ func MemberSearchResults(members []members.MemberSearchResult) templ.Component {
 				var templ_7745c5c3_Var31 string
 				templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("selectedIndex = '%d'", i))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 251, Col: 56}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 253, Col: 56}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 				if templ_7745c5c3_Err != nil {
@@ -801,7 +801,7 @@ func MemberSearchResults(members []members.MemberSearchResult) templ.Component {
 				var templ_7745c5c3_Var32 string
 				templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/admin/enrollment/confirm?member=%s", member.ID.String()))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 253, Col: 83}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 255, Col: 83}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 				if templ_7745c5c3_Err != nil {
@@ -814,7 +814,7 @@ func MemberSearchResults(members []members.MemberSearchResult) templ.Component {
 				var templ_7745c5c3_Var33 string
 				templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(member.BCOName)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 258, Col: 45}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 260, Col: 45}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 				if templ_7745c5c3_Err != nil {
@@ -875,7 +875,7 @@ func ConfirmEnrollment(fund donations.Fund, member members.Member) templ.Compone
 			var templ_7745c5c3_Var36 string
 			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(member.BCOName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 268, Col: 128}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 270, Col: 128}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 			if templ_7745c5c3_Err != nil {
@@ -896,7 +896,7 @@ func ConfirmEnrollment(fund donations.Fund, member members.Member) templ.Compone
 			var templ_7745c5c3_Var37 string
 			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(member.ID.String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 272, Col: 51}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 274, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 			if templ_7745c5c3_Err != nil {
@@ -909,7 +909,7 @@ func ConfirmEnrollment(fund donations.Fund, member members.Member) templ.Compone
 			var templ_7745c5c3_Var38 string
 			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(fund.ID.String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 273, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 275, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 			if templ_7745c5c3_Err != nil {
@@ -922,7 +922,7 @@ func ConfirmEnrollment(fund donations.Fund, member members.Member) templ.Compone
 			var templ_7745c5c3_Var39 string
 			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(member.BCOName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 274, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 276, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 			if templ_7745c5c3_Err != nil {
@@ -935,7 +935,7 @@ func ConfirmEnrollment(fund donations.Fund, member members.Member) templ.Compone
 			var templ_7745c5c3_Var40 string
 			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/admin/fund?fund=%s", fund.ID.String()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 288, Col: 66}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 290, Col: 66}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 			if templ_7745c5c3_Err != nil {
@@ -995,7 +995,7 @@ func EnrollmentSuccess(enrollment enrollments.Enrollment, member members.Member)
 			var templ_7745c5c3_Var43 string
 			templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(member.BCOName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 302, Col: 120}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 304, Col: 120}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 			if templ_7745c5c3_Err != nil {
@@ -1008,7 +1008,7 @@ func EnrollmentSuccess(enrollment enrollments.Enrollment, member members.Member)
 			var templ_7745c5c3_Var44 string
 			templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(enrollment.FirstPayoutDate.Format("01-02-2006"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 306, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 308, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 			if templ_7745c5c3_Err != nil {
@@ -1021,7 +1021,7 @@ func EnrollmentSuccess(enrollment enrollments.Enrollment, member members.Member)
 			var templ_7745c5c3_Var45 string
 			templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/admin/fund?fund=%s", enrollment.FundID.String()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 311, Col: 75}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 313, Col: 75}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 			if templ_7745c5c3_Err != nil {
@@ -1089,7 +1089,7 @@ func EnrollmentDates(fund donations.Fund) templ.Component {
 		var templ_7745c5c3_Var47 string
 		templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(time.Now().Format("01-02-2006"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 337, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 339, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 		if templ_7745c5c3_Err != nil {
@@ -1198,7 +1198,7 @@ func EnrollmentExistsErr(member members.Member, fund donations.Fund) templ.Compo
 			var templ_7745c5c3_Var52 string
 			templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(member.BCOName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 356, Col: 128}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 358, Col: 128}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 			if templ_7745c5c3_Err != nil {
@@ -1211,7 +1211,7 @@ func EnrollmentExistsErr(member members.Member, fund donations.Fund) templ.Compo
 			var templ_7745c5c3_Var53 string
 			templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/admin/fund?fund=%s", fund.ID.String()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 359, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/enrollments.templ`, Line: 361, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 			if templ_7745c5c3_Err != nil {

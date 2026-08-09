@@ -28,11 +28,13 @@ templ Enrollments(fund donations.Fund, enrollments []enrollments.Enrollment, eve
 					@AddEnrollment(fund)
 				</div>
 			</div>
-			<div class="flex flex-col overflow-visible">
-				@FundHistory(events)
-			</div>
+			// Beside the add-enrollment form it sits next to, so adding somebody and
+			// seeing who is already there are one glance rather than two.
 			<div class="flex flex-col overflow-visible">
 				@CurrentEnrollments(enrollments)
+			</div>
+			<div class="flex flex-col overflow-visible">
+				@FundHistory(events)
 			</div>
 		</div>
 	}
