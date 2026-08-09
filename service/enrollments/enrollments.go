@@ -51,7 +51,7 @@ func NewEnrollmentsService(enrollmentStore enrollmentStore, fundStore fundStore,
 func (s EnrollmentsService) DeactivateEnrollment(ctx context.Context, enrollmentID uuid.UUID) (*Enrollment, error) {
 	enrollment, err := s.enrollmentStore.DeactivateEnrollment(ctx, enrollmentID)
 	if err != nil {
-		s.logger.Error("failed to deactivate enrollment", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to deactivate enrollment", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (s EnrollmentsService) CreateEnrollment(ctx context.Context, createEnrollme
 	// already been planned and submitted.
 	paypalEmail, err := validatePaypalEmail(createEnrollment.PaypalEmail)
 	if err != nil {
-		s.logger.Error("refusing an enrollment with an unusable paypal address",
+		s.logger.ErrorContext(ctx, "refusing an enrollment with an unusable paypal address",
 			slog.String("error", err.Error()),
 		)
 
@@ -84,7 +84,7 @@ func (s EnrollmentsService) CreateEnrollment(ctx context.Context, createEnrollme
 
 	fund, err := s.fundStore.GetFundByID(ctx, createEnrollment.FundID)
 	if err != nil {
-		s.logger.Error("failed to get fund for enrollment", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get fund for enrollment", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (s EnrollmentsService) CreateEnrollment(ctx context.Context, createEnrollme
 
 	enrollment, err := s.enrollmentStore.InsertEnrollmentWithPaypalEmail(ctx, insert, updatePaypal)
 	if err != nil {
-		s.logger.Error("failed to create enrollment", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to create enrollment", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func (s EnrollmentsService) GetEnrollmentForFundByMemberID(ctx context.Context, 
 
 	enrollment, err := s.enrollmentStore.GetEnrollmentByMemberID(ctx, arg)
 	if err != nil {
-		s.logger.Error("failed to get enrollment", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get enrollment", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (s EnrollmentsService) FundEnrollmentExists(ctx context.Context, fundID, me
 		MemberID: memberID,
 	})
 	if err != nil {
-		s.logger.Error("failed to check if enrollment exists", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to check if enrollment exists", slog.String("error", err.Error()))
 
 		return false, err
 	}
@@ -156,7 +156,7 @@ func (s EnrollmentsService) FundEnrollmentExists(ctx context.Context, fundID, me
 func (s EnrollmentsService) GetActiveEnrollmentsForFund(ctx context.Context, fundID uuid.UUID) ([]Enrollment, error) {
 	enrollments, err := s.enrollmentStore.GetActiveEnrollmentsForFund(ctx, fundID)
 	if err != nil {
-		s.logger.Error("failed to get active enrollments", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get active enrollments", slog.String("error", err.Error()))
 
 		return nil, err
 	}

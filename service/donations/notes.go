@@ -75,7 +75,7 @@ func (s DonationService) SaveFundNote(ctx context.Context, fundID, memberID uuid
 
 	given, err := s.donationStore.MemberHasGivenToFund(ctx, fundID, memberID)
 	if err != nil {
-		s.logger.Error("failed to check whether member has given to fund",
+		s.logger.ErrorContext(ctx, "failed to check whether member has given to fund",
 			slog.String("error", err.Error()))
 
 		return nil, err
@@ -92,7 +92,7 @@ func (s DonationService) SaveFundNote(ctx context.Context, fundID, memberID uuid
 		Anonymous: anonymous,
 	})
 	if err != nil {
-		s.logger.Error("failed to save fund note", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to save fund note", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func (s DonationService) SaveFundNote(ctx context.Context, fundID, memberID uuid
 func (s DonationService) MemberHasGivenToFund(ctx context.Context, fundID, memberID uuid.UUID) (bool, error) {
 	given, err := s.donationStore.MemberHasGivenToFund(ctx, fundID, memberID)
 	if err != nil {
-		s.logger.Error("failed to check whether member has given to fund",
+		s.logger.ErrorContext(ctx, "failed to check whether member has given to fund",
 			slog.String("error", err.Error()))
 
 		return false, err
@@ -120,7 +120,7 @@ func (s DonationService) MemberHasGivenToFund(ctx context.Context, fundID, membe
 func (s DonationService) ListFundNotes(ctx context.Context, fundID uuid.UUID) ([]FundNote, error) {
 	notes, err := s.donationStore.GetFundNotes(ctx, fundID)
 	if err != nil {
-		s.logger.Error("failed to list fund notes", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to list fund notes", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (s DonationService) ListFundNotes(ctx context.Context, fundID uuid.UUID) ([
 func (s DonationService) GetFundNoteForMember(ctx context.Context, fundID, memberID uuid.UUID) (*FundNote, error) {
 	note, err := s.donationStore.GetFundNoteForMember(ctx, fundID, memberID)
 	if err != nil {
-		s.logger.Error("failed to get fund note for member", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get fund note for member", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func (s DonationService) GetFundNoteForMember(ctx context.Context, fundID, membe
 // that is exactly what you want to still have.
 func (s DonationService) RemoveFundNote(ctx context.Context, noteID, actorID uuid.UUID) error {
 	if err := s.donationStore.RemoveFundNote(ctx, noteID, actorID); err != nil {
-		s.logger.Error("failed to remove fund note",
+		s.logger.ErrorContext(ctx, "failed to remove fund note",
 			slog.String("note_id", noteID.String()),
 			slog.String("error", err.Error()),
 		)
@@ -155,7 +155,7 @@ func (s DonationService) RemoveFundNote(ctx context.Context, noteID, actorID uui
 		return err
 	}
 
-	s.logger.Info("removed a fund note",
+	s.logger.InfoContext(ctx, "removed a fund note",
 		slog.String("note_id", noteID.String()),
 		slog.String("actor_id", actorID.String()),
 	)
@@ -170,7 +170,7 @@ func (s DonationService) RemoveFundNote(ctx context.Context, noteID, actorID uui
 // and none to guess.
 func (s DonationService) RemoveOwnFundNote(ctx context.Context, fundID, memberID uuid.UUID) error {
 	if err := s.donationStore.RemoveOwnFundNote(ctx, fundID, memberID); err != nil {
-		s.logger.Error("failed to remove own fund note",
+		s.logger.ErrorContext(ctx, "failed to remove own fund note",
 			slog.String("fund_id", fundID.String()),
 			slog.String("error", err.Error()),
 		)
@@ -190,7 +190,7 @@ func (s DonationService) RemoveOwnFundNote(ctx context.Context, fundID, memberID
 func (s DonationService) ListFundNotesForMember(ctx context.Context, memberID uuid.UUID) (map[uuid.UUID]FundNote, error) {
 	notes, err := s.donationStore.GetFundNotesForMember(ctx, memberID)
 	if err != nil {
-		s.logger.Error("failed to list a member's fund notes", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to list a member's fund notes", slog.String("error", err.Error()))
 
 		return nil, err
 	}

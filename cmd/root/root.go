@@ -335,7 +335,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		// The other half of "listening". Railway restarts and deploys both end a
 		// process, and without this the log simply stops -- which is also what a
 		// crash looks like.
-		logger.Info("shutting down", slog.String("signal", received.String()))
+		logger.InfoContext(ctx, "shutting down", slog.String("signal", received.String()))
 
 		shutdownCtx, cancel := context.WithTimeout(serverCtx, 30*time.Second)
 		defer cancel()
@@ -343,21 +343,21 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		go func() {
 			<-shutdownCtx.Done()
 			if errors.Is(shutdownCtx.Err(), context.DeadlineExceeded) {
-				logger.Error("graceful shutdown timed out.. forcing exit.")
+				logger.ErrorContext(ctx, "graceful shutdown timed out.. forcing exit.")
 			}
 			ns.Shutdown()
 		}()
 
 		err := server.Shutdown(shutdownCtx)
 		if err != nil {
-			logger.Error("server shutdown error", slog.String("error", err.Error()))
+			logger.ErrorContext(ctx, "server shutdown error", slog.String("error", err.Error()))
 		}
 
 		ns.WaitForShutdown()
 		serverStopCtx()
 	}()
 
-	logger.Info("listening", slog.String("addr", server.Addr))
+	logger.InfoContext(ctx, "listening", slog.String("addr", server.Addr))
 	err = server.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("server failed with error: %w", err)

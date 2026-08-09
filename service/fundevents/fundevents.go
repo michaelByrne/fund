@@ -39,7 +39,7 @@ func NewService(store eventStore, logger *slog.Logger) *Service {
 // available would be the worse failure.
 func (s Service) Record(ctx context.Context, record Record) {
 	if record.FundID == uuid.Nil {
-		s.logger.Error("refusing to record a fund event with no fund",
+		s.logger.ErrorContext(ctx, "refusing to record a fund event with no fund",
 			slog.String("kind", string(record.Kind)),
 		)
 
@@ -48,7 +48,7 @@ func (s Service) Record(ctx context.Context, record Record) {
 
 	_, err := s.store.InsertFundEvent(ctx, record)
 	if err != nil {
-		s.logger.Error("failed to record fund event",
+		s.logger.ErrorContext(ctx, "failed to record fund event",
 			slog.String("error", err.Error()),
 			slog.String("kind", string(record.Kind)),
 			slog.String("fund_id", record.FundID.String()),
@@ -63,7 +63,7 @@ func (s Service) GetFundEvents(ctx context.Context, fundID uuid.UUID, limit int3
 
 	events, err := s.store.GetFundEvents(ctx, fundID, limit)
 	if err != nil {
-		s.logger.Error("failed to get fund events",
+		s.logger.ErrorContext(ctx, "failed to get fund events",
 			slog.String("error", err.Error()),
 			slog.String("fund_id", fundID.String()),
 		)

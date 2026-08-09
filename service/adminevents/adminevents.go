@@ -34,7 +34,7 @@ func NewService(store eventStore, logger *slog.Logger) *Service {
 // line -- and the missing line is logged at error level.
 func (s Service) Record(ctx context.Context, record Record) {
 	if record.SubjectMemberID == uuid.Nil {
-		s.logger.Error("refusing to record an admin event with no subject",
+		s.logger.ErrorContext(ctx, "refusing to record an admin event with no subject",
 			slog.String("kind", string(record.Kind)),
 		)
 
@@ -43,7 +43,7 @@ func (s Service) Record(ctx context.Context, record Record) {
 
 	_, err := s.store.InsertAdminEvent(ctx, record)
 	if err != nil {
-		s.logger.Error("failed to record admin event",
+		s.logger.ErrorContext(ctx, "failed to record admin event",
 			slog.String("error", err.Error()),
 			slog.String("kind", string(record.Kind)),
 			slog.String("subject_member_id", record.SubjectMemberID.String()),
@@ -58,7 +58,7 @@ func (s Service) GetAdminEvents(ctx context.Context, limit int32) ([]Event, erro
 
 	events, err := s.store.GetAdminEvents(ctx, limit)
 	if err != nil {
-		s.logger.Error("failed to get admin events", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get admin events", slog.String("error", err.Error()))
 
 		return nil, err
 	}

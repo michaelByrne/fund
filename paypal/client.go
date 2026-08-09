@@ -62,7 +62,7 @@ func (c Client) post(ctx context.Context, path string, payload any) error {
 			return fmt.Errorf("error decoding paypal error: %w", err)
 		}
 
-		c.logger.Error("error from paypal", slog.Any("details", paypalErr.Details), slog.String("message", paypalErr.Message))
+		c.logger.ErrorContext(ctx, "error from paypal", slog.Any("details", paypalErr.Details), slog.String("message", paypalErr.Message))
 
 		return paypalErr
 	}
@@ -110,7 +110,7 @@ func (c Client) postWithResponse(ctx context.Context, path string, payload any) 
 			return nil, fmt.Errorf("error unmarshalling error response: %w", err)
 		}
 
-		c.logger.Error("error from paypal", slog.Any("details", paypalErr.Details), slog.String("message", paypalErr.Message))
+		c.logger.ErrorContext(ctx, "error from paypal", slog.Any("details", paypalErr.Details), slog.String("message", paypalErr.Message))
 
 		return nil, paypalErr
 	}
@@ -150,7 +150,7 @@ func (c Client) get(ctx context.Context, path string) ([]byte, error) {
 			return nil, fmt.Errorf("error unmarshalling error response: %w", err)
 		}
 
-		c.logger.Error("error from paypal", slog.Any("details", paypalErr.Details), slog.String("message", paypalErr.Message))
+		c.logger.ErrorContext(ctx, "error from paypal", slog.Any("details", paypalErr.Details), slog.String("message", paypalErr.Message))
 
 		return nil, paypalErr
 	}

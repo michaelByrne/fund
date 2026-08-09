@@ -57,7 +57,7 @@ func (h WebhooksHandlers) webhooks(w http.ResponseWriter, r *http.Request) {
 		// delivered -- discarding a real event permanently, on the strength of a
 		// fault at our end.
 		if errors.Is(err, errUnverifiable) {
-			h.logger.Error("could not verify signature, asking for redelivery",
+			h.logger.ErrorContext(r.Context(), "could not verify signature, asking for redelivery",
 				slog.String("error", err.Error()),
 			)
 
@@ -66,7 +66,7 @@ func (h WebhooksHandlers) webhooks(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		h.logger.Error("rejected webhook with an invalid signature", slog.String("error", err.Error()))
+		h.logger.ErrorContext(r.Context(), "rejected webhook with an invalid signature", slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusOK)
 
@@ -87,7 +87,7 @@ func (h WebhooksHandlers) accept(ctx context.Context, w http.ResponseWriter, tra
 
 	err := json.Unmarshal(body, &event)
 	if err != nil {
-		h.logger.Error("failed to unmarshal webhook event", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "failed to unmarshal webhook event", slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusOK)
 
@@ -100,7 +100,7 @@ func (h WebhooksHandlers) accept(ctx context.Context, w http.ResponseWriter, tra
 	// first such webhook would be recorded and every one after it would look like
 	// a replay of it and be dropped.
 	if transmissionID == "" {
-		h.logger.Error("refusing a webhook with no transmission id",
+		h.logger.ErrorContext(ctx, "refusing a webhook with no transmission id",
 			slog.String("event_type", event.EventType),
 		)
 
@@ -119,7 +119,7 @@ func (h WebhooksHandlers) accept(ctx context.Context, w http.ResponseWriter, tra
 	// again, when the database is back.
 	fresh, err := h.deliveries.RecordDelivery(ctx, transmissionID, event.EventType)
 	if err != nil {
-		h.logger.Error("failed to record webhook delivery, asking for redelivery",
+		h.logger.ErrorContext(ctx, "failed to record webhook delivery, asking for redelivery",
 			slog.String("error", err.Error()),
 			slog.String("event_type", event.EventType),
 		)
@@ -130,7 +130,7 @@ func (h WebhooksHandlers) accept(ctx context.Context, w http.ResponseWriter, tra
 	}
 
 	if !fresh {
-		h.logger.Info("ignoring a webhook we have already accepted",
+		h.logger.InfoContext(ctx, "ignoring a webhook we have already accepted",
 			slog.String("event_type", event.EventType),
 			slog.String("transmission_id", transmissionID),
 		)
@@ -144,7 +144,7 @@ func (h WebhooksHandlers) accept(ctx context.Context, w http.ResponseWriter, tra
 	if err != nil {
 		// Fail loudly so the provider redelivers. Answering 200 here drops the event
 		// permanently, and nothing replays it.
-		h.logger.Error("failed to publish event",
+		h.logger.ErrorContext(ctx, "failed to publish event",
 			slog.String("error", err.Error()),
 			slog.String("event_type", event.EventType),
 		)
@@ -154,7 +154,7 @@ func (h WebhooksHandlers) accept(ctx context.Context, w http.ResponseWriter, tra
 		return
 	}
 
-	h.logger.Info("received webhook event", slog.String("event_type", event.EventType))
+	h.logger.InfoContext(ctx, "received webhook event", slog.String("event_type", event.EventType))
 
 	w.WriteHeader(http.StatusOK)
 }

@@ -43,7 +43,7 @@ func (s AWSS3) GetReport(ctx context.Context, reportName string, fundID uuid.UUI
 
 	output, err := s.s3Client.GetObject(ctx, &input)
 	if err != nil {
-		s.logger.Error("failed to get object", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get object", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (s AWSS3) CreateFundBucket(ctx context.Context, prefix string, fundID uuid.
 
 	_, err := s.s3Client.CreateBucket(ctx, &input)
 	if err != nil {
-		s.logger.Error("failed to create bucket", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to create bucket", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -73,7 +73,7 @@ func (s AWSS3) Upload(ctx context.Context, body io.Reader, name, contentType str
 	// Read all content into memory so we can use it twice
 	content, err := io.ReadAll(body)
 	if err != nil {
-		s.logger.Error("failed to read body", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to read body", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -86,7 +86,7 @@ func (s AWSS3) Upload(ctx context.Context, body io.Reader, name, contentType str
 
 	reportInfo, err := parseReportKey(name)
 	if err != nil {
-		s.logger.Error("failed to parse report key", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to parse report key", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -103,7 +103,7 @@ func (s AWSS3) Upload(ctx context.Context, body io.Reader, name, contentType str
 
 	_, err = s.s3Client.PutObject(ctx, &input)
 	if err != nil {
-		s.logger.Error("failed to upload to s3", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to upload to s3", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -118,7 +118,7 @@ func (s AWSS3) ListAvailableReports(ctx context.Context, prefix string, fundID u
 
 	output, err := s.s3Client.ListObjectsV2(ctx, &input)
 	if err != nil {
-		s.logger.Error("failed to list objects in s3", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to list objects in s3", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (s AWSS3) ListAvailableReports(ctx context.Context, prefix string, fundID u
 		key := *object.Key
 		reportInfo, errParse := parseReportKey(key)
 		if errParse != nil {
-			s.logger.Error("failed to parse key", slog.String("error", errParse.Error()))
+			s.logger.ErrorContext(ctx, "failed to parse key", slog.String("error", errParse.Error()))
 
 			continue
 		}

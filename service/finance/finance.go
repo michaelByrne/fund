@@ -194,14 +194,14 @@ func NewFinanceService(donationStore donationStore, paymentsProvider paymentsPro
 func (s FinanceService) GetAudit(ctx context.Context, req GetAuditRequest) (*Audit, error) {
 	fund, err := s.donationStore.GetFundByID(ctx, req.FundID)
 	if err != nil {
-		s.logger.Error("failed to get fund by id", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get fund by id", slog.String("error", err.Error()))
 
 		return nil, err
 	}
 
 	payments, err := s.donationStore.GetFundPaymentsForAudit(ctx, req.FundID)
 	if err != nil {
-		s.logger.Error("failed to get payments for audit", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get payments for audit", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -217,7 +217,7 @@ func (s FinanceService) GetAudit(ctx context.Context, req GetAuditRequest) (*Aud
 func (s FinanceService) RunOneTimeDonationReconciliation(ctx context.Context) error {
 	funds, err := s.donationStore.GetActiveFunds(ctx, "once")
 	if err != nil {
-		s.logger.Error("failed to get active funds", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get active funds", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -250,7 +250,7 @@ func (s FinanceService) RunRecurringDonationReconciliation(ctx context.Context) 
 
 		funds, err := s.donationStore.GetActiveFunds(ctx, string(frequency))
 		if err != nil {
-			s.logger.Error("failed to get active funds",
+			s.logger.ErrorContext(ctx, "failed to get active funds",
 				slog.String("frequency", string(frequency)),
 				slog.String("error", err.Error()),
 			)
@@ -297,7 +297,7 @@ func (s FinanceService) backfillMissingPayments(ctx context.Context, donation do
 		// the other funds, so the caller decides -- but a run where every listing
 		// failed used to report success, which is how this endpoint stayed broken:
 		// it had never worked, and nothing said so.
-		logger.Error("failed to list provider transactions", slog.String("error", err.Error()))
+		logger.ErrorContext(ctx, "failed to list provider transactions", slog.String("error", err.Error()))
 
 		return 0, err
 	}
@@ -328,7 +328,7 @@ func (s FinanceService) backfillMissingPayments(ctx context.Context, donation do
 			ProviderFeeCents:  transaction.FeeCents,
 		})
 		if errInsert != nil {
-			logger.Error("failed to record a payment found at the provider",
+			logger.ErrorContext(ctx, "failed to record a payment found at the provider",
 				slog.String("provider_payment_id", transaction.ProviderPaymentID),
 				slog.String("error", errInsert.Error()),
 			)
@@ -343,7 +343,7 @@ func (s FinanceService) backfillMissingPayments(ctx context.Context, donation do
 
 		recovered++
 
-		logger.Info("recorded a payment the provider had and we did not",
+		logger.InfoContext(ctx, "recorded a payment the provider had and we did not",
 			slog.String("provider_payment_id", transaction.ProviderPaymentID),
 			slog.Int("amount_cents", int(transaction.AmountCents)),
 		)
@@ -377,7 +377,7 @@ func (s FinanceService) reconcileRecurringDonationsForFund(ctx context.Context, 
 
 	recurringDonations, err := s.donationStore.GetRecurringDonationsForFund(ctx, req)
 	if err != nil {
-		logger.Error("failed to get recurring donations for fund", slog.String("error", err.Error()))
+		logger.ErrorContext(ctx, "failed to get recurring donations for fund", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -388,19 +388,19 @@ func (s FinanceService) reconcileRecurringDonationsForFund(ctx context.Context, 
 			// Leave the donation alone: an unreadable status is not evidence that the
 			// subscription ended, and deactivating here would cancel a live donation
 			// on nothing more than a transient provider error.
-			logger.Error("failed to get donation status from provider",
+			logger.ErrorContext(ctx, "failed to get donation status from provider",
 				slog.String("error", errInner.Error()),
 				slog.String("donation_id", donation.ID.String()),
 			)
 		} else if strings.ToUpper(status) != "ACTIVE" {
-			logger.Info("donation is inactive at provider", slog.String("donation_id", donation.ID.String()))
+			logger.InfoContext(ctx, "donation is inactive at provider", slog.String("donation_id", donation.ID.String()))
 
 			_, errInner = s.donationStore.SetDonationToInactive(ctx, donations.DeactivateDonation{
 				ID:     donation.ID,
 				Reason: status,
 			})
 			if errInner != nil {
-				logger.Error("failed to set donation to inactive", slog.String("error", errInner.Error()))
+				logger.ErrorContext(ctx, "failed to set donation to inactive", slog.String("error", errInner.Error()))
 
 				return errInner
 			}
@@ -417,7 +417,7 @@ func (s FinanceService) reconcileRecurringDonationsForFund(ctx context.Context, 
 
 		payments, errInner := s.donationStore.GetDonationPaymentsByDonationID(ctx, donation.ID)
 		if errInner != nil {
-			logger.Error("failed to get donation payments", slog.String("error", errInner.Error()))
+			logger.ErrorContext(ctx, "failed to get donation payments", slog.String("error", errInner.Error()))
 
 			return errInner
 		}
@@ -432,7 +432,7 @@ func (s FinanceService) reconcileRecurringDonationsForFund(ctx context.Context, 
 		if recovered > 0 {
 			payments, errInner = s.donationStore.GetDonationPaymentsByDonationID(ctx, donation.ID)
 			if errInner != nil {
-				logger.Error("failed to re-read donation payments after backfill",
+				logger.ErrorContext(ctx, "failed to re-read donation payments after backfill",
 					slog.String("error", errInner.Error()))
 
 				return errInner
@@ -468,7 +468,7 @@ func (s FinanceService) recordProviderView(ctx context.Context, payments []donat
 		if err != nil {
 			// Left unreconciled rather than recorded as missing: we did not manage
 			// to ask, which is not the same as the provider not knowing.
-			logger.Error("failed to get transaction from provider",
+			logger.ErrorContext(ctx, "failed to get transaction from provider",
 				slog.String("payment_id", payment.ID.String()),
 				slog.String("error", err.Error()),
 			)
@@ -491,7 +491,7 @@ func (s FinanceService) recordProviderView(ctx context.Context, payments []donat
 			}
 
 			if !strings.EqualFold(transaction.Status, "COMPLETED") {
-				logger.Warn("payment is not complete at the provider",
+				logger.WarnContext(ctx, "payment is not complete at the provider",
 					slog.String("payment_id", payment.ID.String()),
 					slog.String("status", transaction.Status),
 				)
@@ -500,7 +500,7 @@ func (s FinanceService) recordProviderView(ctx context.Context, payments []donat
 			// The one thing this job finds that nothing else would, so it is a
 			// warning rather than an info line nobody reads.
 			if transaction.AmountCents != payment.AmountCents {
-				logger.Warn("payment amount does not match the provider",
+				logger.WarnContext(ctx, "payment amount does not match the provider",
 					slog.String("payment_id", payment.ID.String()),
 					slog.Int("ours", int(payment.AmountCents)),
 					slog.Int("theirs", int(transaction.AmountCents)),
@@ -511,7 +511,7 @@ func (s FinanceService) recordProviderView(ctx context.Context, payments []donat
 		// Written either way: reconciled_at is what tells the page "checked, and
 		// the provider had nothing" apart from "never checked".
 		if err = s.donationStore.SetPaymentReconciliation(ctx, record); err != nil {
-			logger.Error("failed to record what the provider said",
+			logger.ErrorContext(ctx, "failed to record what the provider said",
 				slog.String("payment_id", payment.ID.String()),
 				slog.String("error", err.Error()),
 			)
@@ -537,7 +537,7 @@ func (s FinanceService) reconcileOneTimeDonationsForFund(ctx context.Context, fu
 
 	oneTimeDonations, err := s.donationStore.GetOneTimeDonationsForFund(ctx, req)
 	if err != nil {
-		logger.Error("failed to get one-time donations for fund", slog.String("error", err.Error()))
+		logger.ErrorContext(ctx, "failed to get one-time donations for fund", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -545,7 +545,7 @@ func (s FinanceService) reconcileOneTimeDonationsForFund(ctx context.Context, fu
 	for _, donation := range oneTimeDonations {
 		payments, errInner := s.donationStore.GetDonationPaymentsByDonationID(ctx, donation.ID)
 		if errInner != nil {
-			logger.Error("failed to get donation payments", slog.String("error", errInner.Error()))
+			logger.ErrorContext(ctx, "failed to get donation payments", slog.String("error", errInner.Error()))
 
 			return errInner
 		}

@@ -51,7 +51,7 @@ func (f FundImages) PutFundImage(ctx context.Context, key, contentType string, b
 		Body:        newSeekableReader(body),
 	})
 	if err != nil {
-		f.logger.Error("failed to put fund image",
+		f.logger.ErrorContext(ctx, "failed to put fund image",
 			slog.String("key", key),
 			slog.String("error", err.Error()),
 		)
@@ -76,12 +76,12 @@ func (f FundImages) GetFundImage(ctx context.Context, key string) (io.ReadCloser
 		if errors.As(err, &missing) {
 			// The database says there should be an object here and there is not.
 			// Worth knowing about, but it is a 404 to whoever asked, not a 500.
-			f.logger.Error("fund image is recorded but not in the bucket", slog.String("key", key))
+			f.logger.ErrorContext(ctx, "fund image is recorded but not in the bucket", slog.String("key", key))
 
 			return nil, nil
 		}
 
-		f.logger.Error("failed to get fund image",
+		f.logger.ErrorContext(ctx, "failed to get fund image",
 			slog.String("key", key),
 			slog.String("error", err.Error()),
 		)
@@ -102,7 +102,7 @@ func (f FundImages) DeleteFundImage(ctx context.Context, key string) error {
 		Key:    &key,
 	})
 	if err != nil {
-		f.logger.Error("failed to delete fund image",
+		f.logger.ErrorContext(ctx, "failed to delete fund image",
 			slog.String("key", key),
 			slog.String("error", err.Error()),
 		)

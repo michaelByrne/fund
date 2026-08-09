@@ -46,7 +46,7 @@ func NewDonationService(donationStore donationStore, documentStorage documentSto
 func (s DonationService) GetTotalDonatedByFund(ctx context.Context, id uuid.UUID) (int64, error) {
 	total, err := s.donationStore.GetTotalDonatedByFundID(ctx, id)
 	if err != nil {
-		s.logger.Error("failed to get total donated by fund id", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get total donated by fund id", slog.String("error", err.Error()))
 
 		return 0, err
 	}
@@ -66,7 +66,7 @@ func (s DonationService) ListActiveFunds(ctx context.Context) ([]Fund, error) {
 	for _, frequency := range PayoutFrequencies {
 		found, err := s.donationStore.GetActiveFunds(ctx, string(frequency))
 		if err != nil {
-			s.logger.Error("failed to get active funds",
+			s.logger.ErrorContext(ctx, "failed to get active funds",
 				slog.String("frequency", string(frequency)),
 				slog.String("error", err.Error()),
 			)
@@ -93,7 +93,7 @@ func (s DonationService) ListActiveFunds(ctx context.Context) ([]Fund, error) {
 func (s DonationService) ListAllFunds(ctx context.Context) ([]Fund, error) {
 	funds, err := s.donationStore.GetAllFundsWithStats(ctx)
 	if err != nil {
-		s.logger.Error("failed to list all funds", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to list all funds", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func (s DonationService) DeactivateFund(ctx context.Context, id uuid.UUID, actor
 		Active: true,
 	})
 	if err != nil {
-		s.logger.Error("failed to read recurring donations before deactivating fund",
+		s.logger.ErrorContext(ctx, "failed to read recurring donations before deactivating fund",
 			slog.String("error", err.Error()))
 
 		return err
@@ -165,7 +165,7 @@ func (s DonationService) DeactivateFund(ctx context.Context, id uuid.UUID, actor
 	if len(toCancel) > 0 {
 		cancelled, errCancel := s.paymentsProvider.CancelSubscriptions(ctx, toCancel)
 		if errCancel != nil {
-			s.logger.Error("failed to cancel subscriptions, fund left active",
+			s.logger.ErrorContext(ctx, "failed to cancel subscriptions, fund left active",
 				slog.String("error", errCancel.Error()),
 				slog.String("fund_id", id.String()),
 			)
@@ -178,7 +178,7 @@ func (s DonationService) DeactivateFund(ctx context.Context, id uuid.UUID, actor
 		// the question here is whether anything we asked for is still running.
 		uncancelled := uncancelledSubscriptions(cancelled, toCancel)
 		if len(uncancelled) > 0 {
-			s.logger.Error("could not cancel every subscription, fund left active",
+			s.logger.ErrorContext(ctx, "could not cancel every subscription, fund left active",
 				slog.String("fund_id", id.String()),
 				slog.String("uncancelled", fmt.Sprintf("%v", uncancelled)),
 			)
@@ -190,7 +190,7 @@ func (s DonationService) DeactivateFund(ctx context.Context, id uuid.UUID, actor
 
 	deactivated, err := s.donationStore.SetFundAndDonationsToInactive(ctx, id)
 	if err != nil {
-		s.logger.Error("failed to deactivate fund", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to deactivate fund", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -227,7 +227,7 @@ func (s DonationService) DeactivateFund(ctx context.Context, id uuid.UUID, actor
 func (s DonationService) ListDonationsForMember(ctx context.Context, memberID uuid.UUID) ([]MemberDonation, error) {
 	donationsForMember, err := s.donationStore.GetDonationsForDonor(ctx, memberID)
 	if err != nil {
-		s.logger.Error("failed to list donations for member",
+		s.logger.ErrorContext(ctx, "failed to list donations for member",
 			slog.String("member_id", memberID.String()),
 			slog.String("error", err.Error()),
 		)
@@ -260,7 +260,7 @@ func (s DonationService) CancelDonationForMember(ctx context.Context, donationID
 			return ErrDonationNotYours
 		}
 
-		s.logger.Error("failed to get donation", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get donation", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -281,7 +281,7 @@ func (s DonationService) CancelDonationForMember(ctx context.Context, donationID
 
 	cancelled, err := s.paymentsProvider.CancelSubscriptions(ctx, []string{donation.ProviderSubscriptionID})
 	if err != nil {
-		s.logger.Error("failed to cancel subscription at provider, donation left active",
+		s.logger.ErrorContext(ctx, "failed to cancel subscription at provider, donation left active",
 			slog.String("donation_id", donationID.String()),
 			slog.String("error", err.Error()),
 		)
@@ -292,7 +292,7 @@ func (s DonationService) CancelDonationForMember(ctx context.Context, donationID
 	// Checked by membership rather than count, as elsewhere: a provider that
 	// returned a different id of the same length would otherwise pass.
 	if len(uncancelledSubscriptions(cancelled, []string{donation.ProviderSubscriptionID})) > 0 {
-		s.logger.Error("provider did not cancel the subscription, donation left active",
+		s.logger.ErrorContext(ctx, "provider did not cancel the subscription, donation left active",
 			slog.String("donation_id", donationID.String()),
 		)
 
@@ -307,7 +307,7 @@ func (s DonationService) CancelDonationForMember(ctx context.Context, donationID
 		// The subscription is cancelled at the provider and the row still says
 		// active. Reconciliation repairs exactly this, which is why this is the
 		// direction the ordering leaves open.
-		s.logger.Error("cancelled at provider but failed to record it",
+		s.logger.ErrorContext(ctx, "cancelled at provider but failed to record it",
 			slog.String("donation_id", donationID.String()),
 			slog.String("error", err.Error()),
 		)
@@ -334,7 +334,7 @@ func (s DonationService) DeactivateDonation(ctx context.Context, id, actorID uui
 		Reason: reason,
 	})
 	if err != nil {
-		s.logger.Error("failed to set donation to inactive", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to set donation to inactive", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -354,7 +354,7 @@ func (s DonationService) DeactivateDonation(ctx context.Context, id, actorID uui
 func (s DonationService) ListFunds(ctx context.Context) ([]Fund, error) {
 	funds, err := s.donationStore.GetFunds(ctx)
 	if err != nil {
-		s.logger.Error("failed to list funds", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to list funds", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -365,14 +365,14 @@ func (s DonationService) ListFunds(ctx context.Context) ([]Fund, error) {
 func (s DonationService) GetFundByID(ctx context.Context, id uuid.UUID) (*Fund, error) {
 	fund, err := s.donationStore.GetFundByID(ctx, id)
 	if err != nil {
-		s.logger.Error("failed to get fund by id", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get fund by id", slog.String("error", err.Error()))
 
 		return nil, err
 	}
 
 	monthly, err := s.donationStore.GetMonthlyDonationTotalsForFund(ctx, fund.ID)
 	if err != nil {
-		s.logger.Error("failed to get monthly donation totals for fund", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get monthly donation totals for fund", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -385,7 +385,7 @@ func (s DonationService) GetFundByID(ctx context.Context, id uuid.UUID) (*Fund, 
 func (s DonationService) CreateDonationPlan(ctx context.Context, plan CreatePlan) (*DonationPlan, error) {
 	providerID, err := s.paymentsProvider.CreatePlan(ctx, plan)
 	if err != nil {
-		s.logger.Error("failed to create plan with provider", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to create plan with provider", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -403,7 +403,7 @@ func (s DonationService) CreateDonationPlan(ctx context.Context, plan CreatePlan
 
 	planOut, err := s.donationStore.UpsertDonationPlan(ctx, upsertPlan)
 	if err != nil {
-		s.logger.Error("failed to upsert donation plan", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to upsert donation plan", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -428,7 +428,7 @@ func (s DonationService) CreateDonationPlan(ctx context.Context, plan CreatePlan
 func (s DonationService) CompleteRecurringDonation(ctx context.Context, memberID uuid.UUID, completion RecurringCompletion) error {
 	subscription, err := s.paymentsProvider.GetSubscription(ctx, completion.ProviderSubscriptionID)
 	if err != nil {
-		s.logger.Error("failed to read subscription from provider",
+		s.logger.ErrorContext(ctx, "failed to read subscription from provider",
 			slog.String("provider_subscription_id", completion.ProviderSubscriptionID),
 			slog.String("error", err.Error()),
 		)
@@ -437,7 +437,7 @@ func (s DonationService) CompleteRecurringDonation(ctx context.Context, memberID
 	}
 
 	if !subscription.Active() {
-		s.logger.Error("subscription is not active at the provider",
+		s.logger.ErrorContext(ctx, "subscription is not active at the provider",
 			slog.String("provider_subscription_id", completion.ProviderSubscriptionID),
 			slog.String("status", subscription.Status),
 		)
@@ -451,7 +451,7 @@ func (s DonationService) CompleteRecurringDonation(ctx context.Context, memberID
 
 	plan, err := s.donationStore.GetDonationPlanByID(ctx, completion.PlanID.UUID)
 	if err != nil {
-		s.logger.Error("failed to get donation plan", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get donation plan", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -460,7 +460,7 @@ func (s DonationService) CompleteRecurringDonation(ctx context.Context, memberID
 	// subscription must pay into the plan being claimed, and that plan must belong
 	// to the fund about to be credited.
 	if plan == nil || plan.ProviderPlanID != subscription.ProviderPlanID || plan.FundID != completion.FundID {
-		s.logger.Error("subscription does not match the plan or fund claimed",
+		s.logger.ErrorContext(ctx, "subscription does not match the plan or fund claimed",
 			slog.String("provider_subscription_id", completion.ProviderSubscriptionID),
 			slog.String("subscription_plan_id", subscription.ProviderPlanID),
 			slog.String("claimed_fund_id", completion.FundID.String()),
@@ -485,7 +485,7 @@ func (s DonationService) CompleteRecurringDonation(ctx context.Context, memberID
 
 	_, err = s.donationStore.InsertDonation(ctx, insertDonation)
 	if err != nil {
-		s.logger.Error("failed to insert donation", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to insert donation", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -506,14 +506,14 @@ func (s DonationService) CompleteRecurringDonation(ctx context.Context, memberID
 func (s DonationService) InitiateDonation(ctx context.Context, fundID uuid.UUID, amountCents int32) (string, error) {
 	fund, err := s.donationStore.GetFundByID(ctx, fundID)
 	if err != nil {
-		s.logger.Error("failed to get fund by id", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get fund by id", slog.String("error", err.Error()))
 
 		return "", err
 	}
 
 	orderID, err := s.paymentsProvider.InitiateDonation(ctx, *fund, amountCents)
 	if err != nil {
-		s.logger.Error("failed to initiate donation with provider", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to initiate donation with provider", slog.String("error", err.Error()))
 
 		return "", err
 	}
@@ -532,7 +532,7 @@ func (s DonationService) InitiateDonation(ctx context.Context, fundID uuid.UUID,
 func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUID, completion OneTimeCompletion) error {
 	order, err := s.paymentsProvider.GetOrder(ctx, completion.ProviderOrderID)
 	if err != nil {
-		s.logger.Error("failed to read order from provider",
+		s.logger.ErrorContext(ctx, "failed to read order from provider",
 			slog.String("order_id", completion.ProviderOrderID),
 			slog.String("error", err.Error()),
 		)
@@ -541,7 +541,7 @@ func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUI
 	}
 
 	if order.Status != "COMPLETED" || order.ProviderPaymentID == "" || order.AmountCents <= 0 {
-		s.logger.Error("order is not a completed payment",
+		s.logger.ErrorContext(ctx, "order is not a completed payment",
 			slog.String("order_id", completion.ProviderOrderID),
 			slog.String("status", order.Status),
 			slog.Int("amount_cents", int(order.AmountCents)),
@@ -553,7 +553,7 @@ func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUI
 	// The reference id was set to the fund when the order was created, so this
 	// catches an order for one fund being completed against another.
 	if order.FundReferenceID != completion.FundID.String() {
-		s.logger.Error("order belongs to a different fund",
+		s.logger.ErrorContext(ctx, "order belongs to a different fund",
 			slog.String("order_id", completion.ProviderOrderID),
 			slog.String("claimed_fund_id", completion.FundID.String()),
 			slog.String("order_fund_id", order.FundReferenceID),
@@ -583,14 +583,14 @@ func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUI
 		// has nothing to do. Reporting a failure here would show the donor an
 		// error for a donation that went through.
 		if errors.Is(err, ErrPaymentAlreadyRecorded) {
-			s.logger.Info("one-time donation already recorded",
+			s.logger.InfoContext(ctx, "one-time donation already recorded",
 				slog.String("provider_payment_id", order.ProviderPaymentID),
 			)
 
 			return nil
 		}
 
-		s.logger.Error("failed to create donation with payment", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to create donation with payment", slog.String("error", err.Error()))
 
 		return err
 	}
@@ -623,7 +623,7 @@ func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUI
 func (s DonationService) CreateFund(ctx context.Context, createFund Fund) (*Fund, error) {
 	providerID, err := s.paymentsProvider.CreateFund(ctx, createFund.Name, createFund.Description)
 	if err != nil {
-		s.logger.Error("failed to create fund with provider", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to create fund with provider", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -642,14 +642,14 @@ func (s DonationService) CreateFund(ctx context.Context, createFund Fund) (*Fund
 
 	fund, err := s.donationStore.InsertFund(ctx, insertFund)
 	if err != nil {
-		s.logger.Error("failed to insert fund", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to insert fund", slog.String("error", err.Error()))
 
 		return nil, err
 	}
 
 	err = s.createFundBuckets(ctx, fund.ID)
 	if err != nil {
-		s.logger.Error("failed to create fund buckets", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to create fund buckets", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -666,7 +666,7 @@ func (s DonationService) CreateFund(ctx context.Context, createFund Fund) (*Fund
 func (s DonationService) UpdateFund(ctx context.Context, updateFund Fund, actorID *uuid.UUID) (*Fund, error) {
 	current, err := s.donationStore.GetFundByID(ctx, updateFund.ID)
 	if err != nil {
-		s.logger.Error("failed to read the fund being updated", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to read the fund being updated", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -691,7 +691,7 @@ func (s DonationService) UpdateFund(ctx context.Context, updateFund Fund, actorI
 
 	fund, err := s.donationStore.UpdateFund(ctx, update)
 	if err != nil {
-		s.logger.Error("failed to update fund", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to update fund", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -809,7 +809,7 @@ func (s DonationService) createFundBuckets(ctx context.Context, fundID uuid.UUID
 	for _, prefix := range s.reportBuckets {
 		err := s.documentStorage.CreateFundBucket(ctx, prefix, fundID)
 		if err != nil {
-			s.logger.Error("failed to create fund bucket", slog.String("error", err.Error()))
+			s.logger.ErrorContext(ctx, "failed to create fund bucket", slog.String("error", err.Error()))
 		}
 	}
 
@@ -877,7 +877,7 @@ func (s DonationService) CloseExpiredFunds(ctx context.Context) (int, error) {
 		// event with a nil actor, which is what makes the feed distinguish it from
 		// a treasurer shutting a fund down.
 		if errClose := s.DeactivateFund(ctx, fund.ID, nil); errClose != nil {
-			s.logger.Error("failed to close expired fund",
+			s.logger.ErrorContext(ctx, "failed to close expired fund",
 				slog.String("error", errClose.Error()),
 				slog.String("fund_id", fund.ID.String()),
 				slog.String("fund", fund.Name),
@@ -886,7 +886,7 @@ func (s DonationService) CloseExpiredFunds(ctx context.Context) (int, error) {
 			continue
 		}
 
-		s.logger.Info("closed expired fund",
+		s.logger.InfoContext(ctx, "closed expired fund",
 			slog.String("fund_id", fund.ID.String()),
 			slog.String("fund", fund.Name),
 		)
@@ -894,7 +894,7 @@ func (s DonationService) CloseExpiredFunds(ctx context.Context) (int, error) {
 		closed++
 	}
 
-	s.logger.Info("expired fund closure complete",
+	s.logger.InfoContext(ctx, "expired fund closure complete",
 		slog.Int("expired", len(expired)),
 		slog.Int("closed", closed),
 	)
@@ -908,7 +908,7 @@ func (s DonationService) CloseExpiredFunds(ctx context.Context) (int, error) {
 func (s DonationService) ListExpiredOpenFunds(ctx context.Context) ([]Fund, error) {
 	expired, err := s.donationStore.GetExpiredActiveFunds(ctx)
 	if err != nil {
-		s.logger.Error("failed to get expired funds", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get expired funds", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -924,7 +924,7 @@ func (s DonationService) ListClosedFunds(ctx context.Context) ([]ClosedFund, err
 	// row on every home page load, forever.
 	funds, err := s.donationStore.GetClosedFundsWithStats(ctx)
 	if err != nil {
-		s.logger.Error("failed to list closed funds", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to list closed funds", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -942,7 +942,7 @@ func (s DonationService) GetClosedFund(ctx context.Context, fundID uuid.UUID) (*
 
 	stats, err := s.donationStore.GetFundPayoutStats(ctx, fundID)
 	if err != nil {
-		s.logger.Error("failed to get payout stats for fund",
+		s.logger.ErrorContext(ctx, "failed to get payout stats for fund",
 			slog.String("error", err.Error()),
 			slog.String("fund_id", fundID.String()),
 		)

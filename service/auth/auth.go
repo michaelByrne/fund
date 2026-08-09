@@ -66,7 +66,7 @@ func (s AuthService) Register(ctx context.Context, username, email string) (*mem
 
 	cognitoID, err := s.authorizer.CreateUser(ctx, username, email, memberID)
 	if err != nil {
-		s.logger.Error("failed to create user", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to create user", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (s AuthService) Register(ctx context.Context, username, email string) (*mem
 
 	member, err := s.memberStore.UpsertMember(ctx, upsert)
 	if err != nil {
-		s.logger.Error("failed to upsert member", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to upsert member", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -102,7 +102,7 @@ func (s AuthService) Register(ctx context.Context, username, email string) (*mem
 // omitted. Cognito is addressed by username; the log is written in member ids.
 func (s AuthService) GrantAdmin(ctx context.Context, actor, subject members.Member) error {
 	if err := s.authorizer.AddToGroup(ctx, subject.BCOName, jwtauth.AdminGroup); err != nil {
-		s.logger.Error("failed to grant admin",
+		s.logger.ErrorContext(ctx, "failed to grant admin",
 			slog.String("username", subject.BCOName),
 			slog.String("error", err.Error()),
 		)
@@ -110,7 +110,7 @@ func (s AuthService) GrantAdmin(ctx context.Context, actor, subject members.Memb
 		return err
 	}
 
-	s.logger.Info("granted admin", slog.String("username", subject.BCOName))
+	s.logger.InfoContext(ctx, "granted admin", slog.String("username", subject.BCOName))
 	s.recordAdminChange(ctx, adminevents.KindAdminGranted, actor, subject)
 
 	return nil
@@ -121,7 +121,7 @@ func (s AuthService) GrantAdmin(ctx context.Context, actor, subject members.Memb
 // hour, and nothing reissues one without a fresh authentication.
 func (s AuthService) RevokeAdmin(ctx context.Context, actor, subject members.Member) error {
 	if err := s.authorizer.RemoveFromGroup(ctx, subject.BCOName, jwtauth.AdminGroup); err != nil {
-		s.logger.Error("failed to revoke admin",
+		s.logger.ErrorContext(ctx, "failed to revoke admin",
 			slog.String("username", subject.BCOName),
 			slog.String("error", err.Error()),
 		)
@@ -129,7 +129,7 @@ func (s AuthService) RevokeAdmin(ctx context.Context, actor, subject members.Mem
 		return err
 	}
 
-	s.logger.Info("revoked admin", slog.String("username", subject.BCOName))
+	s.logger.InfoContext(ctx, "revoked admin", slog.String("username", subject.BCOName))
 	s.recordAdminChange(ctx, adminevents.KindAdminRevoked, actor, subject)
 
 	return nil
@@ -167,7 +167,7 @@ func (s AuthService) recordAdminChange(ctx context.Context, kind adminevents.Kin
 func (s AuthService) IsAdmin(ctx context.Context, username string) (bool, error) {
 	groups, err := s.authorizer.ListGroups(ctx, username)
 	if err != nil {
-		s.logger.Error("failed to list groups",
+		s.logger.ErrorContext(ctx, "failed to list groups",
 			slog.String("username", username),
 			slog.String("error", err.Error()),
 		)
@@ -187,14 +187,14 @@ func (s AuthService) IsAdmin(ctx context.Context, username string) (bool, error)
 func (s AuthService) ResetPassword(ctx context.Context, username, password, newPassword string) (*members.Member, *AuthResponse, error) {
 	err := s.authorizer.SetPassword(ctx, username, password, newPassword)
 	if err != nil {
-		s.logger.Error("failed to reset password", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to reset password", slog.String("error", err.Error()))
 
 		return nil, nil, err
 	}
 
 	member, autResp, err := s.Authenticate(ctx, username, newPassword)
 	if err != nil {
-		s.logger.Error("failed to authenticate", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to authenticate", slog.String("error", err.Error()))
 
 		return nil, nil, err
 	}
@@ -205,7 +205,7 @@ func (s AuthService) ResetPassword(ctx context.Context, username, password, newP
 func (s AuthService) GetApprovedEmails(ctx context.Context) ([]ApprovedEmail, error) {
 	emails, err := s.authStore.GetApprovedEmails(ctx)
 	if err != nil {
-		s.logger.Error("failed to get approved emails", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get approved emails", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -216,7 +216,7 @@ func (s AuthService) GetApprovedEmails(ctx context.Context) ([]ApprovedEmail, er
 func (s AuthService) GetApprovedEmail(ctx context.Context, email string) (*ApprovedEmail, error) {
 	approvedEmail, err := s.authStore.GetApprovedEmail(ctx, email)
 	if err != nil {
-		s.logger.Error("failed to get approved email", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get approved email", slog.String("error", err.Error()))
 
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrEmailNotApproved
@@ -231,7 +231,7 @@ func (s AuthService) GetApprovedEmail(ctx context.Context, email string) (*Appro
 func (s AuthService) MarkEmailAsUsed(ctx context.Context, email string) (*ApprovedEmail, error) {
 	approvedEmail, err := s.authStore.MarkEmailAsUsed(ctx, email)
 	if err != nil {
-		s.logger.Error("failed to mark email as used", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to mark email as used", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -249,7 +249,7 @@ func (s AuthService) InsertApprovedEmail(ctx context.Context, email string) (*Ap
 			return nil, ErrEmailAlreadyApproved
 		}
 
-		s.logger.Error("failed to insert approved email", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to insert approved email", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -260,7 +260,7 @@ func (s AuthService) InsertApprovedEmail(ctx context.Context, email string) (*Ap
 func (s AuthService) DeleteApprovedEmail(ctx context.Context, email string) (*ApprovedEmail, error) {
 	approvedEmail, err := s.authStore.DeleteApprovedEmail(ctx, email)
 	if err != nil {
-		s.logger.Error("failed to delete approved email", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to delete approved email", slog.String("error", err.Error()))
 
 		return nil, err
 	}
@@ -271,7 +271,7 @@ func (s AuthService) DeleteApprovedEmail(ctx context.Context, email string) (*Ap
 func (s AuthService) Authenticate(ctx context.Context, username, password string) (*members.Member, *AuthResponse, error) {
 	resp, err := s.authorizer.Authorize(ctx, username, password)
 	if err != nil {
-		s.logger.Error("failed to authenticate", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to authenticate", slog.String("error", err.Error()))
 
 		return nil, nil, err
 	}
@@ -282,7 +282,7 @@ func (s AuthService) Authenticate(ctx context.Context, username, password string
 
 	parsedToken, err := jwt.ParseString(resp.Token.IDTokenStr, jwt.WithVerify(false))
 	if err != nil {
-		s.logger.Error("failed to parse token", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to parse token", slog.String("error", err.Error()))
 
 		return nil, nil, err
 	}
@@ -292,14 +292,14 @@ func (s AuthService) Authenticate(ctx context.Context, username, password string
 
 	memberUUID, err := uuid.Parse(memberID)
 	if err != nil {
-		s.logger.Error("failed to parse member id", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to parse member id", slog.String("error", err.Error()))
 
 		return nil, nil, err
 	}
 
 	member, err := s.memberStore.GetMemberByID(ctx, memberUUID)
 	if err != nil {
-		s.logger.Error("failed to get member by id", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "failed to get member by id", slog.String("error", err.Error()))
 
 		return nil, nil, err
 	}

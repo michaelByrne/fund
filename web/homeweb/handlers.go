@@ -126,7 +126,7 @@ func (h *FundHandlers) initiateOneTimeDonation(w http.ResponseWriter, r *http.Re
 
 	err := r.ParseForm()
 	if err != nil {
-		h.logger.Error("unable to parse form", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unable to parse form", slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -137,7 +137,7 @@ func (h *FundHandlers) initiateOneTimeDonation(w http.ResponseWriter, r *http.Re
 	amountStr := r.FormValue("amount_cents")
 	amountCents, err := strconv.Atoi(amountStr)
 	if err != nil {
-		h.logger.Error("unable to parse amount", slog.String("amount", amountStr), slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unable to parse amount", slog.String("amount", amountStr), slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -147,7 +147,7 @@ func (h *FundHandlers) initiateOneTimeDonation(w http.ResponseWriter, r *http.Re
 
 	fundID := r.FormValue("fund_id")
 	if fundID == "" {
-		h.logger.Error("missing fund id")
+		h.logger.ErrorContext(ctx, "missing fund id")
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -157,7 +157,7 @@ func (h *FundHandlers) initiateOneTimeDonation(w http.ResponseWriter, r *http.Re
 
 	fundUUID, err := uuid.Parse(fundID)
 	if err != nil {
-		h.logger.Error("unable to parse fund id", slog.String("fund_id", fundID), slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unable to parse fund id", slog.String("fund_id", fundID), slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -193,7 +193,7 @@ func (h *FundHandlers) createOneTimeDonation(w http.ResponseWriter, r *http.Requ
 
 	err := r.ParseForm()
 	if err != nil {
-		h.logger.Error("unable to parse form", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unable to parse form", slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -204,7 +204,7 @@ func (h *FundHandlers) createOneTimeDonation(w http.ResponseWriter, r *http.Requ
 	amountStr := r.FormValue("amount")
 	amountCents, err := dollarStringToCents(amountStr)
 	if err != nil {
-		h.logger.Error("unable to parse amount", slog.String("amount", amountStr), slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unable to parse amount", slog.String("amount", amountStr), slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -214,7 +214,7 @@ func (h *FundHandlers) createOneTimeDonation(w http.ResponseWriter, r *http.Requ
 
 	fundID := r.FormValue("fund")
 	if fundID == "" {
-		h.logger.Error("missing fund id")
+		h.logger.ErrorContext(ctx, "missing fund id")
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -224,7 +224,7 @@ func (h *FundHandlers) createOneTimeDonation(w http.ResponseWriter, r *http.Requ
 
 	fundUUID, err := uuid.Parse(fundID)
 	if err != nil {
-		h.logger.Error("unable to parse fund id", slog.String("fund_id", fundID), slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unable to parse fund id", slog.String("fund_id", fundID), slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -278,7 +278,7 @@ func (h *FundHandlers) donate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Somebody came here to give, and the notes are not why. Logged, and the
 		// section renders empty rather than costing them the donation form.
-		h.logger.Error("failed to list fund notes", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "failed to list fund notes", slog.String("error", err.Error()))
 	}
 
 	// Not fatal: somebody came here to give, and a missing picture is a smaller
@@ -330,7 +330,7 @@ func (h *FundHandlers) saveFundNote(w http.ResponseWriter, r *http.Request) {
 		// retyping a note the server was never going to take.
 		status, message := noteFailure(err)
 		if message == "" {
-			h.logger.Error("failed to save fund note", slog.String("error", err.Error()))
+			h.logger.ErrorContext(ctx, "failed to save fund note", slog.String("error", err.Error()))
 
 			message = "we could not save your note. please try again."
 		}
@@ -369,7 +369,7 @@ func (h *FundHandlers) removeOwnFundNote(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err = h.donationService.RemoveOwnFundNote(ctx, fundID, member.ID); err != nil {
-		h.logger.Error("failed to remove own fund note", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "failed to remove own fund note", slog.String("error", err.Error()))
 
 		h.badNote(ctx, w, http.StatusInternalServerError, noteEditor(r, fundID), fundID, nil,
 			"we could not take your note down. please try again.")
@@ -444,7 +444,7 @@ func (h *FundHandlers) myDonations(w http.ResponseWriter, r *http.Request) {
 	// empty is a smaller wrong than a page that will not load.
 	notes, err := h.donationService.ListFundNotesForMember(ctx, member.ID)
 	if err != nil {
-		h.logger.Error("failed to list the member's notes", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "failed to list the member's notes", slog.String("error", err.Error()))
 	}
 
 	MyDonations(donationsForMember, notes, &member, r.URL.Path).Render(ctx, w)
@@ -507,7 +507,7 @@ func (h *FundHandlers) cancelFailed(ctx context.Context, w http.ResponseWriter, 
 			http.StatusBadRequest, "that donation cannot be cancelled")
 
 	default:
-		h.logger.Error("failed to cancel donation",
+		h.logger.ErrorContext(ctx, "failed to cancel donation",
 			slog.String("donation_id", donationID.String()),
 			slog.String("error", err.Error()),
 		)
@@ -551,7 +551,7 @@ func (h *FundHandlers) renderDonationRow(ctx context.Context, w http.ResponseWri
 				// a note that is still up.
 				note, errNote := h.donationService.GetFundNoteForMember(ctx, donation.FundID, member.ID)
 				if errNote != nil {
-					h.logger.Error("failed to read the member's note", slog.String("error", errNote.Error()))
+					h.logger.ErrorContext(ctx, "failed to read the member's note", slog.String("error", errNote.Error()))
 				}
 
 				MyDonationRow(donation, note, failure).Render(ctx, w)
@@ -601,7 +601,7 @@ func (h *FundHandlers) donationSuccess(w http.ResponseWriter, r *http.Request) {
 
 	canWrite, err := h.donationService.MemberHasGivenToFund(ctx, fundID, member.ID)
 	if err != nil {
-		h.logger.Error("failed to check whether the member has given", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "failed to check whether the member has given", slog.String("error", err.Error()))
 	}
 
 	ThankYou(member, fundID, canWrite, r.URL.Path).Render(ctx, w)
@@ -623,7 +623,7 @@ func (h *FundHandlers) completeOneTimeDonation(w http.ResponseWriter, r *http.Re
 
 	err := r.ParseForm()
 	if err != nil {
-		h.logger.Error("unable to parse form", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unable to parse form", slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -634,7 +634,7 @@ func (h *FundHandlers) completeOneTimeDonation(w http.ResponseWriter, r *http.Re
 	amountStr := r.FormValue("amount")
 	amountCents, err := dollarStringToCents(amountStr)
 	if err != nil {
-		h.logger.Error("unable to parse amount", slog.String("amount", amountStr), slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unable to parse amount", slog.String("amount", amountStr), slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -644,7 +644,7 @@ func (h *FundHandlers) completeOneTimeDonation(w http.ResponseWriter, r *http.Re
 
 	fundID := r.FormValue("fund_id")
 	if fundID == "" {
-		h.logger.Error("missing fund id")
+		h.logger.ErrorContext(ctx, "missing fund id")
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -662,7 +662,7 @@ func (h *FundHandlers) completeOneTimeDonation(w http.ResponseWriter, r *http.Re
 
 	paymentID := r.FormValue("payment_id")
 	if paymentID == "" {
-		h.logger.Error("missing payment id")
+		h.logger.ErrorContext(ctx, "missing payment id")
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -672,7 +672,7 @@ func (h *FundHandlers) completeOneTimeDonation(w http.ResponseWriter, r *http.Re
 
 	fundUUID, err := uuid.Parse(fundID)
 	if err != nil {
-		h.logger.Error("unable to parse fund id", slog.String("fund_id", fundID), slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unable to parse fund id", slog.String("fund_id", fundID), slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -717,7 +717,7 @@ func (h *FundHandlers) completeRecurringDonation(w http.ResponseWriter, r *http.
 
 	err := r.ParseForm()
 	if err != nil {
-		h.logger.Error("unable to parse form", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unable to parse form", slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -727,7 +727,7 @@ func (h *FundHandlers) completeRecurringDonation(w http.ResponseWriter, r *http.
 
 	planIDStr := r.FormValue("plan_id")
 	if planIDStr == "" {
-		h.logger.Error("missing plan id")
+		h.logger.ErrorContext(ctx, "missing plan id")
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -737,7 +737,7 @@ func (h *FundHandlers) completeRecurringDonation(w http.ResponseWriter, r *http.
 
 	planUUID, err := uuid.Parse(planIDStr)
 	if err != nil {
-		h.logger.Error("unable to parse plan id", slog.String("plan_id", planIDStr), slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unable to parse plan id", slog.String("plan_id", planIDStr), slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -747,7 +747,7 @@ func (h *FundHandlers) completeRecurringDonation(w http.ResponseWriter, r *http.
 
 	fundIDStr := r.FormValue("fund_id")
 	if fundIDStr == "" {
-		h.logger.Error("missing fund id")
+		h.logger.ErrorContext(ctx, "missing fund id")
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -757,7 +757,7 @@ func (h *FundHandlers) completeRecurringDonation(w http.ResponseWriter, r *http.
 
 	fundUUID, err := uuid.Parse(fundIDStr)
 	if err != nil {
-		h.logger.Error("unable to parse fund id", slog.String("fund_id", fundIDStr), slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unable to parse fund id", slog.String("fund_id", fundIDStr), slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -768,7 +768,7 @@ func (h *FundHandlers) completeRecurringDonation(w http.ResponseWriter, r *http.
 	amountStr := r.FormValue("amount")
 	amountCents, err := dollarStringToCents(amountStr)
 	if err != nil {
-		h.logger.Error("unable to parse amount", slog.String("amount", amountStr), slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unable to parse amount", slog.String("amount", amountStr), slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -778,7 +778,7 @@ func (h *FundHandlers) completeRecurringDonation(w http.ResponseWriter, r *http.
 
 	providerSubscriptionID := r.FormValue("subscription_id")
 	if providerSubscriptionID == "" {
-		h.logger.Error("missing subscription id")
+		h.logger.ErrorContext(ctx, "missing subscription id")
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -788,7 +788,7 @@ func (h *FundHandlers) completeRecurringDonation(w http.ResponseWriter, r *http.
 
 	orderID := r.FormValue("order_id")
 	if orderID == "" {
-		h.logger.Error("missing order_id")
+		h.logger.ErrorContext(ctx, "missing order_id")
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -834,7 +834,7 @@ func (h *FundHandlers) createDonationPlan(w http.ResponseWriter, r *http.Request
 
 	err := r.ParseForm()
 	if err != nil {
-		h.logger.Error("unable to parse form", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unable to parse form", slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -844,7 +844,7 @@ func (h *FundHandlers) createDonationPlan(w http.ResponseWriter, r *http.Request
 
 	interval := r.FormValue("interval")
 	if interval == "" {
-		h.logger.Error("missing interval")
+		h.logger.ErrorContext(ctx, "missing interval")
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, "interval is required", "/", r.URL.Path).Render(ctx, w)
@@ -861,7 +861,7 @@ func (h *FundHandlers) createDonationPlan(w http.ResponseWriter, r *http.Request
 
 	amountInt, err := strconv.Atoi(amount)
 	if err != nil {
-		h.logger.Error("unable to parse amount", slog.String("amount", amount), slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unable to parse amount", slog.String("amount", amount), slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -871,7 +871,7 @@ func (h *FundHandlers) createDonationPlan(w http.ResponseWriter, r *http.Request
 
 	fundID := r.FormValue("fund")
 	if fundID == "" {
-		h.logger.Error("missing fund id")
+		h.logger.ErrorContext(ctx, "missing fund id")
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -881,7 +881,7 @@ func (h *FundHandlers) createDonationPlan(w http.ResponseWriter, r *http.Request
 
 	fundUUID, err := uuid.Parse(fundID)
 	if err != nil {
-		h.logger.Error("unable to parse fund id", slog.String("fund_id", fundID), slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "unable to parse fund id", slog.String("fund_id", fundID), slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusBadRequest)
 		common.ErrorMessage(&member, internalErrMessage, "/", r.URL.Path).Render(ctx, w)
@@ -963,7 +963,7 @@ func (h *FundHandlers) home(w http.ResponseWriter, r *http.Request) {
 
 	images, err := h.donationService.GetFundImages(ctx, fundIDs)
 	if err != nil {
-		h.logger.Error("failed to read fund images", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "failed to read fund images", slog.String("error", err.Error()))
 	}
 
 	Funds(funds, closed, images, &member, r.URL.Path).Render(ctx, w)
@@ -1020,7 +1020,7 @@ func (h *FundHandlers) closedFundSummary(w http.ResponseWriter, r *http.Request)
 	// shape of, because a fund that has closed cannot be given to.
 	notes, err := h.donationService.ListFundNotes(ctx, fundID)
 	if err != nil {
-		h.logger.Error("failed to list fund notes", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "failed to list fund notes", slog.String("error", err.Error()))
 	}
 
 	image, err := h.donationService.GetFundImage(ctx, fundID)
@@ -1033,7 +1033,7 @@ func (h *FundHandlers) closedFundSummary(w http.ResponseWriter, r *http.Request)
 	// than not shown at all.
 	timeline, err := h.fundEvents.GetPublicFundEvents(ctx, fundID, fundevents.DefaultLimit)
 	if err != nil {
-		h.logger.Error("failed to read the public fund timeline",
+		h.logger.ErrorContext(ctx, "failed to read the public fund timeline",
 			slog.String("error", err.Error()),
 			slog.String("fund_id", fundID.String()),
 		)
@@ -1097,7 +1097,7 @@ func (h *FundHandlers) fundImage(w http.ResponseWriter, r *http.Request) {
 
 	body, object, err := h.donationService.OpenFundImage(ctx, fundID, r.PathValue("hash"))
 	if err != nil {
-		h.logger.Error("failed to read a fund image", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "failed to read a fund image", slog.String("error", err.Error()))
 
 		http.Error(w, "", http.StatusInternalServerError)
 
@@ -1125,6 +1125,6 @@ func (h *FundHandlers) fundImage(w http.ResponseWriter, r *http.Request) {
 	if _, err = io.Copy(w, body); err != nil {
 		// The header is long gone, so there is no status left to change. Logged
 		// because a truncated picture otherwise looks like a browser problem.
-		h.logger.Error("failed to write a fund image", slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "failed to write a fund image", slog.String("error", err.Error()))
 	}
 }
