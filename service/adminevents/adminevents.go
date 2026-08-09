@@ -42,12 +42,16 @@ func (s Service) Record(ctx context.Context, record Record) {
 		return
 	}
 
+	// Built before the write, so the failure path can say the same things about
+	// the event as the success path. An error line naming only the kind leaves
+	// the one question worth asking -- whose access failed to be recorded --
+	// answerable only by guessing.
+	attrs := logAttrs(record)
+
 	_, err := s.store.InsertAdminEvent(ctx, record)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to record admin event",
-			slog.String("error", err.Error()),
-			slog.String("kind", string(record.Kind)),
-		)
+			append(attrs, slog.String("error", err.Error()))...)
 
 		return
 	}
@@ -55,16 +59,22 @@ func (s Service) Record(ctx context.Context, record Record) {
 	// Same invariant as fundevents: recorded means logged. A privilege change is
 	// the line most worth finding in a hurry, and the table it goes in is only
 	// readable by the people whose access it describes.
+	s.logger.InfoContext(ctx, "admin event", attrs...)
+}
+
+// logAttrs describes an event for the operational log.
+//
+// SubjectLabel is deliberately absent, and only its presence is reported. It
+// holds an email address, and the rule for this stream is ids only: the address
+// lives in the audit table, where the people who can already read it in the
+// admin section will find it, rather than in a log with different retention.
+func logAttrs(record Record) []any {
 	attrs := []any{slog.String("kind", string(record.Kind))}
 
 	if record.SubjectMemberID != nil {
 		attrs = append(attrs, slog.String("subject_member_id", record.SubjectMemberID.String()))
 	}
 
-	// SubjectLabel is deliberately not logged, only its presence. It holds an
-	// email address, and the rule for this stream is ids only: the address lives
-	// in the audit table, where the people who can already read it in the admin
-	// section can find it, rather than in a log with different retention.
 	if record.SubjectLabel != "" {
 		attrs = append(attrs, slog.Bool("subject_not_a_member", true))
 	}
@@ -77,7 +87,7 @@ func (s Service) Record(ctx context.Context, record Record) {
 		attrs = append(attrs, slog.String("detail", record.Detail))
 	}
 
-	s.logger.InfoContext(ctx, "admin event", attrs...)
+	return attrs
 }
 
 func (s Service) GetAdminEvents(ctx context.Context, limit int32) ([]Event, error) {

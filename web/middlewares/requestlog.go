@@ -82,7 +82,7 @@ func logRequest(
 	// Read after the handler, not before: a login populates the session on the
 	// way out, and attributing that request to nobody would lose the one line
 	// that says who arrived.
-	if member, ok := sessionMember(sessions, r); ok {
+	if member, ok := sessionMember(logger, sessions, r); ok {
 		// The id, not the name or the email. A log is a place names end up
 		// duplicated into somewhere with different retention than the database.
 		attrs = append(attrs, slog.String("member_id", member.ID.String()))
@@ -102,19 +102,35 @@ func logRequest(
 
 // sessionMember reads who the request turned out to belong to.
 //
-// scs panics when asked for session data on a context that never went through
-// LoadAndSave. That is a wiring mistake and should be found immediately -- but
-// this runs in a deferred call while the response is being finished, where a
-// panic would replace a clear error somewhere else with an obscure one here. So
-// it is caught, reported as no member, and left to the ordering comment on
-// RequestLog to prevent.
-func sessionMember(sessions *scs.SessionManager, r *http.Request) (member members.Member, found bool) {
+// The assertion is the two-value form, so an anonymous request -- where Get
+// returns nil -- yields the zero member and false. That is the ordinary path and
+// it does not go anywhere near the recover below.
+//
+// The recover is for the one thing that does panic: scs refuses to read session
+// data from a context that never went through LoadAndSave. That is a wiring
+// mistake, and this runs in a deferred call while the response is being
+// finished, where an unrecovered panic would bury whatever real error was being
+// reported under an obscure one from the logger.
+//
+// Caught and then said out loud. Swallowing it would leave every request
+// attributed to nobody, on a page full of signed-in members, with nothing
+// anywhere explaining why -- which is the same shape of silent wrong this
+// middleware exists to remove.
+func sessionMember(
+	logger *slog.Logger,
+	sessions *scs.SessionManager,
+	r *http.Request,
+) (member members.Member, found bool) {
 	if sessions == nil {
 		return members.Member{}, false
 	}
 
 	defer func() {
-		if recover() != nil {
+		if recovered := recover(); recovered != nil {
+			logger.ErrorContext(r.Context(), "request logging is wired outside the session middleware",
+				slog.Any("panic", recovered),
+			)
+
 			member, found = members.Member{}, false
 		}
 	}()

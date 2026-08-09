@@ -343,7 +343,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 		go func() {
 			<-shutdownCtx.Done()
 			if errors.Is(shutdownCtx.Err(), context.DeadlineExceeded) {
-				logger.ErrorContext(ctx, "graceful shutdown timed out.. forcing exit.")
+				logger.ErrorContext(ctx, "graceful shutdown timed out, forcing exit")
 			}
 			ns.Shutdown()
 		}()

@@ -218,6 +218,48 @@ func TestTheMemberIsReadAfterTheHandlerRuns(t *testing.T) {
 	}
 }
 
+// An anonymous request is the ordinary case, not an error one. The assertion on
+// the session value is the two-value form, so a nil yields the zero member and
+// false without panicking -- and the previous test could not tell that apart
+// from a panic being caught, because a recovered panic also produces no
+// member_id.
+func TestAnAnonymousRequestDoesNotGoThroughRecover(t *testing.T) {
+	records, _ := serve(t, httptest.NewRequest(http.MethodGet, "/", nil), ok)
+
+	if len(records) != 1 {
+		t.Fatalf("wrote %d lines, want only the request line", len(records))
+	}
+
+	if records[0]["level"] != "INFO" {
+		t.Errorf("an anonymous request logged at %v", records[0]["level"])
+	}
+}
+
+// The wiring mistake the recover exists for. Swallowed, it would attribute every
+// request to nobody on a site full of signed-in members with nothing anywhere
+// saying why.
+func TestBeingWiredOutsideTheSessionMiddlewareSaysSo(t *testing.T) {
+	var out bytes.Buffer
+
+	logger := slog.New(logging.WithContext(slog.NewJSONHandler(&out, nil)))
+
+	// No LoadAndSave around it, which is what makes scs refuse the read.
+	RequestLog(logger, scs.New())(ok).
+		ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+
+	body := out.String()
+
+	if !strings.Contains(body, "wired outside the session middleware") {
+		t.Errorf("a swallowed wiring mistake left nothing to find:\n%s", body)
+	}
+
+	// And the request line still goes out. The point of catching it here is that
+	// a mistake in the logging must not take the response down with it.
+	if !strings.Contains(body, `"msg":"request"`) {
+		t.Errorf("the request line was lost:\n%s", body)
+	}
+}
+
 // Assets are a request per page and say nothing -- served by a file server that
 // touches neither the database nor the provider. They would be most of this log
 // by volume.

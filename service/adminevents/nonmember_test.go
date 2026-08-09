@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"strings"
@@ -128,6 +129,48 @@ func TestTheApprovedAddressDoesNotReachTheLog(t *testing.T) {
 	assert.Equal(t, actor.String(), record["actor_member_id"])
 }
 
+// A write that fails has to say the same things about the event as one that
+// succeeds. "failed to record admin event, kind=admin_granted" leaves the only
+// question worth asking -- whose access went unrecorded -- answerable by
+// guessing.
+func TestAFailedWriteSaysWhoItWasAbout(t *testing.T) {
+	var out bytes.Buffer
+
+	logger := slog.New(slog.NewJSONHandler(&out, nil))
+	actor, subject := uuid.New(), uuid.New()
+
+	adminevents.NewService(failingStore{}, logger).Record(context.Background(), adminevents.Record{
+		Kind:            adminevents.KindAdminGranted,
+		ActorMemberID:   &actor,
+		SubjectMemberID: &subject,
+	})
+
+	var record map[string]any
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out.String())), &record))
+
+	assert.Equal(t, "ERROR", record["level"])
+	assert.Equal(t, subject.String(), record["subject_member_id"])
+	assert.Equal(t, actor.String(), record["actor_member_id"])
+	assert.NotEmpty(t, record["error"])
+}
+
+// And the same on the other shape of subject, without the address.
+func TestAFailedWriteAboutANonMemberStillWithholdsTheAddress(t *testing.T) {
+	var out bytes.Buffer
+
+	logger := slog.New(slog.NewJSONHandler(&out, nil))
+
+	adminevents.NewService(failingStore{}, logger).Record(context.Background(), adminevents.Record{
+		Kind:         adminevents.KindEmailApproved,
+		SubjectLabel: "newcomer@test.org",
+	})
+
+	body := out.String()
+
+	assert.NotContains(t, body, "newcomer@test.org")
+	assert.Contains(t, body, `"subject_not_a_member":true`)
+}
+
 type stubStore struct{}
 
 func (stubStore) InsertAdminEvent(_ context.Context, arg adminevents.Record) (*adminevents.Event, error) {
@@ -135,5 +178,15 @@ func (stubStore) InsertAdminEvent(_ context.Context, arg adminevents.Record) (*a
 }
 
 func (stubStore) GetAdminEvents(context.Context, int32) ([]adminevents.Event, error) {
+	return nil, nil
+}
+
+type failingStore struct{}
+
+func (failingStore) InsertAdminEvent(context.Context, adminevents.Record) (*adminevents.Event, error) {
+	return nil, errors.New("database down")
+}
+
+func (failingStore) GetAdminEvents(context.Context, int32) ([]adminevents.Event, error) {
 	return nil, nil
 }
