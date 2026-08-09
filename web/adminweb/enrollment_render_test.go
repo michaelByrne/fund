@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"boardfund/service/donations"
 	"boardfund/service/enrollments"
+	"boardfund/service/members"
 
 	"github.com/google/uuid"
 )
@@ -174,5 +176,37 @@ func TestPayable(t *testing.T) {
 				t.Errorf("Payable = %v, want %v", got, c.want)
 			}
 		})
+	}
+}
+
+// Current enrollments sit beside the form that adds one, and the history
+// follows underneath. The grid places these in source order, so the order here
+// is the layout -- and swapping two adjacent divs is an easy thing to undo by
+// accident while editing the ones around them.
+func TestEnrollmentsSitBesideTheFormThatAddsThem(t *testing.T) {
+	var out strings.Builder
+
+	page := Enrollments(
+		donations.Fund{Name: "rent", Active: true},
+		nil, nil, nil,
+		&members.Member{}, "/admin/fund",
+	)
+
+	if err := page.Render(context.Background(), &out); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	html := out.String()
+
+	added := strings.Index(html, "add enrollment")
+	current := strings.Index(html, "current enrollments")
+	history := strings.Index(html, ">history<")
+
+	if added < 0 || current < 0 || history < 0 {
+		t.Fatalf("a panel is missing: add=%d current=%d history=%d", added, current, history)
+	}
+
+	if !(added < current && current < history) {
+		t.Error("want add enrollment, then current enrollments, then history")
 	}
 }
