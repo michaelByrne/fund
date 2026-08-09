@@ -2,6 +2,7 @@ package auth
 
 import (
 	"boardfund/jwtauth"
+	"boardfund/service/adminevents"
 	"boardfund/service/members"
 	"context"
 	"errors"
@@ -26,6 +27,12 @@ type authStore interface {
 	DeleteApprovedEmail(ctx context.Context, email string) (*ApprovedEmail, error)
 }
 
+// adminEventRecorder is the audit trail for privilege changes. Narrowed to the
+// one method used so the service can be exercised without a database.
+type adminEventRecorder interface {
+	Record(ctx context.Context, record adminevents.Record)
+}
+
 type authorizer interface {
 	Authorize(ctx context.Context, user, pass string) (*AuthResponse, error)
 	SetPassword(ctx context.Context, user, old, new string) error
@@ -39,15 +46,17 @@ type AuthService struct {
 	memberStore memberStore
 	authStore   authStore
 	authorizer  authorizer
+	adminEvents adminEventRecorder
 
 	logger *slog.Logger
 }
 
-func NewAuthService(memberStore memberStore, authStore authStore, authorizer authorizer, logger *slog.Logger) *AuthService {
+func NewAuthService(memberStore memberStore, authStore authStore, authorizer authorizer, adminEvents adminEventRecorder, logger *slog.Logger) *AuthService {
 	return &AuthService{
 		memberStore: memberStore,
 		authStore:   authStore,
 		authorizer:  authorizer,
+		adminEvents: adminEvents,
 		logger:      logger,
 	}
 }
@@ -87,17 +96,22 @@ func (s AuthService) Register(ctx context.Context, username, email string) (*mem
 //
 // Cognito stamps group membership into the ID token at authentication, so the
 // member stays non-admin until they log in again. Callers should say so.
-func (s AuthService) GrantAdmin(ctx context.Context, username string) error {
-	if err := s.authorizer.AddToGroup(ctx, username, jwtauth.AdminGroup); err != nil {
+//
+// It takes both members rather than the subject's username because the audit
+// record needs the actor, and a parameter that is easy to omit is one that gets
+// omitted. Cognito is addressed by username; the log is written in member ids.
+func (s AuthService) GrantAdmin(ctx context.Context, actor, subject members.Member) error {
+	if err := s.authorizer.AddToGroup(ctx, subject.BCOName, jwtauth.AdminGroup); err != nil {
 		s.logger.Error("failed to grant admin",
-			slog.String("username", username),
+			slog.String("username", subject.BCOName),
 			slog.String("error", err.Error()),
 		)
 
 		return err
 	}
 
-	s.logger.Info("granted admin", slog.String("username", username))
+	s.logger.Info("granted admin", slog.String("username", subject.BCOName))
+	s.recordAdminChange(ctx, adminevents.KindAdminGranted, actor, subject)
 
 	return nil
 }
@@ -105,19 +119,46 @@ func (s AuthService) GrantAdmin(ctx context.Context, username string) error {
 // RevokeAdmin is the inverse. It takes effect on the member's next login for the
 // same reason, but sooner in practice: their current token expires within the
 // hour, and nothing reissues one without a fresh authentication.
-func (s AuthService) RevokeAdmin(ctx context.Context, username string) error {
-	if err := s.authorizer.RemoveFromGroup(ctx, username, jwtauth.AdminGroup); err != nil {
+func (s AuthService) RevokeAdmin(ctx context.Context, actor, subject members.Member) error {
+	if err := s.authorizer.RemoveFromGroup(ctx, subject.BCOName, jwtauth.AdminGroup); err != nil {
 		s.logger.Error("failed to revoke admin",
-			slog.String("username", username),
+			slog.String("username", subject.BCOName),
 			slog.String("error", err.Error()),
 		)
 
 		return err
 	}
 
-	s.logger.Info("revoked admin", slog.String("username", username))
+	s.logger.Info("revoked admin", slog.String("username", subject.BCOName))
+	s.recordAdminChange(ctx, adminevents.KindAdminRevoked, actor, subject)
 
 	return nil
+}
+
+// recordAdminChange writes the audit line, after the group write has succeeded
+// and never before it: an event recorded ahead of the change it describes is a
+// claim that something happened when it may not have.
+func (s AuthService) recordAdminChange(ctx context.Context, kind adminevents.Kind, actor, subject members.Member) {
+	if s.adminEvents == nil {
+		return
+	}
+
+	// No Detail: every change made here is the same change to the same Cognito
+	// group, so a constant string in every row would be a column the reader
+	// learns to skip. It is left for the cases that differ.
+	record := adminevents.Record{
+		Kind:            kind,
+		SubjectMemberID: subject.ID,
+	}
+
+	// A zero id means the caller had no signed-in member to attribute this to,
+	// which the log shows as unattributed rather than as member 000...0.
+	if actor.ID != uuid.Nil {
+		id := actor.ID
+		record.ActorMemberID = &id
+	}
+
+	s.adminEvents.Record(ctx, record)
 }
 
 // IsAdmin asks Cognito rather than the database. member.roles would be cheaper to

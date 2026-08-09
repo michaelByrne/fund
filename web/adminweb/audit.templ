@@ -1,0 +1,80 @@
+package adminweb
+
+import (
+	"boardfund/service/adminevents"
+	"boardfund/service/members"
+	"boardfund/web/common"
+)
+
+// AdminAudit is the log of who granted and revoked admin access.
+//
+// Admin is Cognito group membership and nothing else, so this list is the record
+// of every change to the authorisation model. It is read-only by construction:
+// there is no update or delete query behind it, and nothing here offers one.
+templ AdminAudit(events []adminevents.Event, member *members.Member, path string) {
+	@Admin(member, path) {
+		<div class="w-[95%] mx-auto mt-4 mb-8">
+			@common.Section("admin access changes") {
+				if len(events) == 0 {
+					// An empty log is the ordinary state of a new deployment, and it is
+					// worth saying which one this is: nothing has happened, rather than
+					// nothing is being recorded.
+					<p class="text-sm p-2">
+						no admin access has been granted or revoked since this log was added.
+						changes made directly in cognito do not appear here.
+					</p>
+				} else {
+					<div class="overflow-x-auto">
+						<table class="table-auto w-full border-collapse text-sm leading-relaxed">
+							<thead class="bg-even">
+								<tr>
+									<th class="p-2 text-left font-semibold">when</th>
+									<th class="p-2 text-left font-semibold">what</th>
+									<th class="p-2 text-left font-semibold">member</th>
+									<th class="p-2 text-left font-semibold">by</th>
+								</tr>
+							</thead>
+							<tbody>
+								for _, event := range events {
+									<tr class="odd:bg-odd even:bg-even">
+										<td class="p-2 whitespace-nowrap">{ event.OccurredAt.Format("01-02-2006 15:04") }</td>
+										<td class="p-2">
+											if event.Granted() {
+												<span class="font-semibold">granted admin</span>
+											} else {
+												<span class="font-semibold">revoked admin</span>
+											}
+										</td>
+										<td class="p-2">
+											<a href={ templ.SafeURL("/admin/member/" + event.SubjectMemberID.String()) } class="text-links hover:underline">
+												{ event.SubjectName }
+											</a>
+										</td>
+										<td class="p-2">
+											if event.ByProvider() {
+												// Not the same as "nobody did it". A change made in the
+												// cognito console, or before this log existed, has no
+												// member to name, and guessing one would be a lie in the
+												// only place that exists to be trusted.
+												<span class="text-gray-500 italic">not recorded</span>
+											} else if event.SelfInflicted() {
+												<span class="font-semibold">{ event.ActorName } (themselves)</span>
+											} else {
+												<a href={ templ.SafeURL("/admin/member/" + event.ActorMemberID.String()) } class="text-links hover:underline">
+													{ event.ActorName }
+												</a>
+											}
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				}
+				<p class="text-xs text-gray-500 p-2">
+					append-only. nothing in the application can edit or remove a line here.
+				</p>
+			}
+		</div>
+	}
+}
