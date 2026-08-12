@@ -701,6 +701,7 @@ FROM fund
 WHERE active = true
   AND expires IS NOT NULL
   AND expires <= now()
+  AND (payout_frequency <> 'once' OR next_payment IS NULL)
 ORDER BY expires
 `
 
@@ -713,6 +714,21 @@ type GetExpiredActiveFundsRow struct {
 // these and runs the same deactivation a person would, so donations stop and
 // recurring subscriptions are cancelled at the provider rather than continuing
 // to charge donors for a fund that has ended.
+// Expiry is one date doing two jobs on a one-off fund: pay out, and close. Two
+// crons run those, so without this the closure could win -- and a closed fund is
+// skipped by the planner, which strands the donations it collected.
+//
+// next_payment IS NULL is what "the payout has been dealt with" looks like:
+// AdvanceFundNextPayment nulls it for a 'once' fund once a batch has been
+// planned, and also when there was nobody payable to plan for. Closing after
+// that point is safe -- submitting an approved batch does not check whether the
+// fund is still open.
+//
+// The case this deliberately leaves open is a one-off fund that expired holding
+// too little to pay anyone: planning declines to advance it, so it stays open
+// and out of this list. That is visible -- the planner warns on every run -- and
+// an admin can close it by hand. An automatic closure there would be the fund
+// keeping money it never paid out, which is the failure this exists to prevent.
 func (q *Queries) GetExpiredActiveFunds(ctx context.Context) ([]GetExpiredActiveFundsRow, error) {
 	rows, err := q.db.Query(ctx, getExpiredActiveFunds)
 	if err != nil {
@@ -2358,7 +2374,11 @@ func (q *Queries) UpdateDonationPlan(ctx context.Context, arg UpdateDonationPlan
 const updateFund = `-- name: UpdateFund :one
 UPDATE fund
 SET (name, description, active, payout_frequency, goal_cents, expires, principal,
-     enrollees_visible, updated) = ($2, $3, $4, $5, $6, $7, $8, $9, now())
+     enrollees_visible, updated) = ($2, $3, $4, $5, $6, $7, $8, $9, now()),
+    next_payment = CASE
+                       WHEN $5::payout_frequency = 'once' AND next_payment IS NOT NULL
+                           THEN $7::timestamptz
+                       ELSE next_payment END
 WHERE id = $1
 RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated, enrollees_visible
 `
@@ -2375,6 +2395,20 @@ type UpdateFundParams struct {
 	EnrolleesVisible bool
 }
 
+// next_payment follows expires on a one-off fund, because for that frequency
+// they are the same date: InsertFund anchors it to the expiry, and the payout is
+// meant to happen when the fund ends.
+//
+// It used to be left alone here, so moving a one-off fund's end date moved when
+// it closed and not when it paid. The fund page then showed two dates that
+// disagreed and the batch fired on the old one.
+//
+// Only while it is still owed. Once the batch has been planned, next_payment is
+// NULL and must stay NULL, or editing anything on the fund afterwards would
+// schedule a second payout of a fund that has already paid.
+//
+// Recurring funds are untouched: their anchor is the schedule's origin, not an
+// end date, and expires has nothing to do with it.
 func (q *Queries) UpdateFund(ctx context.Context, arg UpdateFundParams) (Fund, error) {
 	row := q.db.QueryRow(ctx, updateFund,
 		arg.ID,

@@ -47,3 +47,13 @@ var ErrDonationNotCancellable = errors.New("donation cannot be cancelled")
 // absent is a courtesy: the rule has to hold for anything that posts to the
 // route, not only for what the page drew.
 var ErrFundClosed = errors.New("a closed fund cannot be changed")
+
+// ErrOneTimeFundNeedsEndDate refuses a one-off fund with no end date.
+//
+// For that frequency the end date is the payout date -- InsertFund anchors
+// next_payment to it -- so a fund created without one gets a NULL anchor, and
+// GetFundsDueForPayout requires next_payment IS NOT NULL. The fund would collect
+// donations forever and never pay any of them out, with nothing anywhere saying
+// so. Recurring funds are different: their schedule stands on its own and an end
+// date is genuinely optional.
+var ErrOneTimeFundNeedsEndDate = errors.New("a one-time fund needs an end date, which is when it pays out")
