@@ -68,6 +68,7 @@ func noteRig(t *testing.T) (func(fundID, form string) *httptest.ResponseRecorder
 			events, nil, logger,
 		),
 		events,
+		nil,
 		sessions,
 		func(next http.HandlerFunc) http.HandlerFunc { return next },
 		logger, "client",

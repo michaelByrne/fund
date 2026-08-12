@@ -457,6 +457,16 @@ type Member struct {
 	Active          bool
 }
 
+type Notice struct {
+	ID        uuid.UUID
+	Body      string
+	Active    bool
+	CreatedBy uuid.NullUUID
+	UpdatedBy uuid.NullUUID
+	Created   pgtype.Timestamptz
+	Updated   pgtype.Timestamptz
+}
+
 type PasskeyUser struct {
 	ID      []byte
 	Email   string

@@ -4,6 +4,7 @@ import (
 	"boardfund/service/donations"
 	"boardfund/service/fundevents"
 	"boardfund/service/members"
+	"boardfund/service/notices"
 	"boardfund/web/common"
 	"boardfund/web/mux"
 	"context"
@@ -33,9 +34,17 @@ type publicEvents interface {
 	GetPublicFundEvents(ctx context.Context, fundID uuid.UUID, limit int32) ([]fundevents.PublicEvent, error)
 }
 
+// activeNotices is the notice board, read-only. Narrow like publicEvents beside
+// it: this package renders pages, and nothing on a member-facing page should be
+// able to post or take down a notice.
+type activeNotices interface {
+	Active(ctx context.Context) ([]notices.Notice, error)
+}
+
 type FundHandlers struct {
 	donationService *donations.DonationService
 	fundEvents      publicEvents
+	notices         activeNotices
 	sessionManager  *scs.SessionManager
 	withAuth        func(http.HandlerFunc) http.HandlerFunc
 	logger          *slog.Logger
@@ -45,6 +54,7 @@ type FundHandlers struct {
 func NewFundHandlers(
 	donationService *donations.DonationService,
 	fundEvents publicEvents,
+	notices activeNotices,
 	sessionManager *scs.SessionManager,
 	withAuth func(http.HandlerFunc) http.HandlerFunc,
 	logger *slog.Logger,
@@ -53,6 +63,7 @@ func NewFundHandlers(
 	return &FundHandlers{
 		donationService: donationService,
 		fundEvents:      fundEvents,
+		notices:         notices,
 		sessionManager:  sessionManager,
 		withAuth:        withAuth,
 		logger:          logger,
@@ -964,7 +975,15 @@ func (h *FundHandlers) home(w http.ResponseWriter, r *http.Request) {
 		h.logger.ErrorContext(ctx, "failed to read fund images", slog.String("error", err.Error()))
 	}
 
-	Funds(funds, closed, images, &member, r.URL.Path).Render(ctx, w)
+	// Not fatal either: this page is a list of funds, and a failed notice read
+	// should not take it down. The card is simply absent, which is what it looks
+	// like when there is nothing to say.
+	notices, err := h.notices.Active(ctx)
+	if err != nil {
+		notices = nil
+	}
+
+	Funds(funds, closed, images, notices, &member, r.URL.Path).Render(ctx, w)
 }
 
 // closedFundSummary is the archive page for one ended fund. A fund that is still

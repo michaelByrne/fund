@@ -2,6 +2,7 @@ package homeweb
 
 import (
 	"boardfund/service/donations"
+	"boardfund/service/notices"
 	"boardfund/service/members"
 	"boardfund/web/common"
 	"fmt"
@@ -15,10 +16,11 @@ templ FundsTitle() {
 	<h2 class="font-semibold text-lg p-2 inline-block bg-high shadow-blue-boxy-thin mt-4 mx-4">current active funds</h2>
 }
 
-templ Funds(funds []donations.Fund, closed []donations.ClosedFund, images map[uuid.UUID]donations.FundImage, member *members.Member, path string) {
+templ Funds(funds []donations.Fund, closed []donations.ClosedFund, images map[uuid.UUID]donations.FundImage, notices []notices.Notice, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div id="funds">
 			<div class="w-[95%] mx-auto">
+				@NoticeCard(notices)
 				@FundsTitle()
 				<div class="ml-4 mb-5 mt-4 bl">
 					<div class="hidden lg:table max-h-[300px] w-[90%] overflow-y-auto">
@@ -255,4 +257,29 @@ func addThousandsSeparators(digits string) string {
 	}
 
 	return result.String()
+}
+
+// NoticeCard is what the admins have to say, above the funds.
+//
+// Omitted entirely when there is nothing, rather than shown empty. This sits at
+// the top of the first page every member sees, and an empty box there is a
+// permanent piece of furniture that says nothing -- which is also how a reader
+// learns to stop looking at it.
+templ NoticeCard(notices []notices.Notice) {
+	if len(notices) > 0 {
+		<div class="mt-4 mx-4">
+			<div class="text-md font-semibold p-2 inline-block bg-high shadow-blue-boxy-thin">notices</div>
+			<div class="mt-2 space-y-2 md:w-[90%]">
+				for _, notice := range notices {
+					<div class="p-3 bg-even shadow-blue-boxy">
+						// Escaped like every other member-facing string. An admin typing
+						// a link gets the text of one, which is the trade made when these
+						// were specified as plain text.
+						<p class="text-sm whitespace-pre-wrap break-words">{ notice.Body }</p>
+						<p class="text-xs text-gray-600 mt-2 tabular-nums">{ notice.Created.Format("January 2, 2006") }</p>
+					</div>
+				}
+			</div>
+		</div>
+	}
 }
