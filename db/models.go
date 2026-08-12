@@ -375,19 +375,20 @@ type DonationPlan struct {
 }
 
 type Fund struct {
-	ID              uuid.UUID
-	Name            string
-	Description     string
-	ProviderID      string
-	ProviderName    string
-	GoalCents       pgtype.Int4
-	PayoutFrequency PayoutFrequency
-	Active          bool
-	Principal       uuid.NullUUID
-	Expires         NullDBTime
-	NextPayment     DBTime
-	Created         pgtype.Timestamptz
-	Updated         pgtype.Timestamptz
+	ID               uuid.UUID
+	Name             string
+	Description      string
+	ProviderID       string
+	ProviderName     string
+	GoalCents        pgtype.Int4
+	PayoutFrequency  PayoutFrequency
+	Active           bool
+	Principal        uuid.NullUUID
+	Expires          NullDBTime
+	NextPayment      DBTime
+	Created          pgtype.Timestamptz
+	Updated          pgtype.Timestamptz
+	EnrolleesVisible bool
 }
 
 type FundEnrollment struct {

@@ -90,6 +90,26 @@ templ FundDetails(fund donations.Fund, image *donations.FundImage, failure, succ
 								/>
 							</div>
 						</div>
+						// A checkbox, so an unticked box submits nothing and the handler
+						// reads its absence as off. Named for what a donor sees rather
+						// than for the column, because the person ticking it is deciding
+						// whether to publish somebody's name.
+						<label class="flex items-start gap-2 text-xs">
+							<input
+								type="checkbox"
+								name="show_recipients"
+								value="true"
+								checked?={ fund.EnrolleesVisible }
+								class="mt-0.5"
+							/>
+							<span>
+								show this fund's recipients to donors.
+								<span class="text-gray-600">
+									their bco names appear on the fund page and its archive. off unless
+									the people enrolled are happy to be named.
+								</span>
+							</span>
+						</label>
 						<div class="flex items-center gap-3">
 							<span class="text-xs text-gray-600">paypal holds name and frequency</span>
 							<button

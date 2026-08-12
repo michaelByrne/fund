@@ -263,7 +263,7 @@ RETURNING *;
 -- name: UpdateFund :one
 UPDATE fund
 SET (name, description, active, payout_frequency, goal_cents, expires, principal,
-     updated) = ($2, $3, $4, $5, $6, $7, $8, now())
+     enrollees_visible, updated) = ($2, $3, $4, $5, $6, $7, $8, $9, now())
 WHERE id = $1
 RETURNING *;
 

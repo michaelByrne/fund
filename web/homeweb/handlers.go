@@ -2,6 +2,7 @@ package homeweb
 
 import (
 	"boardfund/service/donations"
+	"boardfund/service/enrollments"
 	"boardfund/service/fundevents"
 	"boardfund/service/members"
 	"boardfund/service/notices"
@@ -41,10 +42,18 @@ type activeNotices interface {
 	Active(ctx context.Context) ([]notices.Notice, error)
 }
 
+// fundRecipients is who a fund pays, names only. Narrow like publicEvents and
+// activeNotices beside it: an Enrollment carries the address a person's money
+// goes to, and nothing rendering a donor-facing page should be able to reach it.
+type fundRecipients interface {
+	RecipientsForFund(ctx context.Context, fundID uuid.UUID) ([]enrollments.Recipient, error)
+}
+
 type FundHandlers struct {
 	donationService *donations.DonationService
 	fundEvents      publicEvents
 	notices         activeNotices
+	recipients      fundRecipients
 	sessionManager  *scs.SessionManager
 	withAuth        func(http.HandlerFunc) http.HandlerFunc
 	logger          *slog.Logger
@@ -55,6 +64,7 @@ func NewFundHandlers(
 	donationService *donations.DonationService,
 	fundEvents publicEvents,
 	notices activeNotices,
+	recipients fundRecipients,
 	sessionManager *scs.SessionManager,
 	withAuth func(http.HandlerFunc) http.HandlerFunc,
 	logger *slog.Logger,
@@ -64,6 +74,7 @@ func NewFundHandlers(
 		donationService: donationService,
 		fundEvents:      fundEvents,
 		notices:         notices,
+		recipients:      recipients,
 		sessionManager:  sessionManager,
 		withAuth:        withAuth,
 		logger:          logger,
@@ -298,7 +309,7 @@ func (h *FundHandlers) donate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("HX-Redirect", r.URL.Path)
-	Fund(*fund, fund.Stats, notes, image, &member, r.URL.Path).Render(ctx, w)
+	Fund(*fund, fund.Stats, notes, h.recipientsFor(ctx, *fund), image, &member, r.URL.Path).Render(ctx, w)
 }
 
 // saveFundNote writes or replaces the signed-in donor's note on a fund.
@@ -1056,7 +1067,7 @@ func (h *FundHandlers) closedFundSummary(w http.ResponseWriter, r *http.Request)
 		)
 	}
 
-	ClosedFundSummary(*fund, fund.Stats, notes, image, timeline, &member, r.URL.Path).Render(ctx, w)
+	ClosedFundSummary(*fund, fund.Stats, notes, h.recipientsFor(ctx, fund.Fund), image, timeline, &member, r.URL.Path).Render(ctx, w)
 }
 
 func sendJSON(w http.ResponseWriter, status int, v any) {
@@ -1144,4 +1155,31 @@ func (h *FundHandlers) fundImage(w http.ResponseWriter, r *http.Request) {
 		// because a truncated picture otherwise looks like a browser problem.
 		h.logger.ErrorContext(ctx, "failed to write a fund image", slog.String("error", err.Error()))
 	}
+}
+
+// recipientsFor is who a fund pays, or nothing when it does not say.
+//
+// The query is skipped entirely for a fund with the setting off, so the names of
+// people who never agreed to be listed are not loaded into a request that
+// renders a page they would be listed on. The template checks the same flag: this
+// one saves the work, that one is the guarantee.
+//
+// A failure is not fatal. The page is a fund and what donors said about it, and
+// it is still that without the list.
+func (h *FundHandlers) recipientsFor(ctx context.Context, fund donations.Fund) []enrollments.Recipient {
+	if !fund.EnrolleesVisible {
+		return nil
+	}
+
+	found, err := h.recipients.RecipientsForFund(ctx, fund.ID)
+	if err != nil {
+		h.logger.ErrorContext(ctx, "failed to read a fund's recipients",
+			slog.String("error", err.Error()),
+			slog.String("fund_id", fund.ID.String()),
+		)
+
+		return nil
+	}
+
+	return found
 }

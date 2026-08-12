@@ -254,9 +254,17 @@ type Fund struct {
 	PayoutFrequency PayoutFrequency `json:"payout_frequency"`
 	Expires         *time.Time      `json:"expires"`
 	NextPayment     time.Time       `json:"next_payment"`
-	Created         time.Time       `json:"created"`
-	Updated         time.Time       `json:"updated"`
-	Stats           FundStats       `json:"stats"`
+
+	// EnrolleesVisible names this fund's recipients on the pages donors read.
+	//
+	// Off unless an admin turns it on. The people enrolled did not agree to
+	// being listed when they enrolled, so this is a decision taken per fund
+	// rather than a default anybody inherits.
+	EnrolleesVisible bool `json:"enrollees_visible"`
+
+	Created time.Time `json:"created"`
+	Updated time.Time `json:"updated"`
+	Stats   FundStats `json:"stats"`
 }
 
 // NextPaymentAfter is when this fund next pays out.
@@ -346,14 +354,15 @@ type InsertFund struct {
 }
 
 type UpdateFund struct {
-	ID              uuid.UUID
-	Name            string
-	Description     string
-	Active          bool
-	GoalCents       int32
-	PayoutFrequency string
-	Expires         *time.Time
-	Principal       uuid.NullUUID
+	ID               uuid.UUID
+	Name             string
+	Description      string
+	Active           bool
+	GoalCents        int32
+	PayoutFrequency  string
+	Expires          *time.Time
+	Principal        uuid.NullUUID
+	EnrolleesVisible bool
 }
 
 type Donation struct {

@@ -63,7 +63,7 @@ func TestTheArchiveShowsTheFundPicture(t *testing.T) {
 		FundID: fund.ID, SHA256: "deadbeef", ContentType: "image/jpeg", Width: 800, Height: 400,
 	}
 
-	html := render(t, ClosedFundSummary(fund, donations.FundStats{}, nil, image, nil, &members.Member{}, "/archive"))
+	html := render(t, ClosedFundSummary(fund, donations.FundStats{}, nil, nil, image, nil, &members.Member{}, "/archive"))
 
 	require.Contains(t, html, "/fund/"+fund.ID.String()+"/image/deadbeef")
 }

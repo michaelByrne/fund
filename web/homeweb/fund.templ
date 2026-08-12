@@ -2,6 +2,7 @@ package homeweb
 
 import (
 	"boardfund/service/donations"
+	"boardfund/service/enrollments"
 	"boardfund/service/fundevents"
 	"boardfund/service/members"
 	"boardfund/web/common"
@@ -19,7 +20,7 @@ func donationURL(freq donations.PayoutFrequency) string {
 	return "/donation/once"
 }
 
-templ Fund(fund donations.Fund, fundStats donations.FundStats, notes []donations.FundNote, image *donations.FundImage, member *members.Member, path string) {
+templ Fund(fund donations.Fund, fundStats donations.FundStats, notes []donations.FundNote, recipients []enrollments.Recipient, image *donations.FundImage, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div id="donation-form" class="p-5 mt-2">
 			@FundImagePanel(fund, image)
@@ -42,7 +43,43 @@ templ Fund(fund donations.Fund, fundStats donations.FundStats, notes []donations
 					</div>
 				}
 			</div>
-			@FundNotes(notes, member != nil && member.IsAdmin())
+			@FundFooter(fund, notes, recipients, member != nil && member.IsAdmin())
+		</div>
+	}
+}
+
+// FundFooter is the bottom of a fund page: who it pays, and what donors said.
+//
+// Two columns when both are there, because a fund that lists its recipients and
+// has notes on it was otherwise two long lists stacked down the page with the
+// second one below the fold. One column when there is nothing to put beside the
+// notes, rather than a half-width column with a gap next to it.
+templ FundFooter(fund donations.Fund, notes []donations.FundNote, recipients []enrollments.Recipient, isAdmin bool) {
+	if showRecipients(fund, recipients) {
+		<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+			@RecipientList(fund, recipients)
+			@FundNotes(notes, isAdmin)
+		</div>
+	} else {
+		@FundNotes(notes, isAdmin)
+	}
+}
+
+// RecipientList names the people a fund pays.
+//
+// Gated here as well as at the handler that decides whether to load them. The
+// handler skipping the query is the reason this is usually empty; the check is
+// the reason a future caller that loads them anyway still cannot publish a name
+// the fund has not agreed to publish.
+templ RecipientList(fund donations.Fund, recipients []enrollments.Recipient) {
+	if showRecipients(fund, recipients) {
+		<div id="fund-recipients" class="mt-6">
+			<div class="text-md font-semibold p-2 inline-block bg-high shadow-blue-boxy-thin">who this fund pays</div>
+			<ul class="mt-2 bg-odd shadow-blue-boxy">
+				for _, recipient := range recipients {
+					<li class="px-3 py-2 even:bg-even odd:bg-odd">{ recipient.Name }</li>
+				}
+			</ul>
 		</div>
 	}
 }
@@ -113,7 +150,7 @@ templ Title(text string) {
 // and the same chart, with the donation form replaced by what the fund did.
 // A closed fund still has a story worth reading, and until this existed the only
 // way to see it was a page that offered to take money for a fund that had ended.
-templ ClosedFundSummary(fund donations.ClosedFund, fundStats donations.FundStats, notes []donations.FundNote, image *donations.FundImage, timeline []fundevents.PublicEvent, member *members.Member, path string) {
+templ ClosedFundSummary(fund donations.ClosedFund, fundStats donations.FundStats, notes []donations.FundNote, recipients []enrollments.Recipient, image *donations.FundImage, timeline []fundevents.PublicEvent, member *members.Member, path string) {
 	@common.Layout(member, path) {
 		<div class="p-5 mt-2">
 			@FundImagePanel(fund.Fund, image)
@@ -146,8 +183,20 @@ templ ClosedFundSummary(fund donations.ClosedFund, fundStats donations.FundStats
 			// can give to it now, so nobody can earn a note on it now -- and a fund
 			// ending is not a reason a note that is already up should stay up, so an
 			// admin can still take one down.
-			if len(notes) > 0 {
-				@FundNotes(notes, member != nil && member.IsAdmin())
+			//
+			// The recipients follow the same setting the fund had while it was open:
+			// a closed fund's page should read the way it read to the people who gave
+			// to it.
+			if showRecipients(fund.Fund, recipients) && len(notes) > 0 {
+				<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+					@RecipientList(fund.Fund, recipients)
+					@FundNotes(notes, member != nil && member.IsAdmin())
+				</div>
+			} else {
+				@RecipientList(fund.Fund, recipients)
+				if len(notes) > 0 {
+					@FundNotes(notes, member != nil && member.IsAdmin())
+				}
 			}
 		</div>
 	}
@@ -183,4 +232,14 @@ templ LedgerFigure(label, value string) {
 		<div class="text-xs text-gray-600">{ label }</div>
 		<div class="text-lg font-semibold tabular-nums">{ value }</div>
 	</div>
+}
+
+// showRecipients is the one place that decides whether a fund's recipients are
+// named.
+//
+// Both conditions, in one function, so the page and the panel cannot disagree
+// about it. An empty list is not drawn as an empty box: a fund with the setting
+// on and nobody enrolled yet would otherwise show a heading over nothing.
+func showRecipients(fund donations.Fund, recipients []enrollments.Recipient) bool {
+	return fund.EnrolleesVisible && len(recipients) > 0
 }

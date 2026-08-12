@@ -8,18 +8,19 @@ import (
 
 func fromDBFundRow(fund db.GetActiveFundsRow) donations.Fund {
 	fundOut := donations.Fund{
-		ID:              fund.ID,
-		Name:            fund.Name,
-		Description:     fund.Description,
-		ProviderName:    fund.ProviderName,
-		ProviderID:      fund.ProviderID,
-		Active:          fund.Active,
-		PayoutFrequency: donations.PayoutFrequency(fund.PayoutFrequency),
-		NextPayment:     fund.NextPayment.Time,
-		GoalCents:       fund.GoalCents.Int32,
-		Created:         fund.Created.Time,
-		Updated:         fund.Updated.Time,
-		Principal:       fund.Principal,
+		ID:               fund.ID,
+		Name:             fund.Name,
+		Description:      fund.Description,
+		ProviderName:     fund.ProviderName,
+		ProviderID:       fund.ProviderID,
+		Active:           fund.Active,
+		PayoutFrequency:  donations.PayoutFrequency(fund.PayoutFrequency),
+		EnrolleesVisible: fund.EnrolleesVisible,
+		NextPayment:      fund.NextPayment.Time,
+		GoalCents:        fund.GoalCents.Int32,
+		Created:          fund.Created.Time,
+		Updated:          fund.Updated.Time,
+		Principal:        fund.Principal,
 		Stats: donations.FundStats{
 			TotalDonated:    fund.TotalDonated.Int32,
 			TotalDonations:  int32(fund.TotalDonations.Int64),
@@ -37,18 +38,19 @@ func fromDBFundRow(fund db.GetActiveFundsRow) donations.Fund {
 
 func fromDBFundByID(fund db.GetFundByIdRow) donations.Fund {
 	fundOut := donations.Fund{
-		ID:              fund.ID,
-		Name:            fund.Name,
-		Description:     fund.Description,
-		ProviderName:    fund.ProviderName,
-		ProviderID:      fund.ProviderID,
-		Active:          fund.Active,
-		PayoutFrequency: donations.PayoutFrequency(fund.PayoutFrequency),
-		NextPayment:     fund.NextPayment.Time,
-		GoalCents:       fund.GoalCents.Int32,
-		Created:         fund.Created.Time,
-		Updated:         fund.Updated.Time,
-		Principal:       fund.Principal,
+		ID:               fund.ID,
+		Name:             fund.Name,
+		Description:      fund.Description,
+		ProviderName:     fund.ProviderName,
+		ProviderID:       fund.ProviderID,
+		Active:           fund.Active,
+		PayoutFrequency:  donations.PayoutFrequency(fund.PayoutFrequency),
+		EnrolleesVisible: fund.EnrolleesVisible,
+		NextPayment:      fund.NextPayment.Time,
+		GoalCents:        fund.GoalCents.Int32,
+		Created:          fund.Created.Time,
+		Updated:          fund.Updated.Time,
+		Principal:        fund.Principal,
 		Stats: donations.FundStats{
 			TotalDonated:    fund.TotalDonated.Int32,
 			TotalDonations:  int32(fund.TotalDonations.Int64),
@@ -66,18 +68,19 @@ func fromDBFundByID(fund db.GetFundByIdRow) donations.Fund {
 
 func fromDBFund(fund db.Fund) donations.Fund {
 	fundOut := donations.Fund{
-		ID:              fund.ID,
-		Name:            fund.Name,
-		Description:     fund.Description,
-		ProviderName:    fund.ProviderName,
-		ProviderID:      fund.ProviderID,
-		Active:          fund.Active,
-		PayoutFrequency: donations.PayoutFrequency(fund.PayoutFrequency),
-		NextPayment:     fund.NextPayment.Time,
-		GoalCents:       fund.GoalCents.Int32,
-		Created:         fund.Created.Time,
-		Updated:         fund.Updated.Time,
-		Principal:       fund.Principal,
+		ID:               fund.ID,
+		Name:             fund.Name,
+		Description:      fund.Description,
+		ProviderName:     fund.ProviderName,
+		ProviderID:       fund.ProviderID,
+		Active:           fund.Active,
+		PayoutFrequency:  donations.PayoutFrequency(fund.PayoutFrequency),
+		EnrolleesVisible: fund.EnrolleesVisible,
+		NextPayment:      fund.NextPayment.Time,
+		GoalCents:        fund.GoalCents.Int32,
+		Created:          fund.Created.Time,
+		Updated:          fund.Updated.Time,
+		Principal:        fund.Principal,
 	}
 
 	if !fund.Expires.Time.IsZero() {
@@ -135,6 +138,10 @@ func toDBFundUpdateParams(fund donations.UpdateFund) db.UpdateFundParams {
 		},
 		PayoutFrequency: db.PayoutFrequency(fund.PayoutFrequency),
 		Principal:       fund.Principal,
+		// Passed through rather than left to its zero value: UpdateFund sets the
+		// column unconditionally, so an unset field here would turn recipient
+		// names off on every save of anything else on the fund.
+		EnrolleesVisible: fund.EnrolleesVisible,
 	}
 
 	if fund.Expires != nil {
@@ -289,18 +296,19 @@ func toDBUpdatePaymentPaypalFeeParams(arg donations.UpdatePaymentPaypalFee) db.U
 
 func fromDBAllFundsRow(fund db.GetAllFundsWithStatsRow) donations.Fund {
 	fundOut := donations.Fund{
-		ID:              fund.ID,
-		Name:            fund.Name,
-		Description:     fund.Description,
-		ProviderName:    fund.ProviderName,
-		ProviderID:      fund.ProviderID,
-		Active:          fund.Active,
-		PayoutFrequency: donations.PayoutFrequency(fund.PayoutFrequency),
-		NextPayment:     fund.NextPayment.Time,
-		GoalCents:       fund.GoalCents.Int32,
-		Created:         fund.Created.Time,
-		Updated:         fund.Updated.Time,
-		Principal:       fund.Principal,
+		ID:               fund.ID,
+		Name:             fund.Name,
+		Description:      fund.Description,
+		ProviderName:     fund.ProviderName,
+		ProviderID:       fund.ProviderID,
+		Active:           fund.Active,
+		PayoutFrequency:  donations.PayoutFrequency(fund.PayoutFrequency),
+		EnrolleesVisible: fund.EnrolleesVisible,
+		NextPayment:      fund.NextPayment.Time,
+		GoalCents:        fund.GoalCents.Int32,
+		Created:          fund.Created.Time,
+		Updated:          fund.Updated.Time,
+		Principal:        fund.Principal,
 		Stats: donations.FundStats{
 			TotalDonated:    fund.TotalDonated.Int32,
 			TotalDonations:  int32(fund.TotalDonations.Int64),
@@ -318,18 +326,19 @@ func fromDBAllFundsRow(fund db.GetAllFundsWithStatsRow) donations.Fund {
 
 func fromDBClosedFundRow(fund db.GetClosedFundsWithStatsRow) donations.ClosedFund {
 	fundOut := donations.Fund{
-		ID:              fund.ID,
-		Name:            fund.Name,
-		Description:     fund.Description,
-		ProviderName:    fund.ProviderName,
-		ProviderID:      fund.ProviderID,
-		Active:          fund.Active,
-		PayoutFrequency: donations.PayoutFrequency(fund.PayoutFrequency),
-		NextPayment:     fund.NextPayment.Time,
-		GoalCents:       fund.GoalCents.Int32,
-		Created:         fund.Created.Time,
-		Updated:         fund.Updated.Time,
-		Principal:       fund.Principal,
+		ID:               fund.ID,
+		Name:             fund.Name,
+		Description:      fund.Description,
+		ProviderName:     fund.ProviderName,
+		ProviderID:       fund.ProviderID,
+		Active:           fund.Active,
+		PayoutFrequency:  donations.PayoutFrequency(fund.PayoutFrequency),
+		EnrolleesVisible: fund.EnrolleesVisible,
+		NextPayment:      fund.NextPayment.Time,
+		GoalCents:        fund.GoalCents.Int32,
+		Created:          fund.Created.Time,
+		Updated:          fund.Updated.Time,
+		Principal:        fund.Principal,
 		Stats: donations.FundStats{
 			TotalDonated:    fund.TotalDonated.Int32,
 			TotalDonations:  int32(fund.TotalDonations.Int64),

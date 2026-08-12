@@ -695,13 +695,14 @@ func (s DonationService) UpdateFund(ctx context.Context, updateFund Fund, actorI
 	changes := describeFundChanges(*current, updateFund)
 
 	update := UpdateFund{
-		ID:              updateFund.ID,
-		Name:            updateFund.Name,
-		Description:     updateFund.Description,
-		Active:          updateFund.Active,
-		GoalCents:       updateFund.GoalCents,
-		PayoutFrequency: string(updateFund.PayoutFrequency),
-		Expires:         updateFund.Expires,
+		ID:               updateFund.ID,
+		Name:             updateFund.Name,
+		Description:      updateFund.Description,
+		Active:           updateFund.Active,
+		GoalCents:        updateFund.GoalCents,
+		PayoutFrequency:  string(updateFund.PayoutFrequency),
+		Expires:          updateFund.Expires,
+		EnrolleesVisible: updateFund.EnrolleesVisible,
 	}
 
 	fund, err := s.donationStore.UpdateFund(ctx, update)
@@ -758,6 +759,16 @@ func describeFundChanges(before, after Fund) string {
 	if before.PayoutFrequency != after.PayoutFrequency {
 		changes = append(changes, fmt.Sprintf("payouts %s to %s",
 			before.PayoutFrequency, after.PayoutFrequency))
+	}
+
+	// Worth its own line in the feed rather than a generic "details changed":
+	// this is the switch that puts recipients' names on a page donors read.
+	if before.EnrolleesVisible != after.EnrolleesVisible {
+		if after.EnrolleesVisible {
+			changes = append(changes, "recipient names shown to donors")
+		} else {
+			changes = append(changes, "recipient names hidden from donors")
+		}
 	}
 
 	if !sameDay(before.Expires, after.Expires) {

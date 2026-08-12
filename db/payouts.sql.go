@@ -25,7 +25,7 @@ SET next_payment = CASE
     END,
     updated      = now()
 WHERE id = $1
-RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated
+RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated, enrollees_visible
 `
 
 // Moves the fund to its next scheduled payout, anchored on the existing date
@@ -60,6 +60,7 @@ func (q *Queries) AdvanceFundNextPayment(ctx context.Context, id uuid.UUID) (Fun
 		&i.NextPayment,
 		&i.Created,
 		&i.Updated,
+		&i.EnrolleesVisible,
 	)
 	return i, err
 }
