@@ -210,6 +210,14 @@ SELECT (COALESCE((SELECT SUM(dp.amount_cents - dp.refunded_cents - dp.provider_f
                 FROM payout
                          JOIN batch_payout ON batch_payout.id = payout.batch_id
                 WHERE batch_payout.fund_id = $1
+                  -- A cancelled batch is one a treasurer rejected or nobody
+                  -- approved in time. It will never be sent, so its money was
+                  -- never committed -- but cancelling a batch does not touch the
+                  -- payout rows under it, which stay 'planned' and were still
+                  -- being counted. The fund's balance therefore fell by the value
+                  -- of every batch that came to nothing, permanently, and the
+                  -- money could never be paid out by a later one.
+                  AND batch_payout.status <> 'cancelled'
                   AND payout.status NOT IN ('failed', 'cancelled', 'returned')), 0))::bigint
            AS available_cents;
 
@@ -323,3 +331,28 @@ FROM payout
          JOIN batch_payout ON batch_payout.id = payout.batch_id
 WHERE batch_payout.fund_id = $1
   AND batch_payout.status IN ('awaiting_approval', 'ready');
+
+-- Puts a one-off fund's payout back on the schedule after its batch came to
+-- nothing.
+--
+-- The planner clears next_payment as soon as a batch exists, before any money
+-- moves. A rejected batch, or one nobody approved in time, therefore left a
+-- 'once' fund with no anchor: the planner never picks it up again, and
+-- GetExpiredActiveFunds reads the NULL as "the payout has been dealt with" and
+-- closes the fund on its balance.
+--
+-- Restored to expires, which is where InsertFund put it and is in the past by
+-- the time any of this happens, so the next run finds the fund due and plans a
+-- fresh batch.
+--
+-- Only for 'once'. A recurring fund's anchor has already moved to the next
+-- period and its money rolls into that payout, so there is nothing to put back.
+-- Only when it is NULL, so a fund that has since been re-planned is left alone.
+-- name: RequeueOneTimeFundPayout :execrows
+UPDATE fund
+SET next_payment = expires,
+    updated      = now()
+WHERE id = $1
+  AND payout_frequency = 'once'
+  AND next_payment IS NULL
+  AND expires IS NOT NULL;

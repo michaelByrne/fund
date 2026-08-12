@@ -838,6 +838,14 @@ func (h *AdminHandlers) createFund(w http.ResponseWriter, r *http.Request) {
 
 	newFund, err := h.donationService.CreateFund(ctx, createFund, &actor.ID)
 	if err != nil {
+		// The admin can fix this, and it is the one refusal here that is about
+		// what they typed rather than about something going wrong.
+		if errors.Is(err, donations.ErrOneTimeFundNeedsEndDate) {
+			h.badRequest(w, r, err.Error()+".")
+
+			return
+		}
+
 		h.internalError(w, r)
 
 		return
@@ -1205,6 +1213,12 @@ func (h *AdminHandlers) saveFundDetails(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		if errors.Is(err, donations.ErrFundClosed) {
 			h.badDetails(w, r, fundID, "this fund is closed. nothing about it can be changed.")
+
+			return
+		}
+
+		if errors.Is(err, donations.ErrOneTimeFundNeedsEndDate) {
+			h.badDetails(w, r, fundID, err.Error()+".")
 
 			return
 		}

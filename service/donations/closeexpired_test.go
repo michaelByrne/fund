@@ -137,3 +137,111 @@ func TestCloseExpiredFunds(t *testing.T) {
 		assert.True(t, isActive(t, "provider-down"))
 	})
 }
+
+// Expiry is one date doing two jobs on a one-off fund: pay out, and close. Two
+// crons run those, so without a guard the closure can win -- and a closed fund is
+// skipped by the planner, which strands the donations it collected.
+func TestAOneTimeFundIsNotClosedBeforeItPays(t *testing.T) {
+	ctx := context.Background()
+
+	container, pool, err := pg.SetupTestDatabase()
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = container.Terminate(ctx) })
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	provider := mocks.PaymentsProviderMock{}
+	provider.CreateFundFunc = func(context.Context, string, string) (string, error) {
+		return uuid.NewString(), nil
+	}
+	provider.CancelSubscriptionsFunc = func(_ context.Context, ids []string) ([]string, error) {
+		return ids, nil
+	}
+
+	svc := donations.NewDonationService(
+		donationsstore.NewDonationStore(pool), stubDocumentStorage{}, newFakeBucket(),
+		&provider, fundevents.NewService(fundeventstore.NewEventStore(pool), logger),
+		[]string{"payments"}, logger,
+	)
+
+	expired := func(t *testing.T, name string, frequency donations.PayoutFrequency) uuid.UUID {
+		t.Helper()
+
+		end := time.Now().AddDate(0, 0, 30)
+
+		fund, errCreate := svc.CreateFund(ctx, donations.Fund{
+			Name: name, Description: "d", Active: true,
+			PayoutFrequency: frequency, Expires: &end,
+		}, nil)
+		require.NoError(t, errCreate)
+
+		// Pushed into the past directly, rather than creating with a past date:
+		// next_payment is anchored at insert and this leaves that relationship
+		// intact while making the fund due.
+		_, errExpire := pool.Exec(ctx,
+			`UPDATE fund SET expires = now() - INTERVAL '1 hour' WHERE id = $1`, fund.ID)
+		require.NoError(t, errExpire)
+
+		return fund.ID
+	}
+
+	listed := func(t *testing.T, fundID uuid.UUID) bool {
+		t.Helper()
+
+		found, errList := svc.ListExpiredOpenFunds(ctx)
+		require.NoError(t, errList)
+
+		for _, fund := range found {
+			if fund.ID == fundID {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	t.Run("a payout still owed keeps the fund open", func(t *testing.T) {
+		fundID := expired(t, "once-owed", donations.PayoutFrequencyOnce)
+
+		assert.False(t, listed(t, fundID),
+			"closing it now would strand whatever it collected")
+
+		closed, errClose := svc.CloseExpiredFunds(ctx)
+		require.NoError(t, errClose)
+		assert.Equal(t, 0, closed)
+	})
+
+	// next_payment IS NULL is what "the payout has been dealt with" looks like:
+	// the planner nulls it for a 'once' fund once a batch exists, and also when
+	// there was nobody payable to plan for.
+	t.Run("once the payout is dealt with it closes", func(t *testing.T) {
+		fundID := expired(t, "once-paid-then-closed", donations.PayoutFrequencyOnce)
+
+		_, errNull := pool.Exec(ctx, `UPDATE fund SET next_payment = NULL WHERE id = $1`, fundID)
+		require.NoError(t, errNull)
+
+		assert.True(t, listed(t, fundID))
+
+		closed, errClose := svc.CloseExpiredFunds(ctx)
+		require.NoError(t, errClose)
+		assert.GreaterOrEqual(t, closed, 1)
+
+		var active bool
+		require.NoError(t, pool.QueryRow(ctx,
+			`SELECT active FROM fund WHERE id = $1`, fundID).Scan(&active))
+		assert.False(t, active)
+	})
+
+	// A recurring fund always has a next_payment, so the guard must not apply to
+	// it -- otherwise no monthly fund would ever close on its end date.
+	t.Run("a recurring fund still closes on its end date", func(t *testing.T) {
+		fundID := expired(t, "monthly-closes", donations.PayoutFrequencyMonthly)
+
+		assert.True(t, listed(t, fundID), "a monthly fund always has a next payment")
+
+		closed, errClose := svc.CloseExpiredFunds(ctx)
+		require.NoError(t, errClose)
+		assert.GreaterOrEqual(t, closed, 1)
+	})
+}

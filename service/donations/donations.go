@@ -626,6 +626,12 @@ func (s DonationService) CompleteDonation(ctx context.Context, memberID uuid.UUI
 // from a future script or a seed has nobody to attribute it to, and a zero uuid
 // would fail fund_event's foreign key to member.
 func (s DonationService) CreateFund(ctx context.Context, createFund Fund, actorID *uuid.UUID) (*Fund, error) {
+	// Before the provider, so a refused fund does not leave an orphaned product
+	// in PayPal's catalogue for something that was never created here.
+	if err := checkPayoutSchedule(createFund); err != nil {
+		return nil, err
+	}
+
 	providerID, err := s.paymentsProvider.CreateFund(ctx, createFund.Name, createFund.Description)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to create fund with provider", slog.String("error", err.Error()))
@@ -688,6 +694,13 @@ func (s DonationService) UpdateFund(ctx context.Context, updateFund Fund, actorI
 
 	if current.Closed() {
 		return nil, ErrFundClosed
+	}
+
+	// The same rule on the way through as at creation. Clearing the end date of a
+	// one-off fund would leave it with a payout date it can never reach, which is
+	// the state creation refuses.
+	if err = checkPayoutSchedule(updateFund); err != nil {
+		return nil, err
 	}
 
 	// Computed against what is stored, before the write. Afterwards the previous
@@ -977,4 +990,18 @@ func (s DonationService) GetClosedFund(ctx context.Context, fundID uuid.UUID) (*
 	}
 
 	return &ClosedFund{Fund: *fund, Payouts: stats}, nil
+}
+
+// checkPayoutSchedule refuses a fund whose frequency and end date cannot produce
+// a payout.
+//
+// One rule so far, and it belongs here rather than at the form: the form is a
+// courtesy, and the route is reachable without it. See
+// ErrOneTimeFundNeedsEndDate for why the combination is unpayable.
+func checkPayoutSchedule(fund Fund) error {
+	if !fund.PayoutFrequency.Recurring() && fund.Expires == nil {
+		return ErrOneTimeFundNeedsEndDate
+	}
+
+	return nil
 }

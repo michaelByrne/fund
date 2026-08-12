@@ -68,6 +68,13 @@ templ AddFund() {
 				</select>
 				<label for="date" class="col-span-1 text-left">end date</label>
 				<input type="date" name="date" id="date" class="col-span-2 w-full pl-1 text-sm border border-slate-300 shadow-sm"/>
+				// A one-off fund pays out on its end date, so without one it would
+				// collect donations and never pay any of them out. Said here as well as
+				// refused by the service, because being told after filling the form in
+				// is a worse way to learn it.
+				<span class="col-span-3 text-xs text-gray-600">
+					a fund that pays out once needs an end date -- that is the day it pays.
+				</span>
 				// Here rather than only on the fund's own page. The picture is the
 				// largest thing about a fund on the site now -- the front page draws it
 				// beside the name -- so it belongs where the fund is described, not as

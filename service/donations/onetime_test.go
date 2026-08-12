@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"boardfund/pg"
 	"boardfund/service/donations"
@@ -44,10 +45,14 @@ func TestOneTimeDonationsAreVerifiedWithTheProvider(t *testing.T) {
 
 		svc := donations.NewDonationService(store, stubDocumentStorage{}, newFakeBucket(), provider, events, []string{"payments"}, logger)
 
+		// A one-off fund pays out on its end date, so it has to have one.
+		endDate := time.Now().Add(30 * 24 * time.Hour)
+
 		fund, errFund := svc.CreateFund(ctx, donations.Fund{
 			Name:            uuid.NewString(),
 			Description:     "d",
 			PayoutFrequency: donations.PayoutFrequencyOnce,
+			Expires:         &endDate,
 		}, nil)
 		require.NoError(t, errFund)
 
