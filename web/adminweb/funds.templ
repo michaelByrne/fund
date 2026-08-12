@@ -75,6 +75,19 @@ templ AddFund() {
 				<span class="col-span-3 text-xs text-gray-600">
 					a fund that pays out once needs an end date -- that is the day it pays.
 				</span>
+				// The same setting as the fund details card, offered here as well so a
+				// fund whose recipients have agreed to be named does not spend its first
+				// moments not naming them. Unticked by default, like the column.
+				<label class="col-span-3 flex items-start gap-2 text-xs">
+					<input type="checkbox" name="show_recipients" value="true" class="mt-0.5"/>
+					<span>
+						show this fund's recipients to donors.
+						<span class="text-gray-600">
+							their bco names appear on the fund page and its archive. leave this off
+							unless the people enrolled are happy to be named.
+						</span>
+					</span>
+				</label>
 				// Here rather than only on the fund's own page. The picture is the
 				// largest thing about a fund on the site now -- the front page draws it
 				// beside the name -- so it belongs where the fund is described, not as

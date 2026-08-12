@@ -341,16 +341,17 @@ func lastDayOfMonth(t time.Time) int {
 }
 
 type InsertFund struct {
-	ID              uuid.UUID
-	Name            string
-	Description     string
-	ProviderID      string
-	Active          bool
-	ProviderName    string
-	GoalCents       int32
-	PayoutFrequency string
-	Expires         *time.Time
-	Principal       uuid.NullUUID
+	ID               uuid.UUID
+	Name             string
+	Description      string
+	ProviderID       string
+	Active           bool
+	ProviderName     string
+	GoalCents        int32
+	PayoutFrequency  string
+	Expires          *time.Time
+	Principal        uuid.NullUUID
+	EnrolleesVisible bool
 }
 
 type UpdateFund struct {

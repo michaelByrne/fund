@@ -194,3 +194,32 @@ func TestNameAndFrequencyAreShownLocked(t *testing.T) {
 	// ignore -- it ignores them anyway, and the two agree.
 	require.NotContains(t, html, "is once. neither")
 }
+
+// The create form offers the same setting as the details card, so a fund whose
+// recipients have agreed to be named does not spend its first moments not naming
+// them.
+func TestTheCreateFormOffersRecipientVisibility(t *testing.T) {
+	var out strings.Builder
+
+	if err := AddFund().Render(context.Background(), &out); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	form := out.String()
+
+	if !strings.Contains(form, `name="show_recipients"`) {
+		t.Errorf("the create form should offer the setting:\n%s", form)
+	}
+
+	// Unticked, matching the column default. A checked box here would mean every
+	// fund created from this form names its recipients by accident.
+	if strings.Contains(form, `name="show_recipients" value="true" checked`) {
+		t.Error("the box should start unticked")
+	}
+
+	// Named the same way as on the details card, so the two are recognisably one
+	// setting rather than two that happen to look alike.
+	if !strings.Contains(form, "show this fund's recipients to donors") {
+		t.Error("the create form and the details card should use the same words")
+	}
+}

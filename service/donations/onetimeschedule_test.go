@@ -197,3 +197,88 @@ func fundNamed(t *testing.T, ctx context.Context, pool *pgxpool.Pool, name strin
 
 	return ids
 }
+
+// The setting is chosen when a fund is created, not only afterwards. It used to
+// be editable only from the details card, so a fund whose recipients had agreed
+// to be named still spent its first moments not naming them.
+func TestAFundCanNameItsRecipientsFromTheStart(t *testing.T) {
+	ctx := context.Background()
+
+	container, pool, err := pg.SetupTestDatabase()
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = container.Terminate(ctx) })
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	provider := mocks.PaymentsProviderMock{}
+	provider.CreateFundFunc = func(context.Context, string, string) (string, error) {
+		return uuid.NewString(), nil
+	}
+
+	events := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
+	svc := donations.NewDonationService(
+		donationsstore.NewDonationStore(pool), stubDocumentStorage{}, newFakeBucket(),
+		&provider, events, []string{"payments"}, logger,
+	)
+
+	create := func(t *testing.T, name string, visible bool) *donations.Fund {
+		t.Helper()
+
+		fund, errCreate := svc.CreateFund(ctx, donations.Fund{
+			Name: name, Description: "d", Active: true,
+			PayoutFrequency:  donations.PayoutFrequencyMonthly,
+			EnrolleesVisible: visible,
+		}, nil)
+		require.NoError(t, errCreate)
+
+		return fund
+	}
+
+	t.Run("the setting is stored, not dropped on the way in", func(t *testing.T) {
+		fund := create(t, "named-from-the-start", true)
+
+		assert.True(t, fund.EnrolleesVisible)
+
+		// Read back, because the insert adapter is where this would be lost --
+		// the column has a default of false and would have quietly supplied it.
+		stored, errRead := svc.GetFundByID(ctx, fund.ID)
+		require.NoError(t, errRead)
+		assert.True(t, stored.EnrolleesVisible)
+	})
+
+	// Unticked is the default, and a checkbox submits nothing when unticked.
+	t.Run("a fund created without it does not name anybody", func(t *testing.T) {
+		fund := create(t, "unnamed-from-the-start", false)
+
+		stored, errRead := svc.GetFundByID(ctx, fund.ID)
+		require.NoError(t, errRead)
+		assert.False(t, stored.EnrolleesVisible)
+	})
+
+	// A fund created already naming people is worth seeing in the history.
+	t.Run("creating one that names recipients says so in the feed", func(t *testing.T) {
+		fund := create(t, "named-and-recorded", true)
+
+		recorded, errEvents := events.GetFundEvents(ctx, fund.ID, fundevents.DefaultLimit)
+		require.NoError(t, errEvents)
+		require.NotEmpty(t, recorded)
+
+		created := recorded[len(recorded)-1]
+
+		require.Equal(t, fundevents.KindFundCreated, created.Kind)
+		assert.Contains(t, created.Detail, "monthly")
+		assert.Contains(t, created.Detail, "recipient names shown to donors")
+	})
+
+	// And the phrase stays off every other fund, or it becomes one readers skip.
+	t.Run("an ordinary fund's line is not cluttered with it", func(t *testing.T) {
+		fund := create(t, "ordinary-line", false)
+
+		recorded, errEvents := events.GetFundEvents(ctx, fund.ID, fundevents.DefaultLimit)
+		require.NoError(t, errEvents)
+		require.NotEmpty(t, recorded)
+
+		assert.Equal(t, "monthly", recorded[len(recorded)-1].Detail)
+	})
+}

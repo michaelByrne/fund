@@ -110,8 +110,9 @@ func toDBFundInsertParams(fund donations.InsertFund) db.InsertFundParams {
 			Int32: fund.GoalCents,
 			Valid: true,
 		},
-		PayoutFrequency: db.PayoutFrequency(fund.PayoutFrequency),
-		Principal:       fund.Principal,
+		PayoutFrequency:  db.PayoutFrequency(fund.PayoutFrequency),
+		EnrolleesVisible: fund.EnrolleesVisible,
+		Principal:        fund.Principal,
 	}
 
 	if fund.Expires != nil {
