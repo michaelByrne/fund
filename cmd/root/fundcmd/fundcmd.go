@@ -123,7 +123,7 @@ func build(runConfig *root.RunConfig) (*donations.DonationService, error) {
 	)
 	tokenStore := token.NewStore(tokenClient)
 	paypalClient := paypal.NewClient(tokenStore, logger, runConfig.PayPal.BaseURL)
-	paypalService := paypal.NewPaypal(paypalClient, runConfig.PayPal.ProductID)
+	paypalService := paypal.NewPaypal(paypalClient)
 
 	// Reports are an S3 concern the closer never reaches, but the service needs a
 	// document store to construct.

@@ -13,14 +13,12 @@ import (
 )
 
 type Paypal struct {
-	client    *Client
-	productID string
+	client *Client
 }
 
-func NewPaypal(client *Client, productID string) *Paypal {
+func NewPaypal(client *Client) *Paypal {
 	return &Paypal{
-		productID: productID,
-		client:    client,
+		client: client,
 	}
 }
 
@@ -42,6 +40,18 @@ func (p Paypal) CancelSubscriptions(ctx context.Context, ids []string) ([]string
 	return cancelledIDs, nil
 }
 
+// CreateFund registers the fund with PayPal as a catalog product, and returns
+// the id it was given.
+//
+// One product per fund, not one for the whole application. That id becomes
+// fund.provider_id, and CreatePlan hangs each recurring donation amount off it
+// as a billing plan -- so a fund's subscriptions are grouped under the fund
+// rather than all under a single account-wide product.
+//
+// This is why there is no product to create by hand and no product id to
+// configure. There used to be a DEV_PAYPAL_PRODUCT_ID and a
+// PROD_PAYPAL_PRODUCT_ID; both were required at boot, threaded through four
+// constructors, and read by nothing.
 func (p Paypal) CreateFund(ctx context.Context, name, description string) (string, error) {
 	payload := CreateProduct{
 		Name:        name,

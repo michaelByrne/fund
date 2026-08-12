@@ -70,7 +70,7 @@ func noteRig(t *testing.T) (func(fundID, form string) *httptest.ResponseRecorder
 		events,
 		sessions,
 		func(next http.HandlerFunc) http.HandlerFunc { return next },
-		logger, "product", "client",
+		logger, "client",
 	)
 
 	memberID := uuid.New()

@@ -62,7 +62,6 @@ type PayPalConfig struct {
 	ClientSecret string
 	BaseURL      string
 	WebhookID    string
-	ProductID    string
 }
 
 type RunConfig struct {
@@ -153,7 +152,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	)
 	tokenStore := token.NewStore(tokenClient)
 	paypalClient := paypal.NewClient(tokenStore, logger, runConfig.PayPal.BaseURL)
-	paypalService := paypal.NewPaypal(paypalClient, runConfig.PayPal.ProductID)
+	paypalService := paypal.NewPaypal(paypalClient)
 
 	pool, err := pg.GetDBPool(dbURI)
 	if err != nil {
@@ -256,7 +255,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 	// Handlers setup
 	donationHandlers := homeweb.NewFundHandlers(
 		donationService, fundEvents, sessionManager, authMiddleware, logger,
-		runConfig.PayPal.ProductID, runConfig.PayPal.ClientID,
+		runConfig.PayPal.ClientID,
 	)
 	authHandlers := authweb.NewAuthHandlers(authService, memberService, sessionManager, runConfig.PayPal.ClientID, runConfig.IsLive)
 	adminHandlers := adminweb.NewAdminHandlers(

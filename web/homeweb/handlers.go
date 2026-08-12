@@ -39,7 +39,6 @@ type FundHandlers struct {
 	sessionManager  *scs.SessionManager
 	withAuth        func(http.HandlerFunc) http.HandlerFunc
 	logger          *slog.Logger
-	productID       string
 	clientID        string
 }
 
@@ -49,7 +48,7 @@ func NewFundHandlers(
 	sessionManager *scs.SessionManager,
 	withAuth func(http.HandlerFunc) http.HandlerFunc,
 	logger *slog.Logger,
-	productID, clientID string,
+	clientID string,
 ) *FundHandlers {
 	return &FundHandlers{
 		donationService: donationService,
@@ -57,7 +56,6 @@ func NewFundHandlers(
 		sessionManager:  sessionManager,
 		withAuth:        withAuth,
 		logger:          logger,
-		productID:       productID,
 		clientID:        clientID,
 	}
 }

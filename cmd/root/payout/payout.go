@@ -72,7 +72,7 @@ func build(runConfig *root.RunConfig) (*deps, error) {
 	)
 	tokenStore := token.NewStore(tokenClient)
 	paypalClient := paypal.NewClient(tokenStore, logger, runConfig.PayPal.BaseURL)
-	paypalService := paypal.NewPaypal(paypalClient, runConfig.PayPal.ProductID)
+	paypalService := paypal.NewPaypal(paypalClient)
 
 	store := payoutstore.NewPayoutStore(pool)
 	fundEvents := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
