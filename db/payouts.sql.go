@@ -536,6 +536,45 @@ func (q *Queries) GetDetailedBatchPayoutsByStatus(ctx context.Context, status Pa
 	return items, nil
 }
 
+const getEnrollmentsInUnsentBatches = `-- name: GetEnrollmentsInUnsentBatches :many
+SELECT DISTINCT payout.fund_enrollment_id
+FROM payout
+         JOIN batch_payout ON batch_payout.id = payout.batch_id
+WHERE batch_payout.fund_id = $1
+  AND batch_payout.status IN ('awaiting_approval', 'ready')
+`
+
+// Enrollments named by a batch that has been planned but not yet sent.
+//
+// Removing a member sets fund_enrollment.active = false, and every later plan
+// skips them. It does nothing to a batch already planned: SubmitBatch reads the
+// payout rows by batch id, and those froze the amount and the address when the
+// batch was built. So an admin who removes somebody while a batch is awaiting
+// approval is not stopping their payment, and this is what lets the page say so.
+//
+// Only the statuses that have not reached the provider. Once a batch is
+// submitted the money has gone and removing the member cannot affect it, so
+// warning about it would be noise.
+func (q *Queries) GetEnrollmentsInUnsentBatches(ctx context.Context, fundID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, getEnrollmentsInUnsentBatches, fundID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var fund_enrollment_id uuid.UUID
+		if err := rows.Scan(&fund_enrollment_id); err != nil {
+			return nil, err
+		}
+		items = append(items, fund_enrollment_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getFundBalanceCents = `-- name: GetFundBalanceCents :one
 SELECT (COALESCE((SELECT SUM(dp.amount_cents - dp.refunded_cents - dp.provider_fee_cents)
                   FROM donation

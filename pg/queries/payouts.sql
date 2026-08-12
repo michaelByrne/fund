@@ -305,3 +305,21 @@ FROM batch_payout bp
 WHERE bp.status = $1
 GROUP BY bp.id, f.name
 ORDER BY bp.payout_date;
+
+-- Enrollments named by a batch that has been planned but not yet sent.
+--
+-- Removing a member sets fund_enrollment.active = false, and every later plan
+-- skips them. It does nothing to a batch already planned: SubmitBatch reads the
+-- payout rows by batch id, and those froze the amount and the address when the
+-- batch was built. So an admin who removes somebody while a batch is awaiting
+-- approval is not stopping their payment, and this is what lets the page say so.
+--
+-- Only the statuses that have not reached the provider. Once a batch is
+-- submitted the money has gone and removing the member cannot affect it, so
+-- warning about it would be noise.
+-- name: GetEnrollmentsInUnsentBatches :many
+SELECT DISTINCT payout.fund_enrollment_id
+FROM payout
+         JOIN batch_payout ON batch_payout.id = payout.batch_id
+WHERE batch_payout.fund_id = $1
+  AND batch_payout.status IN ('awaiting_approval', 'ready');

@@ -117,6 +117,10 @@ func (s PayoutStore) GetEnrollmentsForPayout(ctx context.Context, fundID uuid.UU
 	return pg.FetchMany(ctx, fundID, s.queries.GetActiveEnrollmentsForPayout, uuidIdentity, fromDBPayoutEnrollment)
 }
 
+func (s PayoutStore) GetEnrollmentsInUnsentBatches(ctx context.Context, fundID uuid.UUID) ([]uuid.UUID, error) {
+	return s.queries.GetEnrollmentsInUnsentBatches(ctx, fundID)
+}
+
 func (s PayoutStore) ApproveBatch(ctx context.Context, arg payouts.ApproveBatch) (*payouts.Batch, error) {
 	return pg.UpdateOne(ctx, arg, s.queries.ApproveBatchPayout, toDBApproveBatchParams, fromDBBatch)
 }
