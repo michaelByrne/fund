@@ -75,12 +75,21 @@ func TestAOneTimeFundPaysOutOnItsEndDate(t *testing.T) {
 	// set -- so the fund would take donations forever and pay out none of them,
 	// with nothing anywhere saying so.
 	t.Run("a one-time fund without an end date is refused", func(t *testing.T) {
+		// Counted rather than compared to zero: the mock accumulates across the
+		// subtests above, and what matters is that this call added nothing.
+		before := len(provider.CreateFundCalls())
+
 		_, errCreate := create(t, "once-undated", donations.PayoutFrequencyOnce, nil)
 
 		assert.ErrorIs(t, errCreate, donations.ErrOneTimeFundNeedsEndDate)
 
 		// Refused before the provider, so no orphaned catalogue product is left
-		// behind for a fund that was never created.
+		// behind for a fund that was never created. Asserted against the provider
+		// rather than against the table: moving the check to after CreateFund and
+		// before InsertFund would leave the product behind and still insert no row,
+		// which a row count alone cannot tell apart.
+		assert.Len(t, provider.CreateFundCalls(), before,
+			"a refused fund should not have reached paypal")
 		assert.Empty(t, fundNamed(t, ctx, pool, "once-undated"))
 	})
 

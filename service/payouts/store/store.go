@@ -117,6 +117,17 @@ func (s PayoutStore) GetEnrollmentsForPayout(ctx context.Context, fundID uuid.UU
 	return pg.FetchMany(ctx, fundID, s.queries.GetActiveEnrollmentsForPayout, uuidIdentity, fromDBPayoutEnrollment)
 }
 
+func (s PayoutStore) RequeueOneTimeFundPayout(ctx context.Context, fundID uuid.UUID) (bool, error) {
+	rows, err := s.queries.RequeueOneTimeFundPayout(ctx, fundID)
+	if err != nil {
+		return false, err
+	}
+
+	// Whether a row moved, so the caller can say so rather than logging a requeue
+	// for every recurring fund whose batch was rejected.
+	return rows > 0, nil
+}
+
 func (s PayoutStore) GetEnrollmentsInUnsentBatches(ctx context.Context, fundID uuid.UUID) ([]uuid.UUID, error) {
 	return s.queries.GetEnrollmentsInUnsentBatches(ctx, fundID)
 }

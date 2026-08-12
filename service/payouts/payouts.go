@@ -56,6 +56,7 @@ type payoutStore interface {
 	GetPayoutsForBatch(ctx context.Context, batchID uuid.UUID) ([]Payout, error)
 	GetEnrollmentsForPayout(ctx context.Context, fundID uuid.UUID) ([]PayoutEnrollment, error)
 	GetEnrollmentsInUnsentBatches(ctx context.Context, fundID uuid.UUID) ([]uuid.UUID, error)
+	RequeueOneTimeFundPayout(ctx context.Context, fundID uuid.UUID) (bool, error)
 	GetFundsDueForPayout(ctx context.Context) ([]DueFund, error)
 	GetFundBalanceCents(ctx context.Context, fundID uuid.UUID) (int64, error)
 	AdvanceFundNextPayment(ctx context.Context, fundID uuid.UUID) error
@@ -310,7 +311,40 @@ func (s PayoutService) RejectBatch(ctx context.Context, batchID uuid.UUID, reaso
 
 	s.logger.InfoContext(ctx, "batch rejected", slog.String("batch_id", batch.ID.String()), slog.String("reason", reason))
 
+	s.requeueOneTimePayout(ctx, batch.FundID, "rejected")
+
 	return batch, nil
+}
+
+// requeueOneTimePayout puts a one-off fund's payout back on the schedule after
+// its batch came to nothing.
+//
+// The planner clears next_payment as soon as a batch exists, before any money
+// moves, so a rejected or expired batch otherwise leaves a 'once' fund with no
+// anchor -- unplannable, and readable by the expiry job as a payout already
+// dealt with, which closes the fund on its balance.
+//
+// Not fatal, and deliberately after the status change: the rejection is the
+// decision and it has been recorded. A failure here leaves the fund needing a
+// hand, which is what the error line is for.
+func (s PayoutService) requeueOneTimePayout(ctx context.Context, fundID uuid.UUID, why string) {
+	requeued, err := s.payoutStore.RequeueOneTimeFundPayout(ctx, fundID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to requeue a one-time fund's payout",
+			slog.String("error", err.Error()),
+			slog.String("fund_id", fundID.String()),
+			slog.String("reason", why),
+		)
+
+		return
+	}
+
+	if requeued {
+		s.logger.InfoContext(ctx, "one-time fund payout requeued",
+			slog.String("fund_id", fundID.String()),
+			slog.String("reason", why),
+		)
+	}
 }
 
 // SubmitBatch sends an approved batch to the provider. The sender batch ID is
@@ -417,6 +451,8 @@ func (s PayoutService) RunApprovalSweep(ctx context.Context) error {
 			slog.String("fund_id", batch.FundID.String()),
 			slog.Int("amount_cents", int(batch.AmountCents)),
 		)
+
+		s.requeueOneTimePayout(ctx, batch.FundID, "approval window expired")
 	}
 
 	needReminder, err := s.payoutStore.GetBatchesNeedingReminder(ctx, s.reminderWindow)

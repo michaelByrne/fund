@@ -50,10 +50,17 @@ var ErrFundClosed = errors.New("a closed fund cannot be changed")
 
 // ErrOneTimeFundNeedsEndDate refuses a one-off fund with no end date.
 //
-// For that frequency the end date is the payout date -- InsertFund anchors
-// next_payment to it -- so a fund created without one gets a NULL anchor, and
-// GetFundsDueForPayout requires next_payment IS NOT NULL. The fund would collect
-// donations forever and never pay any of them out, with nothing anywhere saying
-// so. Recurring funds are different: their schedule stands on its own and an end
-// date is genuinely optional.
+// For that frequency the end date is the payout date: InsertFund anchors
+// next_payment to it, and that is the only date the fund ever pays on.
+//
+// Leaving it out did not produce a fund that never paid. The
+// before_insert_or_update_fund trigger fills both expires and next_payment one
+// month out when a 'once' fund omits its end date, so the fund had a payout date
+// -- just not one anybody chose, arriving from a database trigger nothing in the
+// application mentions.
+//
+// That is what this refuses. A date that decides when money moves should be
+// picked by the person creating the fund, not defaulted invisibly a layer below
+// the code that reads it. Recurring funds are different: their schedule stands
+// on its own and an end date is genuinely optional.
 var ErrOneTimeFundNeedsEndDate = errors.New("a one-time fund needs an end date, which is when it pays out")

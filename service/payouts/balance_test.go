@@ -3,11 +3,14 @@ package payouts_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"boardfund/pg"
+	"boardfund/service/payouts"
 	payoutstore "boardfund/service/payouts/store"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -138,4 +141,54 @@ func TestFundBalanceIsNetOfFees(t *testing.T) {
 	t.Run("a fund with nothing in it is zero, not an error", func(t *testing.T) {
 		require.Zero(t, balance(t, seedFund(t, ctx, pool)))
 	})
+}
+
+// Cancelling a batch does not touch the payout rows under it: they stay
+// 'planned', and the balance counted them. So the value of every batch that came
+// to nothing was subtracted from the fund permanently, and that money could never
+// be paid out by a later batch.
+//
+// Not a one-off-fund problem. A rejected monthly batch stranded its money the
+// same way; it was only harder to notice, because the fund kept collecting and
+// the shortfall looked like a smaller month.
+func TestACancelledBatchReleasesItsMoney(t *testing.T) {
+	ctx := context.Background()
+
+	container, pool, err := pg.SetupTestDatabase()
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = container.Terminate(ctx) })
+
+	svc := newService(t, pool, &stubProvider{batchID: "PAYPAL-BATCH-BAL"})
+	store := payoutstore.NewPayoutStore(pool)
+
+	balanceOf := func(t *testing.T, fundID uuid.UUID) int64 {
+		t.Helper()
+
+		cents, errBalance := store.GetFundBalanceCents(ctx, fundID)
+		require.NoError(t, errBalance)
+
+		return cents
+	}
+
+	fundID := seedFundWithEnrollees(t, ctx, pool, 2)
+	seedDonation(t, ctx, pool, fundID, 50000)
+
+	before := balanceOf(t, fundID)
+	require.Positive(t, before)
+
+	batch, err := svc.PlanBatch(ctx, payouts.PlanBatch{
+		FundID: fundID, PayoutDate: time.Now(), AmountCents: 10000, RequireApproval: true,
+	})
+	require.NoError(t, err)
+
+	// While the batch is live its money is committed, which is the reason the
+	// payout side of this sum exists at all.
+	assert.Less(t, balanceOf(t, fundID), before, "a live batch holds its money")
+
+	_, err = svc.RejectBatch(ctx, batch.ID, "not like that")
+	require.NoError(t, err)
+
+	assert.Equal(t, before, balanceOf(t, fundID),
+		"a batch that will never be sent commits nothing, so the money comes back")
 }
