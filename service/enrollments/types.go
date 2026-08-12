@@ -87,3 +87,31 @@ type FundEnrollmentExists struct {
 	FundID   uuid.UUID
 	MemberID uuid.UUID
 }
+
+// Recipient is an enrollee as a donor sees them: a name, and nothing else.
+//
+// A separate type rather than a filtered Enrollment, for the same reason
+// fundevents.PublicEvent is one. Enrollment carries PaypalEmail -- the address
+// this person's money goes to -- and no template on a page donors read should be
+// able to reach it, whether by mistake or by a later edit that looks harmless.
+// There is no field here to reach.
+type Recipient struct {
+	Name string
+}
+
+// Recipients projects enrollments for a donor-facing page.
+func Recipients(enrollments []Enrollment) []Recipient {
+	out := make([]Recipient, 0, len(enrollments))
+
+	for _, enrollment := range enrollments {
+		// A member with no bco_name has nothing to show, and a blank row reads as
+		// a rendering fault rather than as somebody unnamed.
+		if enrollment.MemberBCOName == "" {
+			continue
+		}
+
+		out = append(out, Recipient{Name: enrollment.MemberBCOName})
+	}
+
+	return out
+}

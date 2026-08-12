@@ -184,3 +184,79 @@ func TestEditingAFundIsRecorded(t *testing.T) {
 		assert.False(t, strings.Contains(edit.Detail, "utilities"))
 	})
 }
+
+// The switch that puts recipients' names on a page donors read. Three things had
+// to be right: the column round-trips, an unrelated save does not turn it off,
+// and the change is recorded.
+func TestShowingRecipientsIsSavedAndRecorded(t *testing.T) {
+	ctx := context.Background()
+
+	container, pool, err := pg.SetupTestDatabase()
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = container.Terminate(ctx) })
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	provider := mocks.PaymentsProviderMock{}
+	provider.CreateFundFunc = func(context.Context, string, string) (string, error) {
+		return uuid.NewString(), nil
+	}
+
+	events := fundevents.NewService(fundeventstore.NewEventStore(pool), logger)
+	svc := donations.NewDonationService(
+		donationsstore.NewDonationStore(pool), stubDocumentStorage{}, newFakeBucket(),
+		&provider, events, []string{"payments"}, logger,
+	)
+
+	actor := seedTestMember(t, ctx, pool)
+
+	fund, err := svc.CreateFund(ctx, donations.Fund{
+		Name: "recipients-visible", Description: "d", Active: true,
+		PayoutFrequency: donations.PayoutFrequencyMonthly,
+	}, &actor)
+	require.NoError(t, err)
+
+	// Off for a fund nobody has decided about, which is what the column default
+	// and the migration both say.
+	assert.False(t, fund.EnrolleesVisible, "a new fund does not name its recipients")
+
+	shown := *fund
+	shown.EnrolleesVisible = true
+
+	saved, err := svc.UpdateFund(ctx, shown, &actor)
+	require.NoError(t, err)
+	assert.True(t, saved.EnrolleesVisible)
+
+	// Read back, not just returned: the adapter is where this would be dropped.
+	stored, err := svc.GetFundByID(ctx, fund.ID)
+	require.NoError(t, err)
+	assert.True(t, stored.EnrolleesVisible, "the column should have kept the value")
+
+	// UpdateFund sets the column unconditionally, so a save of something else
+	// entirely must not turn it back off.
+	other := *stored
+	other.Description = "an unrelated edit"
+
+	_, err = svc.UpdateFund(ctx, other, &actor)
+	require.NoError(t, err)
+
+	stored, err = svc.GetFundByID(ctx, fund.ID)
+	require.NoError(t, err)
+	assert.True(t, stored.EnrolleesVisible,
+		"editing the description should not stop naming the recipients")
+
+	// And the change itself is in the feed, with its own words rather than a
+	// generic "details changed": this one publishes somebody's name.
+	all, err := events.GetFundEvents(ctx, fund.ID, fundevents.DefaultLimit)
+	require.NoError(t, err)
+
+	var described string
+	for _, event := range all {
+		if event.Kind == fundevents.KindFundUpdated && strings.Contains(event.Detail, "recipient") {
+			described = event.Detail
+		}
+	}
+
+	assert.Contains(t, described, "recipient names shown to donors")
+}

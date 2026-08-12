@@ -1169,6 +1169,11 @@ func (h *AdminHandlers) saveFundDetails(w http.ResponseWriter, r *http.Request) 
 	updated := *fund
 	updated.Description = r.FormValue("description")
 
+	// A checkbox submits nothing when it is unticked, so absence is off. That is
+	// the safe direction: a form that lost the field turns recipient names off
+	// rather than on.
+	updated.EnrolleesVisible = r.FormValue("show_recipients") == "true"
+
 	if goal := r.FormValue("goal"); goal != "" {
 		goalCents, errGoal := dollarStringToCents(goal)
 		if errGoal != nil {

@@ -185,7 +185,7 @@ func TestTheArchivePageNamesNobodyFromTheTimeline(t *testing.T) {
 		{Kind: fundevents.KindFundClosed, OccurredAt: on("2026-06-01"), Automatic: true},
 	}
 
-	err := ClosedFundSummary(fund, donations.FundStats{}, nil, nil, timeline, &members.Member{}, "/archive").
+	err := ClosedFundSummary(fund, donations.FundStats{}, nil, nil, nil, timeline, &members.Member{}, "/archive").
 		Render(context.Background(), &out)
 	if err != nil {
 		t.Fatalf("render: %v", err)

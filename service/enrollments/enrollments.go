@@ -175,3 +175,18 @@ func (s EnrollmentsService) GetActiveEnrollmentsForFund(ctx context.Context, fun
 
 	return enrollments, nil
 }
+
+// RecipientsForFund is who a fund pays, as a donor may see them.
+//
+// Only the names, by construction: the projection has no other field. The
+// decision about whether to call this at all belongs to the caller, which knows
+// whether the fund names its recipients -- this only makes sure that what comes
+// back cannot say more than a name.
+func (s EnrollmentsService) RecipientsForFund(ctx context.Context, fundID uuid.UUID) ([]Recipient, error) {
+	active, err := s.GetActiveEnrollmentsForFund(ctx, fundID)
+	if err != nil {
+		return nil, err
+	}
+
+	return Recipients(active), nil
+}

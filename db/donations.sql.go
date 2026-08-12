@@ -36,7 +36,7 @@ WITH FundStats AS (SELECT fund_id,
                             JOIN member m ON donation.donor_id = m.id
                             LEFT JOIN donation_payment dp ON donation.id = dp.donation_id
                    GROUP BY fund_id)
-SELECT f.id, f.name, f.description, f.provider_id, f.provider_name, f.goal_cents, f.payout_frequency, f.active, f.principal, f.expires, f.next_payment, f.created, f.updated,
+SELECT f.id, f.name, f.description, f.provider_id, f.provider_name, f.goal_cents, f.payout_frequency, f.active, f.principal, f.expires, f.next_payment, f.created, f.updated, f.enrollees_visible,
        fs.total_donated,
        fs.total_donations,
        fs.average_donation,
@@ -51,23 +51,24 @@ GROUP BY f.id, f.name, f.active, f.expires, f.created, fs.total_donated, fs.tota
 `
 
 type GetActiveFundsRow struct {
-	ID              uuid.UUID
-	Name            string
-	Description     string
-	ProviderID      string
-	ProviderName    string
-	GoalCents       pgtype.Int4
-	PayoutFrequency PayoutFrequency
-	Active          bool
-	Principal       uuid.NullUUID
-	Expires         NullDBTime
-	NextPayment     DBTime
-	Created         pgtype.Timestamptz
-	Updated         pgtype.Timestamptz
-	TotalDonated    pgtype.Int4
-	TotalDonations  pgtype.Int8
-	AverageDonation pgtype.Int4
-	TotalDonors     pgtype.Int8
+	ID               uuid.UUID
+	Name             string
+	Description      string
+	ProviderID       string
+	ProviderName     string
+	GoalCents        pgtype.Int4
+	PayoutFrequency  PayoutFrequency
+	Active           bool
+	Principal        uuid.NullUUID
+	Expires          NullDBTime
+	NextPayment      DBTime
+	Created          pgtype.Timestamptz
+	Updated          pgtype.Timestamptz
+	EnrolleesVisible bool
+	TotalDonated     pgtype.Int4
+	TotalDonations   pgtype.Int8
+	AverageDonation  pgtype.Int4
+	TotalDonors      pgtype.Int8
 }
 
 func (q *Queries) GetActiveFunds(ctx context.Context, payoutFrequency PayoutFrequency) ([]GetActiveFundsRow, error) {
@@ -93,6 +94,7 @@ func (q *Queries) GetActiveFunds(ctx context.Context, payoutFrequency PayoutFreq
 			&i.NextPayment,
 			&i.Created,
 			&i.Updated,
+			&i.EnrolleesVisible,
 			&i.TotalDonated,
 			&i.TotalDonations,
 			&i.AverageDonation,
@@ -121,7 +123,7 @@ WITH FundStats AS (SELECT fund_id,
                             JOIN member m ON donation.donor_id = m.id
                             LEFT JOIN donation_payment dp ON donation.id = dp.donation_id
                    GROUP BY fund_id)
-SELECT f.id, f.name, f.description, f.provider_id, f.provider_name, f.goal_cents, f.payout_frequency, f.active, f.principal, f.expires, f.next_payment, f.created, f.updated,
+SELECT f.id, f.name, f.description, f.provider_id, f.provider_name, f.goal_cents, f.payout_frequency, f.active, f.principal, f.expires, f.next_payment, f.created, f.updated, f.enrollees_visible,
        fs.total_donated,
        fs.total_donations,
        fs.average_donation,
@@ -133,23 +135,24 @@ ORDER BY (f.active = false OR (f.expires IS NOT NULL AND f.expires <= NOW())),
 `
 
 type GetAllFundsWithStatsRow struct {
-	ID              uuid.UUID
-	Name            string
-	Description     string
-	ProviderID      string
-	ProviderName    string
-	GoalCents       pgtype.Int4
-	PayoutFrequency PayoutFrequency
-	Active          bool
-	Principal       uuid.NullUUID
-	Expires         NullDBTime
-	NextPayment     DBTime
-	Created         pgtype.Timestamptz
-	Updated         pgtype.Timestamptz
-	TotalDonated    pgtype.Int4
-	TotalDonations  pgtype.Int8
-	AverageDonation pgtype.Int4
-	TotalDonors     pgtype.Int8
+	ID               uuid.UUID
+	Name             string
+	Description      string
+	ProviderID       string
+	ProviderName     string
+	GoalCents        pgtype.Int4
+	PayoutFrequency  PayoutFrequency
+	Active           bool
+	Principal        uuid.NullUUID
+	Expires          NullDBTime
+	NextPayment      DBTime
+	Created          pgtype.Timestamptz
+	Updated          pgtype.Timestamptz
+	EnrolleesVisible bool
+	TotalDonated     pgtype.Int4
+	TotalDonations   pgtype.Int8
+	AverageDonation  pgtype.Int4
+	TotalDonors      pgtype.Int8
 }
 
 // The admin listing, deliberately unfiltered.
@@ -184,6 +187,7 @@ func (q *Queries) GetAllFundsWithStats(ctx context.Context) ([]GetAllFundsWithSt
 			&i.NextPayment,
 			&i.Created,
 			&i.Updated,
+			&i.EnrolleesVisible,
 			&i.TotalDonated,
 			&i.TotalDonations,
 			&i.AverageDonation,
@@ -225,7 +229,7 @@ WITH FundStats AS (SELECT fund_id,
                               JOIN fund_enrollment fe ON fe.id = p.fund_enrollment_id
                      WHERE p.status = 'paid'
                      GROUP BY bp.fund_id)
-SELECT f.id, f.name, f.description, f.provider_id, f.provider_name, f.goal_cents, f.payout_frequency, f.active, f.principal, f.expires, f.next_payment, f.created, f.updated,
+SELECT f.id, f.name, f.description, f.provider_id, f.provider_name, f.goal_cents, f.payout_frequency, f.active, f.principal, f.expires, f.next_payment, f.created, f.updated, f.enrollees_visible,
        fs.total_donated,
        fs.total_donations,
        fs.average_donation,
@@ -247,27 +251,28 @@ ORDER BY COALESCE(f.expires, f.updated) DESC
 `
 
 type GetClosedFundsWithStatsRow struct {
-	ID              uuid.UUID
-	Name            string
-	Description     string
-	ProviderID      string
-	ProviderName    string
-	GoalCents       pgtype.Int4
-	PayoutFrequency PayoutFrequency
-	Active          bool
-	Principal       uuid.NullUUID
-	Expires         NullDBTime
-	NextPayment     DBTime
-	Created         pgtype.Timestamptz
-	Updated         pgtype.Timestamptz
-	TotalDonated    pgtype.Int4
-	TotalDonations  pgtype.Int8
-	AverageDonation pgtype.Int4
-	TotalDonors     pgtype.Int8
-	TotalPaidCents  int64
-	TotalRecipients int64
-	TotalPayouts    int64
-	LastPayoutDate  pgtype.Timestamptz
+	ID               uuid.UUID
+	Name             string
+	Description      string
+	ProviderID       string
+	ProviderName     string
+	GoalCents        pgtype.Int4
+	PayoutFrequency  PayoutFrequency
+	Active           bool
+	Principal        uuid.NullUUID
+	Expires          NullDBTime
+	NextPayment      DBTime
+	Created          pgtype.Timestamptz
+	Updated          pgtype.Timestamptz
+	EnrolleesVisible bool
+	TotalDonated     pgtype.Int4
+	TotalDonations   pgtype.Int8
+	AverageDonation  pgtype.Int4
+	TotalDonors      pgtype.Int8
+	TotalPaidCents   int64
+	TotalRecipients  int64
+	TotalPayouts     int64
+	LastPayoutDate   pgtype.Timestamptz
 }
 
 // The public archive: funds that have ended, newest first.
@@ -300,6 +305,7 @@ func (q *Queries) GetClosedFundsWithStats(ctx context.Context) ([]GetClosedFunds
 			&i.NextPayment,
 			&i.Created,
 			&i.Updated,
+			&i.EnrolleesVisible,
 			&i.TotalDonated,
 			&i.TotalDonations,
 			&i.AverageDonation,
@@ -740,7 +746,7 @@ WITH FundStats AS (SELECT fund_id,
                             JOIN member m ON donation.donor_id = m.id
                             LEFT JOIN donation_payment dp ON donation.id = dp.donation_id
                    GROUP BY fund_id)
-SELECT f.id, f.name, f.description, f.provider_id, f.provider_name, f.goal_cents, f.payout_frequency, f.active, f.principal, f.expires, f.next_payment, f.created, f.updated,
+SELECT f.id, f.name, f.description, f.provider_id, f.provider_name, f.goal_cents, f.payout_frequency, f.active, f.principal, f.expires, f.next_payment, f.created, f.updated, f.enrollees_visible,
        fs.total_donated,
        fs.total_donations,
        fs.average_donation,
@@ -751,23 +757,24 @@ WHERE f.id = $1
 `
 
 type GetFundByIdRow struct {
-	ID              uuid.UUID
-	Name            string
-	Description     string
-	ProviderID      string
-	ProviderName    string
-	GoalCents       pgtype.Int4
-	PayoutFrequency PayoutFrequency
-	Active          bool
-	Principal       uuid.NullUUID
-	Expires         NullDBTime
-	NextPayment     DBTime
-	Created         pgtype.Timestamptz
-	Updated         pgtype.Timestamptz
-	TotalDonated    pgtype.Int4
-	TotalDonations  pgtype.Int8
-	AverageDonation pgtype.Int4
-	TotalDonors     pgtype.Int8
+	ID               uuid.UUID
+	Name             string
+	Description      string
+	ProviderID       string
+	ProviderName     string
+	GoalCents        pgtype.Int4
+	PayoutFrequency  PayoutFrequency
+	Active           bool
+	Principal        uuid.NullUUID
+	Expires          NullDBTime
+	NextPayment      DBTime
+	Created          pgtype.Timestamptz
+	Updated          pgtype.Timestamptz
+	EnrolleesVisible bool
+	TotalDonated     pgtype.Int4
+	TotalDonations   pgtype.Int8
+	AverageDonation  pgtype.Int4
+	TotalDonors      pgtype.Int8
 }
 
 func (q *Queries) GetFundById(ctx context.Context, id uuid.UUID) (GetFundByIdRow, error) {
@@ -787,6 +794,7 @@ func (q *Queries) GetFundById(ctx context.Context, id uuid.UUID) (GetFundByIdRow
 		&i.NextPayment,
 		&i.Created,
 		&i.Updated,
+		&i.EnrolleesVisible,
 		&i.TotalDonated,
 		&i.TotalDonations,
 		&i.AverageDonation,
@@ -1141,7 +1149,7 @@ func (q *Queries) GetFundPayoutStats(ctx context.Context, fundID uuid.UUID) (Get
 }
 
 const getFunds = `-- name: GetFunds :many
-SELECT id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated
+SELECT id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated, enrollees_visible
 FROM fund
 ORDER BY created
 `
@@ -1169,6 +1177,7 @@ func (q *Queries) GetFunds(ctx context.Context) ([]Fund, error) {
 			&i.NextPayment,
 			&i.Created,
 			&i.Updated,
+			&i.EnrolleesVisible,
 		); err != nil {
 			return nil, err
 		}
@@ -1591,7 +1600,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
              WHEN $7::payout_frequency = 'daily'
                  THEN (date_trunc('day', now() AT TIME ZONE 'UTC') + INTERVAL '1 day') AT TIME ZONE 'UTC'
              ELSE $9::timestamptz END))
-RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated
+RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated, enrollees_visible
 `
 
 type InsertFundParams struct {
@@ -1635,6 +1644,7 @@ func (q *Queries) InsertFund(ctx context.Context, arg InsertFundParams) (Fund, e
 		&i.NextPayment,
 		&i.Created,
 		&i.Updated,
+		&i.EnrolleesVisible,
 	)
 	return i, err
 }
@@ -2129,7 +2139,7 @@ const setFundToActive = `-- name: SetFundToActive :one
 UPDATE fund
 SET active = true
 WHERE id = $1
-RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated
+RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated, enrollees_visible
 `
 
 func (q *Queries) SetFundToActive(ctx context.Context, id uuid.UUID) (Fund, error) {
@@ -2149,6 +2159,7 @@ func (q *Queries) SetFundToActive(ctx context.Context, id uuid.UUID) (Fund, erro
 		&i.NextPayment,
 		&i.Created,
 		&i.Updated,
+		&i.EnrolleesVisible,
 	)
 	return i, err
 }
@@ -2157,7 +2168,7 @@ const setFundToInactive = `-- name: SetFundToInactive :one
 UPDATE fund
 SET active = false
 WHERE id = $1
-RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated
+RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated, enrollees_visible
 `
 
 func (q *Queries) SetFundToInactive(ctx context.Context, id uuid.UUID) (Fund, error) {
@@ -2177,6 +2188,7 @@ func (q *Queries) SetFundToInactive(ctx context.Context, id uuid.UUID) (Fund, er
 		&i.NextPayment,
 		&i.Created,
 		&i.Updated,
+		&i.EnrolleesVisible,
 	)
 	return i, err
 }
@@ -2346,20 +2358,21 @@ func (q *Queries) UpdateDonationPlan(ctx context.Context, arg UpdateDonationPlan
 const updateFund = `-- name: UpdateFund :one
 UPDATE fund
 SET (name, description, active, payout_frequency, goal_cents, expires, principal,
-     updated) = ($2, $3, $4, $5, $6, $7, $8, now())
+     enrollees_visible, updated) = ($2, $3, $4, $5, $6, $7, $8, $9, now())
 WHERE id = $1
-RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated
+RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_frequency, active, principal, expires, next_payment, created, updated, enrollees_visible
 `
 
 type UpdateFundParams struct {
-	ID              uuid.UUID
-	Name            string
-	Description     string
-	Active          bool
-	PayoutFrequency PayoutFrequency
-	GoalCents       pgtype.Int4
-	Expires         NullDBTime
-	Principal       uuid.NullUUID
+	ID               uuid.UUID
+	Name             string
+	Description      string
+	Active           bool
+	PayoutFrequency  PayoutFrequency
+	GoalCents        pgtype.Int4
+	Expires          NullDBTime
+	Principal        uuid.NullUUID
+	EnrolleesVisible bool
 }
 
 func (q *Queries) UpdateFund(ctx context.Context, arg UpdateFundParams) (Fund, error) {
@@ -2372,6 +2385,7 @@ func (q *Queries) UpdateFund(ctx context.Context, arg UpdateFundParams) (Fund, e
 		arg.GoalCents,
 		arg.Expires,
 		arg.Principal,
+		arg.EnrolleesVisible,
 	)
 	var i Fund
 	err := row.Scan(
@@ -2388,6 +2402,7 @@ func (q *Queries) UpdateFund(ctx context.Context, arg UpdateFundParams) (Fund, e
 		&i.NextPayment,
 		&i.Created,
 		&i.Updated,
+		&i.EnrolleesVisible,
 	)
 	return i, err
 }

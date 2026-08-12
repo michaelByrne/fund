@@ -189,7 +189,17 @@ func FundDetails(fund donations.Fund, image *donations.FundImage, failure, succe
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" class=\"w-full p-1 text-sm border border-slate-300 shadow-sm\"></div></div><div class=\"flex items-center gap-3\"><span class=\"text-xs text-gray-600\">paypal holds name and frequency</span> <button type=\"submit\" class=\"ml-auto px-3 py-1 text-sm bg-button hover:shadow-blue-boxy-thin shadow-blue-boxy\">save</button></div></form></div>")
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" class=\"w-full p-1 text-sm border border-slate-300 shadow-sm\"></div></div><label class=\"flex items-start gap-2 text-xs\"><input type=\"checkbox\" name=\"show_recipients\" value=\"true\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if fund.EnrolleesVisible {
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" checked")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" class=\"mt-0.5\"> <span>show this fund's recipients to donors. <span class=\"text-gray-600\">their bco names appear on the fund page and its archive. off unless the people enrolled are happy to be named.</span></span></label><div class=\"flex items-center gap-3\"><span class=\"text-xs text-gray-600\">paypal holds name and frequency</span> <button type=\"submit\" class=\"ml-auto px-3 py-1 text-sm bg-button hover:shadow-blue-boxy-thin shadow-blue-boxy\">save</button></div></form></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -250,7 +260,7 @@ func ClosedFundDetails(fund donations.Fund, image *donations.FundImage) templ.Co
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(image.URL())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funddetails.templ`, Line: 125, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funddetails.templ`, Line: 145, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -263,7 +273,7 @@ func ClosedFundDetails(fund donations.Fund, image *donations.FundImage) templ.Co
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", image.Width))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funddetails.templ`, Line: 127, Col: 44}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funddetails.templ`, Line: 147, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -276,7 +286,7 @@ func ClosedFundDetails(fund donations.Fund, image *donations.FundImage) templ.Co
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", image.Height))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funddetails.templ`, Line: 128, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funddetails.templ`, Line: 148, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -376,7 +386,7 @@ func lockedDescription(description string) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(description)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funddetails.templ`, Line: 178, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funddetails.templ`, Line: 198, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
@@ -442,7 +452,7 @@ func lockedField(label, value string) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funddetails.templ`, Line: 208, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funddetails.templ`, Line: 228, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -455,7 +465,7 @@ func lockedField(label, value string) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(value)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funddetails.templ`, Line: 211, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/adminweb/funddetails.templ`, Line: 231, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
