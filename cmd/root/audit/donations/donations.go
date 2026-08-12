@@ -55,7 +55,7 @@ func reconcile(ctx context.Context, runConfig *root.RunConfig, logger *slog.Logg
 	)
 	tokenStore := token.NewStore(tokenClient)
 	paypalClient := paypal.NewClient(tokenStore, logger, runConfig.PayPal.BaseURL)
-	paypalService := paypal.NewPaypal(paypalClient, runConfig.PayPal.ProductID)
+	paypalService := paypal.NewPaypal(paypalClient)
 
 	pool, err := pg.GetDBPool(dbURI)
 	if err != nil {

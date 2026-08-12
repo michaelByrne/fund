@@ -24,7 +24,6 @@ func loadRunConfig() (*root.RunConfig, error) {
 		ClientSecret: getEnvOrError("DEV_PAYPAL_CLIENT_SECRET", !isLive),
 		BaseURL:      getEnvOrError("DEV_PAYPAL_BASE_URL", !isLive),
 		WebhookID:    getEnvOrError("DEV_PAYPAL_WEBHOOK_ID", !isLive),
-		ProductID:    getEnvOrError("DEV_PAYPAL_PRODUCT_ID", !isLive),
 	}
 
 	if isLive {
@@ -33,7 +32,6 @@ func loadRunConfig() (*root.RunConfig, error) {
 			ClientSecret: getEnvOrError("PROD_PAYPAL_CLIENT_SECRET", isLive),
 			BaseURL:      getEnvOrError("PROD_PAYPAL_URL", isLive),
 			WebhookID:    getEnvOrError("PROD_PAYPAL_WEBHOOK_ID", isLive),
-			ProductID:    getEnvOrError("PROD_PAYPAL_PRODUCT_ID", isLive),
 		}
 	}
 
