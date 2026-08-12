@@ -27,7 +27,7 @@ func fundWithImage(t *testing.T) (donations.Fund, map[uuid.UUID]donations.FundIm
 func TestTheFundListShowsPictures(t *testing.T) {
 	fund, images := fundWithImage(t)
 
-	html := render(t, Funds([]donations.Fund{fund}, nil, images, &members.Member{}, "/"))
+	html := render(t, Funds([]donations.Fund{fund}, nil, images, nil, &members.Member{}, "/"))
 
 	require.Contains(t, html, "/fund/"+fund.ID.String()+"/image/abc123")
 
@@ -42,7 +42,7 @@ func TestTheFundListShowsPictures(t *testing.T) {
 func TestAFundWithNoPictureStillLines(t *testing.T) {
 	fund := donations.Fund{ID: uuid.New(), Name: "human fund"}
 
-	html := render(t, Funds([]donations.Fund{fund}, nil, nil, &members.Member{}, "/"))
+	html := render(t, Funds([]donations.Fund{fund}, nil, nil, nil, &members.Member{}, "/"))
 
 	require.NotContains(t, html, "/image/")
 
@@ -89,7 +89,7 @@ func TestTheClosedListShowsPictures(t *testing.T) {
 func TestListPicturesAreNotAnnouncedTwice(t *testing.T) {
 	fund, images := fundWithImage(t)
 
-	html := render(t, Funds([]donations.Fund{fund}, nil, images, &members.Member{}, "/"))
+	html := render(t, Funds([]donations.Fund{fund}, nil, images, nil, &members.Member{}, "/"))
 
 	require.Contains(t, html, `alt=""`)
 	require.NotContains(t, html, `alt="human fund"`)

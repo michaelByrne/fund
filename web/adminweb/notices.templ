@@ -1,0 +1,124 @@
+package adminweb
+
+import (
+	"boardfund/service/notices"
+	"boardfund/web/common"
+	"fmt"
+)
+
+// Notices is the admin panel for the messages members see at the top of the home
+// page.
+//
+// Everything, not just the active ones. A notice that has come down is the most
+// likely thing somebody wants next -- last month's "payouts are delayed" said
+// again this month -- and a panel that hid them would mean retyping.
+templ Notices(all []notices.Notice) {
+	@common.Section("notices") {
+		@NoticePanel(all, "")
+	}
+}
+
+// NoticePanel is the swappable half: the form and the table together.
+//
+// Both, because posting a notice changes both -- the new row goes to the top of
+// the table and the box has to be emptied -- and returning them as one fragment
+// is what keeps the two from disagreeing.
+templ NoticePanel(all []notices.Notice, failure string) {
+	<div id="notices" class="flex flex-col">
+		@AddNotice(failure)
+		@NoticeTable(all)
+	</div>
+}
+
+// AddNotice carries its own failure, so a refused notice is reported beside the
+// box it was typed in rather than in the shared error slot at the top of the
+// page, where it would sit above a form that still holds the text.
+templ AddNotice(failure string) {
+	// hx-target-error, because the admin layout routes every error to
+	// #admin-error -- which would put a message about this box above a form that
+	// still holds the text. Refusals come back as the panel, so they land where
+	// the typing is.
+	<form
+		id="add-notice"
+		hx-post="/admin/notice"
+		hx-target="#notices"
+		hx-target-error="#notices"
+		hx-swap="outerHTML"
+		class="flex flex-col gap-2 mb-4"
+	>
+		<textarea
+			name="body"
+			rows="3"
+			maxlength={ fmt.Sprintf("%d", notices.MaxBodyLength) }
+			placeholder="something every member should see..."
+			class="w-full p-2 text-sm border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+		></textarea>
+		if failure != "" {
+			<span class="text-xs text-red-700">{ failure }</span>
+		}
+		<button
+			type="submit"
+			class="self-start px-4 py-1 text-sm bg-button hover:shadow-blue-boxy-thin shadow-blue-boxy"
+		>
+			post notice
+		</button>
+	</form>
+}
+
+templ NoticeTable(all []notices.Notice) {
+	if len(all) == 0 {
+		<p class="text-sm p-2">nothing has been posted yet.</p>
+	} else {
+		<div class="overflow-x-auto">
+			<table class="table-auto w-full border-collapse text-sm leading-relaxed">
+				<thead class="bg-even">
+					<tr>
+						<th class="p-2 text-left font-semibold">notice</th>
+						<th class="p-2 text-left font-semibold w-[15%]">active</th>
+						<th class="p-2 text-left font-semibold w-[20%]">posted</th>
+					</tr>
+				</thead>
+				<tbody id="notice-rows">
+					for _, notice := range all {
+						@NoticeRow(notice)
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
+
+// NoticeRow is one message and the control that puts it up or takes it down.
+//
+// The button says what it will do rather than what the row is, because the
+// column beside it already says that and a control labelled with the current
+// state is the reliable way to make somebody click the wrong one.
+templ NoticeRow(notice notices.Notice) {
+	<tr id={ "notice-" + notice.ID.String() } class="odd:bg-odd even:bg-even align-top">
+		<td class="p-2 whitespace-pre-wrap break-words">{ notice.Body }</td>
+		<td class="p-2">
+			if notice.Active {
+				<span class="text-xs font-semibold">on the home page</span>
+			} else {
+				<span class="text-xs text-gray-600">not shown</span>
+			}
+		</td>
+		<td class="p-2 whitespace-nowrap">
+			<div class="tabular-nums">{ notice.Created.Format("01-02-2006") }</div>
+			<button
+				type="button"
+				hx-post={ fmt.Sprintf("/admin/notice/visibility/%s", notice.ID.String()) }
+				hx-vals={ fmt.Sprintf(`{"active": "%t"}`, !notice.Active) }
+				hx-target={ "#notice-" + notice.ID.String() }
+				hx-swap="outerHTML"
+				class="mt-1 text-xs text-links hover:underline"
+			>
+				if notice.Active {
+					take down
+				} else {
+					put back up
+				}
+			</button>
+		</td>
+	</tr>
+}

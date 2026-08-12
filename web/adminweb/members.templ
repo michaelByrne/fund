@@ -4,12 +4,13 @@ import (
 	"boardfund/service/auth"
 	"boardfund/service/donations"
 	"boardfund/service/members"
+	"boardfund/service/notices"
 	"boardfund/web/common"
 	"fmt"
 	"strings"
 )
 
-templ Members(members []members.Member, emails []auth.ApprovedEmail, member *members.Member, path string) {
+templ Members(members []members.Member, emails []auth.ApprovedEmail, notices []notices.Notice, member *members.Member, path string) {
 	@Admin(member, path) {
 		<div class="grid grid-cols-1 gap-2 lg:grid-cols-2 h-full">
 			<div class="approved-emails flex flex-col h-full p-2 overflow-hidden w-[95%]">
@@ -17,6 +18,11 @@ templ Members(members []members.Member, emails []auth.ApprovedEmail, member *mem
 			</div>
 			<div class="flex flex-col h-full p-2 overflow-hidden w-[95%]">
 				@MembersList(members)
+			</div>
+			// Full width beneath both, because a notice is a paragraph and the two
+			// columns above are lists of short rows.
+			<div class="lg:col-span-2 flex flex-col p-2 overflow-hidden w-[95%]">
+				@Notices(notices)
 			</div>
 		</div>
 	}

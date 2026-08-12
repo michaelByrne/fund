@@ -22,6 +22,8 @@ import (
 	fundeventstore "boardfund/service/fundevents/store"
 	"boardfund/service/members"
 	memberstore "boardfund/service/members/store"
+	"boardfund/service/notices"
+	noticestore "boardfund/service/notices/store"
 	"boardfund/service/payouts"
 	payoutstore "boardfund/service/payouts/store"
 	"boardfund/web/adminweb"
@@ -227,6 +229,7 @@ func run(ctx context.Context, runConfig RunConfig) error {
 
 	fundEvents := fundevents.NewService(eventStore, logger)
 	adminEvents := adminevents.NewService(adminEventStore, logger)
+	noticeService := notices.NewService(noticestore.NewNoticeStore(pool), logger)
 
 	donationService := donations.NewDonationService(donationStore, documentStorage, fundImages, paypalService, fundEvents, runConfig.ReportTypes, logger)
 	memberService := members.NewMemberService(memberStore, donationStore, paypalService, fundEvents, logger)
@@ -254,12 +257,12 @@ func run(ctx context.Context, runConfig RunConfig) error {
 
 	// Handlers setup
 	donationHandlers := homeweb.NewFundHandlers(
-		donationService, fundEvents, sessionManager, authMiddleware, logger,
+		donationService, fundEvents, noticeService, sessionManager, authMiddleware, logger,
 		runConfig.PayPal.ClientID,
 	)
 	authHandlers := authweb.NewAuthHandlers(authService, memberService, sessionManager, runConfig.PayPal.ClientID, runConfig.IsLive)
 	adminHandlers := adminweb.NewAdminHandlers(
-		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, payoutService, fundEvents, adminEvents, sessionManager, logger, messageBroker, runConfig.PayPal.ClientID,
+		adminAuthMiddleware, memberService, donationService, authService, financeService, enrollmentService, payoutService, fundEvents, adminEvents, noticeService, sessionManager, logger, messageBroker, runConfig.PayPal.ClientID,
 	)
 	webhooksHandlers := hooksweb.NewWebhooksHandlers(
 		donationService, memberService, messageBroker, hooksstore.NewDeliveryStore(pool), logger, runConfig.PayPal.WebhookID,

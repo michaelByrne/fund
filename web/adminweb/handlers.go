@@ -9,6 +9,7 @@ import (
 	"boardfund/service/finance"
 	"boardfund/service/fundevents"
 	"boardfund/service/members"
+	"boardfund/service/notices"
 	"boardfund/service/payouts"
 	"boardfund/web/common"
 	"boardfund/web/mux"
@@ -38,6 +39,7 @@ type AdminHandlers struct {
 	payoutService     *payouts.PayoutService
 	fundEventsService *fundevents.Service
 	adminEvents       *adminevents.Service
+	noticeService     *notices.Service
 	sessionManager    *scs.SessionManager
 	logger            *slog.Logger
 	webhookBus        webhookBus
@@ -54,6 +56,7 @@ func NewAdminHandlers(
 	payoutService *payouts.PayoutService,
 	fundEventsService *fundevents.Service,
 	adminEvents *adminevents.Service,
+	noticeService *notices.Service,
 	sessionManager *scs.SessionManager,
 	logger *slog.Logger,
 	webhookBus webhookBus,
@@ -69,6 +72,7 @@ func NewAdminHandlers(
 		payoutService:     payoutService,
 		fundEventsService: fundEventsService,
 		adminEvents:       adminEvents,
+		noticeService:     noticeService,
 		sessionManager:    sessionManager,
 		logger:            logger,
 		webhookBus:        webhookBus,
@@ -110,6 +114,11 @@ func (h *AdminHandlers) Register(r *mux.Router) {
 	r.HandleFunc("POST /admin/payout/reject/{id}", h.withAdmin(h.rejectPayout))
 	r.HandleFunc("DELETE /admin/approved/{email}", h.withAdmin(h.deleteApprovedEmail))
 	r.HandleFunc("POST /admin/approved", h.withAdmin(h.addApprovedEmail))
+	r.HandleFunc("POST /admin/notice", h.withAdmin(h.addNotice))
+	// visibility/{id}, not {id}/visibility: a wildcard in the third segment would
+	// overlap the literal "notice" above it, which ServeMux refuses by panicking
+	// as it registers.
+	r.HandleFunc("POST /admin/notice/visibility/{id}", h.withAdmin(h.setNoticeVisibility))
 }
 
 func (h *AdminHandlers) deactivateEnrollment(w http.ResponseWriter, r *http.Request) {
@@ -958,7 +967,14 @@ func (h *AdminHandlers) adminPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	Members(currentMembers, emails, &member, r.URL.Path).Render(ctx, w)
+	// Not fatal: this page is members and approved emails, and it is still that
+	// with an empty notice panel.
+	all, err := h.noticeService.All(ctx)
+	if err != nil {
+		all = nil
+	}
+
+	Members(currentMembers, emails, all, &member, r.URL.Path).Render(ctx, w)
 }
 
 func dollarStringToCents(dollars string) (int32, error) {
@@ -1233,4 +1249,111 @@ func (h *AdminHandlers) badDetails(w http.ResponseWriter, r *http.Request,
 
 	w.WriteHeader(http.StatusBadRequest)
 	FundDetails(*fund, image, message, "").Render(ctx, w)
+}
+
+// addNotice posts a message to the top of every member's home page.
+//
+// The whole panel is swapped back rather than the row alone: a new notice goes
+// to the top of the table and the form has to be emptied, and returning both as
+// one fragment is what keeps the two from disagreeing.
+func (h *AdminHandlers) addNotice(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	actor, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		common.Redirect(w, r, "/")
+
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxFormBytes)
+
+	if err := r.ParseForm(); err != nil {
+		h.badRequest(w, r, "we could not read that form.")
+
+		return
+	}
+
+	if _, err := h.noticeService.Create(ctx, r.FormValue("body"), &actor.ID); err != nil {
+		// Both of these are the admin's text being wrong, which they can fix, so
+		// they are reported next to the box rather than as a failed request.
+		if errors.Is(err, notices.ErrEmptyBody) || errors.Is(err, notices.ErrBodyTooLong) {
+			h.renderNotices(w, r, err.Error())
+
+			return
+		}
+
+		h.internalError(w, r)
+
+		return
+	}
+
+	h.renderNotices(w, r, "")
+}
+
+// setNoticeVisibility puts a notice up or takes it down.
+//
+// Takes the state wanted from the form rather than flipping what is stored. Two
+// admins clicking at once both get what they asked for, instead of each undoing
+// the other.
+func (h *AdminHandlers) setNoticeVisibility(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	actor, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	if !ok {
+		common.Redirect(w, r, "/")
+
+		return
+	}
+
+	noticeID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		h.badRequest(w, r, "that is not a notice id.")
+
+		return
+	}
+
+	if err = r.ParseForm(); err != nil {
+		h.badRequest(w, r, "we could not read that form.")
+
+		return
+	}
+
+	active, err := strconv.ParseBool(r.FormValue("active"))
+	if err != nil {
+		h.badRequest(w, r, "that form did not say whether to show it.")
+
+		return
+	}
+
+	notice, err := h.noticeService.SetActive(ctx, noticeID, active, &actor.ID)
+	if err != nil {
+		h.internalError(w, r)
+
+		return
+	}
+
+	NoticeRow(*notice).Render(ctx, w)
+}
+
+// renderNotices redraws the panel, carrying a failure for the form when there is
+// one.
+//
+// Re-read rather than reusing what was just written, so what comes back is what
+// is stored -- the same reason the fund details card re-reads on a refusal.
+func (h *AdminHandlers) renderNotices(w http.ResponseWriter, r *http.Request, failure string) {
+	ctx := r.Context()
+
+	all, err := h.noticeService.All(ctx)
+	if err != nil {
+		h.internalError(w, r)
+
+		return
+	}
+
+	if failure != "" {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
+	NoticePanel(all, failure).Render(ctx, w)
 }

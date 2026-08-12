@@ -35,9 +35,9 @@ func TestAllRoutesRegisterWithoutConflict(t *testing.T) {
 	sessions := scs.New()
 
 	authHandlers := authweb.NewAuthHandlers(nil, nil, nil, "", true)
-	donationHandlers := homeweb.NewFundHandlers(nil, nil, nil, passthrough, nil, "")
+	donationHandlers := homeweb.NewFundHandlers(nil, nil, nil, nil, passthrough, nil, "")
 	adminHandlers := adminweb.NewAdminHandlers(
-		passthrough, nil, nil, nil, nil, nil, nil, nil, nil, nil, logger, nil, "",
+		passthrough, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, logger, nil, "",
 	)
 	webhooksHandlers := hooksweb.NewWebhooksHandlers(nil, nil, nil, nil, nil, "")
 
