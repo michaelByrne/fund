@@ -257,3 +257,52 @@ func coverageOf(enrolled []enrollments.Enrollment) payoutCoverage {
 
 	return coverage
 }
+
+// pendingPayouts is who a batch would still pay if it were submitted now.
+//
+// A value rather than a bare map, because "nobody is in a pending batch" and "we
+// could not find out" have to render differently. A missing marker is read as
+// "safe to remove", so a failed lookup that silently produced an empty map would
+// be the page giving an assurance it has not checked.
+type pendingPayouts struct {
+	enrollments map[uuid.UUID]bool
+	known       bool
+}
+
+func knownPending(enrollments map[uuid.UUID]bool) pendingPayouts {
+	return pendingPayouts{enrollments: enrollments, known: true}
+}
+
+// unknownPending is what the page uses when the lookup failed.
+func unknownPending() pendingPayouts {
+	return pendingPayouts{known: false}
+}
+
+// Includes reports whether removing this enrollment would leave a payout to it
+// still queued.
+func (p pendingPayouts) Includes(enrollmentID uuid.UUID) bool {
+	return p.enrollments[enrollmentID]
+}
+
+// Unknown reports that the panel cannot say either way, so it can say that
+// instead of implying there is nothing pending.
+func (p pendingPayouts) Unknown() bool {
+	return !p.known
+}
+
+// removalConfirmation is what the browser asks before a member is taken off a
+// fund.
+//
+// The warning goes here rather than only on the row, because this is the moment
+// the decision is taken -- and a removal that will not stop a payment is not the
+// thing the plain question describes.
+func removalConfirmation(name string, inUnsentBatch bool) string {
+	if inUnsentBatch {
+		return fmt.Sprintf(
+			"%s is already in a planned payout. removing them here will not stop it -- "+
+				"reject the batch on the payouts page if that is what you want. remove them anyway?",
+			name)
+	}
+
+	return fmt.Sprintf("deactivate enrollment for %s?", name)
+}

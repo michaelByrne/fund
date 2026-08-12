@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-templ Enrollments(fund donations.Fund, enrollments []enrollments.Enrollment, events []fundevents.Event, image *donations.FundImage, member *members.Member, path string) {
+templ Enrollments(fund donations.Fund, enrollments []enrollments.Enrollment, pending pendingPayouts, events []fundevents.Event, image *donations.FundImage, member *members.Member, path string) {
 	@Admin(member, path) {
 		// response-targets, or htmx discards the 4xx from a refused upload and the
 		// control silently does nothing.
@@ -31,7 +31,7 @@ templ Enrollments(fund donations.Fund, enrollments []enrollments.Enrollment, eve
 			// Beside the add-enrollment form it sits next to, so adding somebody and
 			// seeing who is already there are one glance rather than two.
 			<div class="flex flex-col overflow-visible">
-				@CurrentEnrollments(enrollments)
+				@CurrentEnrollments(enrollments, pending)
 			</div>
 			<div class="flex flex-col overflow-visible">
 				@FundHistory(events)
@@ -101,13 +101,27 @@ templ EventActor(event fundevents.Event) {
 	}
 }
 
-templ CurrentEnrollments(enrollments []enrollments.Enrollment) {
+templ CurrentEnrollments(enrollments []enrollments.Enrollment, pending pendingPayouts) {
 	@common.Section("current enrollments") {
 		@UnpayableNotice(coverageOf(enrollments))
+		@PendingUnknownNotice(pending)
 		<div class="flex-grow overflow-y-auto max-h-[300px] sm:max-h-[500px]">
 			<ul id="enrollments">
-				@EnrollmentsList(enrollments)
+				@EnrollmentsList(enrollments, pending)
 			</ul>
+		</div>
+	}
+}
+
+// PendingUnknownNotice appears only when the pending-batch lookup failed.
+//
+// Without it a page that could not check looks exactly like a page that checked
+// and found nothing, and the marker's absence is the thing an admin would act
+// on.
+templ PendingUnknownNotice(pending pendingPayouts) {
+	if pending.Unknown() {
+		<div class="mb-2 p-2 text-xs bg-odd-hover">
+			could not check whether a planned payout is still queued for anyone here.
 		</div>
 	}
 }
@@ -123,9 +137,9 @@ templ UnpayableNotice(coverage payoutCoverage) {
 	}
 }
 
-templ EnrollmentsList(enrollments []enrollments.Enrollment) {
+templ EnrollmentsList(enrollments []enrollments.Enrollment, pending pendingPayouts) {
 	for _, enrollment := range enrollments {
-		@EnrollmentRow(enrollment)
+		@EnrollmentRow(enrollment, pending.Includes(enrollment.ID))
 	}
 }
 
@@ -134,7 +148,7 @@ templ EnrollmentsList(enrollments []enrollments.Enrollment) {
 // invisible -- PlanBatch skips an enrollee with no PayPal address, and the
 // eligibility query skips one whose first payout date has not arrived, in both
 // cases without saying so anywhere.
-templ EnrollmentRow(enrollment enrollments.Enrollment) {
+templ EnrollmentRow(enrollment enrollments.Enrollment, inUnsentBatch bool) {
 	<li
 		class="enrollment-row p-2 flex flex-col md:flex-row md:items-start gap-1 even:bg-even odd:bg-odd odd:hover:bg-odd-hover even:hover:bg-even-hover transition-opacity duration-300"
 	>
@@ -142,15 +156,19 @@ templ EnrollmentRow(enrollment enrollments.Enrollment) {
 			<div class="flex flex-row items-baseline gap-2">
 				<span class="font-medium">{ enrollment.MemberBCOName }</span>
 				@EnrollmentStatus(enrollment)
+				@QueuedPayoutMarker(inUnsentBatch)
 			</div>
 			<div class="flex flex-row flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs text-gray-600">
 				@EnrollmentPayee(enrollment)
 				<span>&#183; enrolled { enrollment.Created.Format("01-02-2006") }</span>
 			</div>
 		</div>
+		// The confirm text carries the warning as well as the marker does, because
+		// this is the moment the decision is taken and the marker sits a few pixels
+		// from a control that is one click from done.
 		<div
 			hx-post={ fmt.Sprintf("/admin/enrollment/cancel/%s", enrollment.ID.String()) }
-			hx-confirm={ fmt.Sprintf("deactivate enrollment for %s?", enrollment.MemberBCOName) }
+			hx-confirm={ removalConfirmation(enrollment.MemberBCOName, inUnsentBatch) }
 			hx-trigger="click consume"
 			class="clickable flex items-center justify-center h-8 w-8 shrink-0 text-gray-500 hover:text-red-500"
 		>
@@ -162,6 +180,17 @@ templ EnrollmentRow(enrollment enrollments.Enrollment) {
             });
         </script>
 	</li>
+}
+
+// QueuedPayoutMarker says a payout is already queued for this person, so
+// removing them will not stop it.
+//
+// Shown only when true, like every other marker on this row: a line on every row
+// saying "nothing queued" is a line people learn to skip.
+templ QueuedPayoutMarker(inUnsentBatch bool) {
+	if inUnsentBatch {
+		<span class="text-xs font-semibold text-red-700">payout already queued</span>
+	}
 }
 
 // EnrollmentStatus marks anyone the next batch would leave out. Silence means
@@ -320,7 +349,12 @@ templ EnrollmentSuccess(enrollment enrollments.Enrollment, member members.Member
 		</div>
 	}
 	<div hx-swap-oob="beforeend:#enrollments">
-		@EnrollmentRow(enrollment)
+		// No queued-payout marker on a row that was just added: a batch is planned
+		// from enrollments that already existed. The exception is re-adding somebody
+		// removed while a batch was pending -- InsertEnrollment upserts, so that
+		// reactivates the same row, and it may still be in the batch. Harmless and
+		// transient: they are enrolled again, and the next page load marks it.
+		@EnrollmentRow(enrollment, false)
 	</div>
 }
 

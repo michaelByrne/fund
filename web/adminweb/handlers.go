@@ -115,7 +115,7 @@ func (h *AdminHandlers) Register(r *mux.Router) {
 func (h *AdminHandlers) deactivateEnrollment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	_, ok := h.sessionManager.Get(ctx, "member").(members.Member)
+	actor, ok := h.sessionManager.Get(ctx, "member").(members.Member)
 	if !ok {
 		http.Redirect(w, r, "/", http.StatusFound)
 
@@ -136,7 +136,7 @@ func (h *AdminHandlers) deactivateEnrollment(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	_, err = h.enrollmentService.DeactivateEnrollment(ctx, idUUID)
+	_, err = h.enrollmentService.DeactivateEnrollment(ctx, idUUID, &actor.ID)
 	if err != nil {
 		h.internalError(w, r)
 
@@ -464,8 +464,16 @@ func (h *AdminHandlers) fundPage(w http.ResponseWriter, r *http.Request) {
 		image = nil
 	}
 
+	// Not fatal, but not silently absent either. A missing marker reads as "safe
+	// to remove", so a failed lookup has to say so rather than let the page give
+	// an assurance it has not checked.
+	pending := unknownPending()
+	if queued, errQueued := h.payoutService.EnrollmentsInUnsentBatches(ctx, fundID); errQueued == nil {
+		pending = knownPending(queued)
+	}
+
 	w.Header().Add("HX-Redirect", r.URL.String())
-	Enrollments(*fund, activeEnrollments, events, image, &member, r.URL.Path).Render(ctx, w)
+	Enrollments(*fund, activeEnrollments, pending, events, image, &member, r.URL.Path).Render(ctx, w)
 }
 
 // removeFundNote takes a donor's note down.

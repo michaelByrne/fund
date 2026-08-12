@@ -61,7 +61,7 @@ func TestEnrollmentRowShowsWhoCannotBePaid(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			var out strings.Builder
-			if err := EnrollmentRow(c.enrollment).Render(ctx, &out); err != nil {
+			if err := EnrollmentRow(c.enrollment, false).Render(ctx, &out); err != nil {
 				t.Fatalf("render: %v", err)
 			}
 
@@ -188,7 +188,7 @@ func TestEnrollmentsSitBesideTheFormThatAddsThem(t *testing.T) {
 
 	page := Enrollments(
 		donations.Fund{Name: "rent", Active: true},
-		nil, nil, nil,
+		nil, knownPending(nil), nil, nil,
 		&members.Member{}, "/admin/fund",
 	)
 

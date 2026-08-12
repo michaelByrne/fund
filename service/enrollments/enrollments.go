@@ -48,7 +48,18 @@ func NewEnrollmentsService(enrollmentStore enrollmentStore, fundStore fundStore,
 	}
 }
 
-func (s EnrollmentsService) DeactivateEnrollment(ctx context.Context, enrollmentID uuid.UUID) (*Enrollment, error) {
+// DeactivateEnrollment takes a member off a fund.
+//
+// Soft: the row stays with active = false, so the enrollment's history and any
+// payouts already made to it survive. Re-adding the same member reuses the row --
+// InsertEnrollment upserts on (fund_id, member_id) -- rather than failing on the
+// unique constraint.
+//
+// actorID is a pointer to match every other administrative action, but this one
+// is always somebody: an enrollment does not cancel itself, and nothing
+// scheduled cancels one. Recorded without an actor, the feed rendered it as
+// "automatic", which credits a sweep for a decision a person took.
+func (s EnrollmentsService) DeactivateEnrollment(ctx context.Context, enrollmentID uuid.UUID, actorID *uuid.UUID) (*Enrollment, error) {
 	enrollment, err := s.enrollmentStore.DeactivateEnrollment(ctx, enrollmentID)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to deactivate enrollment", slog.String("error", err.Error()))
@@ -59,6 +70,7 @@ func (s EnrollmentsService) DeactivateEnrollment(ctx context.Context, enrollment
 	s.events.Record(ctx, fundevents.Record{
 		FundID:          enrollment.FundID,
 		Kind:            fundevents.KindEnrollmentCancelled,
+		ActorMemberID:   actorID,
 		SubjectMemberID: &enrollment.MemberID,
 		ReferenceID:     &enrollment.ID,
 	})

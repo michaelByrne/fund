@@ -55,6 +55,7 @@ type payoutStore interface {
 	GetDetailedBatchesByStatus(ctx context.Context, status Status) ([]BatchDetail, error)
 	GetPayoutsForBatch(ctx context.Context, batchID uuid.UUID) ([]Payout, error)
 	GetEnrollmentsForPayout(ctx context.Context, fundID uuid.UUID) ([]PayoutEnrollment, error)
+	GetEnrollmentsInUnsentBatches(ctx context.Context, fundID uuid.UUID) ([]uuid.UUID, error)
 	GetFundsDueForPayout(ctx context.Context) ([]DueFund, error)
 	GetFundBalanceCents(ctx context.Context, fundID uuid.UUID) (int64, error)
 	AdvanceFundNextPayment(ctx context.Context, fundID uuid.UUID) error
@@ -869,4 +870,37 @@ func (s PayoutService) GetBatchesReadyToSubmit(ctx context.Context) ([]Batch, er
 	}
 
 	return due, nil
+}
+
+// EnrollmentsInUnsentBatches is who a batch would still pay if it were submitted
+// now, keyed by enrollment id.
+//
+// Removing a member from a fund sets fund_enrollment.active = false, which every
+// later plan honours. It does nothing to a batch already planned: SubmitBatch
+// reads the payout rows by batch id, and those froze the amount and the address
+// when the batch was built. That is defensible -- a treasurer approved a
+// particular set of payees and amounts, and dropping one silently would either
+// strand their share or underpay everyone else -- but it is not what an admin
+// clicking a remove control expects, and nothing said so.
+//
+// Only batches that have not reached the provider. Once one is submitted the
+// money has gone and removing the member cannot affect it, so saying so would be
+// noise on every row after every payout.
+func (s PayoutService) EnrollmentsInUnsentBatches(ctx context.Context, fundID uuid.UUID) (map[uuid.UUID]bool, error) {
+	ids, err := s.payoutStore.GetEnrollmentsInUnsentBatches(ctx, fundID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to read enrollments in unsent batches",
+			slog.String("error", err.Error()),
+			slog.String("fund_id", fundID.String()),
+		)
+
+		return nil, err
+	}
+
+	pending := make(map[uuid.UUID]bool, len(ids))
+	for _, id := range ids {
+		pending[id] = true
+	}
+
+	return pending, nil
 }
