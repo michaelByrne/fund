@@ -649,6 +649,10 @@ func (s DonationService) CreateFund(ctx context.Context, createFund Fund, actorI
 		Expires:         createFund.Expires,
 		Active:          true,
 		ProviderName:    "paypal",
+		// Chosen when the fund is created, like the picture and the goal. It was
+		// only editable afterwards, so a fund whose recipients had agreed to be
+		// named still spent its first moments not naming them.
+		EnrolleesVisible: createFund.EnrolleesVisible,
 	}
 
 	fund, err := s.donationStore.InsertFund(ctx, insertFund)
@@ -672,7 +676,7 @@ func (s DonationService) CreateFund(ctx context.Context, createFund Fund, actorI
 		FundID:        fund.ID,
 		Kind:          fundevents.KindFundCreated,
 		ActorMemberID: actorID,
-		Detail:        string(fund.PayoutFrequency),
+		Detail:        createdFundDetail(*fund),
 	})
 
 	return fund, nil
@@ -1004,4 +1008,20 @@ func checkPayoutSchedule(fund Fund) error {
 	}
 
 	return nil
+}
+
+// createdFundDetail describes a new fund for its first line in the feed.
+//
+// The frequency, and whether it names its recipients. The second only when it
+// does: a fund created already naming people is worth seeing in the history,
+// and "does not name them" on every other fund would be a phrase readers learn
+// to skip.
+func createdFundDetail(fund Fund) string {
+	detail := string(fund.PayoutFrequency)
+
+	if fund.EnrolleesVisible {
+		detail += ", recipient names shown to donors"
+	}
+
+	return detail
 }

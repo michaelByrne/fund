@@ -191,3 +191,35 @@ func enrollmentForm() url.Values {
 
 	return form
 }
+
+// The switch that decides whether people's names appear on a page donors read,
+// so its parsing is worth pinning.
+func TestCheckboxOn(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		form url.Values
+		want bool
+	}{
+		{name: "ticked", form: url.Values{"show_recipients": {"true"}}, want: true},
+		// A browser omits an unticked box entirely. Absence is off, which is the
+		// safe direction: a form that lost the field names nobody.
+		{name: "absent", form: url.Values{}, want: false},
+		// Never sent by a browser, and a hand-made request can. Presence alone
+		// would read this as on.
+		{name: "explicitly false", form: url.Values{"show_recipients": {"false"}}, want: false},
+		{name: "empty", form: url.Values{"show_recipients": {""}}, want: false},
+		{name: "something else", form: url.Values{"show_recipients": {"on"}}, want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "/admin/fund",
+				strings.NewReader(tc.form.Encode()))
+			request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			require.NoError(t, request.ParseForm())
+
+			if got := checkboxOn(request, "show_recipients"); got != tc.want {
+				t.Errorf("checkboxOn = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

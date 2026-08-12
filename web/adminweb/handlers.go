@@ -834,6 +834,10 @@ func (h *AdminHandlers) createFund(w http.ResponseWriter, r *http.Request) {
 		PayoutFrequency: donations.PayoutFrequency(frequency),
 		GoalCents:       goalCents,
 		Expires:         endDate,
+		// A checkbox submits nothing when unticked, so absence is off -- the same
+		// reading as the details card, and the safe direction: a form that lost
+		// the field creates a fund that does not name anybody.
+		EnrolleesVisible: checkboxOn(r, "show_recipients"),
 	}
 
 	newFund, err := h.donationService.CreateFund(ctx, createFund, &actor.ID)
@@ -1180,7 +1184,7 @@ func (h *AdminHandlers) saveFundDetails(w http.ResponseWriter, r *http.Request) 
 	// A checkbox submits nothing when it is unticked, so absence is off. That is
 	// the safe direction: a form that lost the field turns recipient names off
 	// rather than on.
-	updated.EnrolleesVisible = r.FormValue("show_recipients") == "true"
+	updated.EnrolleesVisible = checkboxOn(r, "show_recipients")
 
 	if goal := r.FormValue("goal"); goal != "" {
 		goalCents, errGoal := dollarStringToCents(goal)

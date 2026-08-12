@@ -146,3 +146,16 @@ func (h *AdminHandlers) badRequest(w http.ResponseWriter, r *http.Request, messa
 func (h *AdminHandlers) notFound(w http.ResponseWriter, r *http.Request) {
 	h.renderError(w, r, http.StatusNotFound, msgNotFound)
 }
+
+// checkboxOn reads a checkbox from a submitted form.
+//
+// A browser omits an unticked box entirely, so absence is off -- and that is the
+// safe direction for the one this exists for: a form that lost the field creates
+// a fund that does not name its recipients.
+//
+// Compared against the value the box carries rather than tested for presence.
+// Presence alone would read an explicit "show_recipients=false" as on, which a
+// browser will never send and a hand-made request can.
+func checkboxOn(r *http.Request, name string) bool {
+	return r.FormValue(name) == "true"
+}

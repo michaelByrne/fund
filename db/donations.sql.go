@@ -1597,8 +1597,8 @@ func (q *Queries) InsertDonationPlan(ctx context.Context, arg InsertDonationPlan
 
 const insertFund = `-- name: InsertFund :one
 INSERT INTO fund (id, name, description, provider_id, provider_name, active, payout_frequency, goal_cents, expires,
-                  principal, next_payment)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                  principal, enrollees_visible, next_payment)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
         -- Anchored to midnight UTC rather than the moment of creation.
         --
         -- A fund becomes due on the first cron run after its anchor, and the
@@ -1620,16 +1620,17 @@ RETURNING id, name, description, provider_id, provider_name, goal_cents, payout_
 `
 
 type InsertFundParams struct {
-	ID              uuid.UUID
-	Name            string
-	Description     string
-	ProviderID      string
-	ProviderName    string
-	Active          bool
-	PayoutFrequency PayoutFrequency
-	GoalCents       pgtype.Int4
-	Expires         NullDBTime
-	Principal       uuid.NullUUID
+	ID               uuid.UUID
+	Name             string
+	Description      string
+	ProviderID       string
+	ProviderName     string
+	Active           bool
+	PayoutFrequency  PayoutFrequency
+	GoalCents        pgtype.Int4
+	Expires          NullDBTime
+	Principal        uuid.NullUUID
+	EnrolleesVisible bool
 }
 
 func (q *Queries) InsertFund(ctx context.Context, arg InsertFundParams) (Fund, error) {
@@ -1644,6 +1645,7 @@ func (q *Queries) InsertFund(ctx context.Context, arg InsertFundParams) (Fund, e
 		arg.GoalCents,
 		arg.Expires,
 		arg.Principal,
+		arg.EnrolleesVisible,
 	)
 	var i Fund
 	err := row.Scan(

@@ -239,8 +239,8 @@ RETURNING *;
 
 -- name: InsertFund :one
 INSERT INTO fund (id, name, description, provider_id, provider_name, active, payout_frequency, goal_cents, expires,
-                  principal, next_payment)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                  principal, enrollees_visible, next_payment)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
         -- Anchored to midnight UTC rather than the moment of creation.
         --
         -- A fund becomes due on the first cron run after its anchor, and the
