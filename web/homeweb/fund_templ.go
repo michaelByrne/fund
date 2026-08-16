@@ -617,11 +617,15 @@ func ClosedFundLedger(fund donations.ClosedFund) templ.Component {
 			templ_7745c5c3_Var17 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"my-4 grid grid-cols-2 md:grid-cols-4 gap-4\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"my-4 grid grid-cols-2 md:grid-cols-5 gap-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = LedgerFigure("collected", "$"+centsToDecimalString(fund.Stats.TotalDonated)).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = LedgerFigure("paypal fees", "$"+centsToDecimalString64(fund.Payouts.ProviderFeeCents)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -649,13 +653,13 @@ func ClosedFundLedger(fund donations.ClosedFund) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs("$" + centsToDecimalString64(fund.Undisbursed()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fund.templ`, Line: 220, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fund.templ`, Line: 226, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" was collected but not paid out.</p>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" is left over, after fees.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -668,7 +672,7 @@ func ClosedFundLedger(fund donations.ClosedFund) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(fund.Payouts.LastPayoutDate.Format("January 2, 2006"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fund.templ`, Line: 225, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fund.templ`, Line: 231, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
@@ -711,7 +715,7 @@ func LedgerFigure(label, value string) templ.Component {
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fund.templ`, Line: 232, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fund.templ`, Line: 238, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
@@ -724,7 +728,7 @@ func LedgerFigure(label, value string) templ.Component {
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(value)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fund.templ`, Line: 233, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/homeweb/fund.templ`, Line: 239, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {

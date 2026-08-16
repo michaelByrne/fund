@@ -1128,10 +1128,16 @@ func (q *Queries) GetFundPaymentsForAudit(ctx context.Context, fundID uuid.UUID)
 }
 
 const getFundPayoutStats = `-- name: GetFundPayoutStats :one
-SELECT COALESCE(SUM(p.amount_cents), 0)::bigint          AS total_paid_cents,
-       COUNT(DISTINCT fe.member_id)::bigint              AS total_recipients,
-       COUNT(p.id)::bigint                               AS total_payouts,
-       MAX(p.payout_date)::timestamptz                   AS last_payout_date
+SELECT COALESCE(SUM(p.amount_cents), 0)::bigint AS total_paid_cents,
+       COUNT(DISTINCT fe.member_id)::bigint     AS total_recipients,
+       COUNT(p.id)::bigint                      AS total_payouts,
+       MAX(p.payout_date)::timestamptz          AS last_payout_date,
+       (COALESCE((SELECT SUM(dp.provider_fee_cents)
+                  FROM donation d
+                           JOIN donation_payment dp ON dp.donation_id = d.id
+                  WHERE d.fund_id = $1), 0)
+           + COALESCE(SUM(p.provider_fee_cents), 0))::bigint
+                                                AS provider_fee_cents
 FROM payout p
          JOIN batch_payout bp ON bp.id = p.batch_id
          JOIN fund_enrollment fe ON fe.id = p.fund_enrollment_id
@@ -1140,10 +1146,11 @@ WHERE bp.fund_id = $1
 `
 
 type GetFundPayoutStatsRow struct {
-	TotalPaidCents  int64
-	TotalRecipients int64
-	TotalPayouts    int64
-	LastPayoutDate  pgtype.Timestamptz
+	TotalPaidCents   int64
+	TotalRecipients  int64
+	TotalPayouts     int64
+	LastPayoutDate   pgtype.Timestamptz
+	ProviderFeeCents int64
 }
 
 // What a fund actually disbursed.
@@ -1152,6 +1159,21 @@ type GetFundPayoutStatsRow struct {
 // handed out, so money still pending, unclaimed or returned does not belong in
 // it -- unlike the planner's balance check, which must count anything committed
 // precisely because it has not resolved yet.
+// total_paid_cents is what recipients received, and provider_fee_cents is what
+// PayPal took to move the money -- on both legs, because the fund absorbs the
+// fee in both directions. A donor paying $10.00 is debited $10.00 and the fund
+// receives less; the fund sending $4.48 is debited more, and the enrollee
+// receives $4.48.
+//
+// Reported because the archive subtracts these to say what was left over. It
+// used to compare a gross collected figure against a net paid-out one, so every
+// fee ever charged turned up as "collected but not paid out" -- on the one line
+// of that page that is supposed to mean money never reached anybody.
+//
+// Incoming fees are counted on every payment, refunded or not: PayPal keeps its
+// fee on a refund, so that money is gone either way. Outgoing fees only on paid
+// payouts, matching total_paid_cents beside them -- a failed item's fee is
+// refunded with it.
 func (q *Queries) GetFundPayoutStats(ctx context.Context, fundID uuid.UUID) (GetFundPayoutStatsRow, error) {
 	row := q.db.QueryRow(ctx, getFundPayoutStats, fundID)
 	var i GetFundPayoutStatsRow
@@ -1160,6 +1182,7 @@ func (q *Queries) GetFundPayoutStats(ctx context.Context, fundID uuid.UUID) (Get
 		&i.TotalRecipients,
 		&i.TotalPayouts,
 		&i.LastPayoutDate,
+		&i.ProviderFeeCents,
 	)
 	return i, err
 }

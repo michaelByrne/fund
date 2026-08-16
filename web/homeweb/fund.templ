@@ -206,8 +206,12 @@ templ ClosedFundSummary(fund donations.ClosedFund, fundStats donations.FundStats
 // about whether the money reached anyone, which is the question a finished fund
 // exists to answer.
 templ ClosedFundLedger(fund donations.ClosedFund) {
-	<div class="my-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+	// Collected, fees and paid out add up to what the fund has left, so the four
+	// money figures on this page reconcile in front of the reader rather than
+	// asking them to take one of them on trust.
+	<div class="my-4 grid grid-cols-2 md:grid-cols-5 gap-4">
 		@LedgerFigure("collected", "$"+centsToDecimalString(fund.Stats.TotalDonated))
+		@LedgerFigure("paypal fees", "$"+centsToDecimalString64(fund.Payouts.ProviderFeeCents))
 		@LedgerFigure("paid out", "$"+centsToDecimalString64(fund.Payouts.TotalPaidCents))
 		@LedgerFigure("recipients", fmt.Sprintf("%d", fund.Payouts.TotalRecipients))
 		@LedgerFigure("payouts", fmt.Sprintf("%d", fund.Payouts.TotalPayouts))
@@ -216,8 +220,10 @@ templ ClosedFundLedger(fund donations.ClosedFund) {
 		<p class="text-sm text-gray-600 mb-4">
 			// Shown rather than hidden. A remainder is usually just what would not
 			// divide evenly among recipients, but it is the one figure on this page
-			// that could indicate money never went where it was meant to.
-			{ "$" + centsToDecimalString64(fund.Undisbursed()) } was collected but not paid out.
+			// that could indicate money never went where it was meant to -- which is
+			// why the fees above are subtracted from it rather than left to look
+			// like it.
+			{ "$" + centsToDecimalString64(fund.Undisbursed()) } is left over, after fees.
 		</p>
 	}
 	if fund.Payouts.LastPayoutDate != nil {
