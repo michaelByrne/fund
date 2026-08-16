@@ -676,6 +676,11 @@ type PayoutStats struct {
 	TotalRecipients int64
 	TotalPayouts    int64
 	LastPayoutDate  *time.Time
+
+	// ProviderFeeCents is what PayPal took to move the money, in both
+	// directions: its cut of every donation that arrived, plus its charge on
+	// every payout that went out. The fund absorbs both.
+	ProviderFeeCents int64
 }
 
 // ClosedFund is a fund that has ended, with both sides of its ledger.
@@ -695,11 +700,20 @@ func (c ClosedFund) ClosedOn() time.Time {
 	return c.Updated
 }
 
-// Undisbursed is what was collected but never paid out. Non-zero is not
-// necessarily wrong -- a fund can close holding a remainder too small to split
-// -- but it is the first thing worth seeing on a fund that has ended.
+// Undisbursed is what was collected, less what PayPal took and what recipients
+// received: money the fund still holds.
+//
+// Fees are subtracted because they left. Without that, this compared a gross
+// collected figure against a net paid-out one, so it reported every fee ever
+// charged as money that never reached anybody -- a fund that disbursed all it
+// could still showed a shortfall, on the one line of the page that means
+// something went wrong.
+//
+// Non-zero is still not necessarily wrong: a fund can close holding a remainder
+// too small to split between its recipients. It is the first thing worth seeing
+// on a fund that has ended, which is why it has to be true.
 func (c ClosedFund) Undisbursed() int64 {
-	return int64(c.Stats.TotalDonated) - c.Payouts.TotalPaidCents
+	return int64(c.Stats.TotalDonated) - c.Payouts.ProviderFeeCents - c.Payouts.TotalPaidCents
 }
 
 // UpsertFundImage is a fund picture on its way to storage: bytes this

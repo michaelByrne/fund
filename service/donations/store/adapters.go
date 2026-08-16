@@ -371,9 +371,10 @@ func fromDBClosedFundRow(fund db.GetClosedFundsWithStatsRow) donations.ClosedFun
 
 func fromDBPayoutStats(stats db.GetFundPayoutStatsRow) donations.PayoutStats {
 	out := donations.PayoutStats{
-		TotalPaidCents:  stats.TotalPaidCents,
-		TotalRecipients: stats.TotalRecipients,
-		TotalPayouts:    stats.TotalPayouts,
+		ProviderFeeCents: stats.ProviderFeeCents,
+		TotalPaidCents:   stats.TotalPaidCents,
+		TotalRecipients:  stats.TotalRecipients,
+		TotalPayouts:     stats.TotalPayouts,
 	}
 
 	// A fund that never paid out has no last payout date, which the aggregate
